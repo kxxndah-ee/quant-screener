@@ -1,0 +1,23 @@
+﻿# Python virtual environment
+.venv/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.class
+.pytest_cache/
+
+# Data cache (exclude heavy parquet cache files)
+data/cache/
+*.parquet
+
+# Streamlit runtime
+.streamlit/secrets.toml
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
