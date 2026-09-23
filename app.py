@@ -95,6 +95,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Pre-widget Session State Hook (Applies pending tuning updates before any widget is created)
+if "pending_tuning_updates" in st.session_state:
+    _updates = st.session_state.pop("pending_tuning_updates")
+    for _k, _v in _updates.items():
+        st.session_state[_k] = _v
+
 # Custom CSS styling for badges, cards, and Korean fonts (Office Stealth Mode)
 st.markdown("""
 <style>
@@ -2680,19 +2686,36 @@ with tab5:
                 )
 
                 if st.button("⚡ 진단된 최적 파라미터를 스크리너에 즉시 자동 적용", type="primary", use_container_width=True, key="btn_apply_auto_tune"):
+                    pending = {}
                     for p in proposals:
                         pkey = p.get("param_key")
                         tval = p.get("target_val_float")
                         if pkey == "max_open_gain" and tval:
                             cur_g = st.session_state.get("sc_intraday_gain_range", (3.0, 8.5))
-                            st.session_state["sc_intraday_gain_range"] = (min(cur_g[0], tval - 0.5), float(tval))
+                            pending["sc_intraday_gain_range"] = (min(cur_g[0], tval - 0.5), float(tval))
                         elif pkey == "min_trading_val" and tval:
                             val_options = [50, 100, 200, 300]
                             best_val = min(val_options, key=lambda x: abs(x - int(tval)))
-                            st.session_state["sc_min_daytrade_val"] = best_val
-                            st.session_state["sc_min_val_krw"] = best_val
+                            pending["sc_min_daytrade_val"] = best_val
+                            pending["sc_min_val_krw"] = best_val
+                            pending["sc_cb_min_today_val"] = max(200, best_val)
+                            pending["sc_surge_min_val"] = max(200, best_val)
+                        elif pkey == "min_score_cutoff" and tval:
+                            pending["sc_min_score"] = float(tval)
+
+                    # Prevent automatic time slot from overwriting tuned parameters
+                    if "sc_last_applied_slot" in st.session_state:
+                        pending["sc_last_applied_slot"] = st.session_state["sc_last_applied_slot"]
+                    pending["sc_trigger_time_sync"] = False
+
+                    st.session_state["pending_tuning_updates"] = pending
+                    st.session_state["tuning_applied_notification"] = True
+                    st.rerun()
+
+                if st.session_state.get("tuning_applied_notification"):
                     st.toast("✅ 자가 최적화 파라미터가 스크리너(탭 1)에 성공적으로 자동 반영되었습니다!")
                     st.success("✅ **[적용 완료]** 최적화 파라미터가 반영되었습니다! 탭 1로 이동하시면 한층 정밀해진 스크리닝 결과를 바로 확인하실 수 있습니다.")
+                    st.session_state["tuning_applied_notification"] = False
 
         # 4. Detailed Stock Performance Table
         st.markdown("---")
