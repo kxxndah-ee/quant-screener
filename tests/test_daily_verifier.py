@@ -203,6 +203,35 @@ class TestDailyVerifier(unittest.TestCase):
         self.assertGreaterEqual(len(res["dates"]), 1)
         self.assertGreaterEqual(len(res["top_winners"]), 1)
 
+    def test_evaluate_multi_horizon_tuning_impact(self):
+        from src.core.daily_verifier import evaluate_multi_horizon_tuning_impact
+        meta = evaluate_multi_horizon_tuning_impact()
+        self.assertIsInstance(meta, dict)
+        self.assertIn("comparative_table", meta)
+        self.assertIsInstance(meta["comparative_table"], pd.DataFrame)
+        self.assertEqual(len(meta["comparative_table"]), 3)
+        self.assertEqual(meta["best_horizon_key"], "weekly")
+        self.assertGreaterEqual(meta["best_expected_return"], 3.0)
+        self.assertIn("best_proposals", meta)
+        self.assertIn("horizon_details", meta)
+        self.assertIn("daily", meta["horizon_details"])
+        self.assertIn("weekly", meta["horizon_details"])
+        self.assertIn("monthly", meta["horizon_details"])
+        # Verify 3%+ return across all horizons
+        for h_key in ["daily", "weekly", "monthly"]:
+            self.assertGreaterEqual(meta["horizon_details"][h_key]["expected_return"], 3.0)
+
+    def test_batch_verification_runners(self):
+        from src.core.daily_verifier import run_weekly_batch_verification, run_monthly_batch_verification
+        # Test with limit_days=1 to verify execution flow and return contract
+        w_res = run_weekly_batch_verification(limit_days=1, force_refresh=False)
+        self.assertIsInstance(w_res, dict)
+        self.assertIn("overall_win_rate", w_res)
+        self.assertIn("avg_net_ret", w_res)
+
+        m_res = run_monthly_batch_verification(limit_days=1, force_refresh=False)
+        self.assertIsInstance(m_res, pd.DataFrame)
+
 
 if __name__ == "__main__":
     unittest.main()

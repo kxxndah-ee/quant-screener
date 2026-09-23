@@ -84,7 +84,10 @@ from src.core.daily_verifier import (
     run_all_strategies_daily_verification,
     run_daily_point_in_time_verification,
     diagnose_failure_reasons,
-    generate_auto_tuning_recommendations
+    generate_auto_tuning_recommendations,
+    evaluate_multi_horizon_tuning_impact,
+    run_weekly_batch_verification,
+    run_monthly_batch_verification
 )
 
 
@@ -2503,6 +2506,63 @@ with tab5:
     latest_exec_d = valid_pairs[-1][1] if valid_pairs else "2026-09-23"
 
     # -----------------------------------------------------
+    # 🧠 AI 주기별 진단 비교 & 수익률 극대화 최적화 판정 (Meta-Optimizer)
+    # -----------------------------------------------------
+    meta_opt = evaluate_multi_horizon_tuning_impact()
+    best_horizon_lbl = meta_opt["best_horizon_label"]
+    best_ret = meta_opt["best_expected_return"]
+    best_win = meta_opt["best_expected_win_rate"]
+    best_props = meta_opt["best_proposals"]
+
+    with st.expander("🧠 [AI 주기별 진단 비교 & 수익률 극대화 최적화 판정] (어떤 진단 결과를 적용해야 수익률이 오를까?)", expanded=True):
+        st.markdown(
+            f"""
+            <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:6px; padding:10px 14px; margin-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:0.92rem; font-weight:700; color:#0F172A;">
+                        👑 AI 수익률 극대화 최적 추천 주기: <span style="color:#0284C7;">{best_horizon_lbl}</span>
+                    </span>
+                    <span style="font-size:0.80rem; font-weight:700; background:#E0F2FE; color:#0369A1; padding:2px 8px; border-radius:4px; border:1px solid #BAE6FD;">
+                        시뮬레이션 예상 순수익률: +{best_ret:.2f}% | 예상 승률: {best_win:.1f}%
+                    </span>
+                </div>
+                <div style="font-size:0.78rem; color:#475569; margin-top:4px;">
+                    {meta_opt["best_rationale"]}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.table(meta_opt["comparative_table"])
+
+        b_c1, b_c2, b_c3, b_c4 = st.columns([2.0, 1.0, 1.0, 1.0])
+        with b_c1:
+            if st.button(f"⚡ AI 최고 수익률 진단 결과 즉시 적용 ({meta_opt['best_horizon_key'].upper()})", type="primary", use_container_width=True, key="btn_apply_best_meta_tune"):
+                st.session_state["pending_tuning_updates"] = best_props
+                st.session_state["tuning_applied_notification"] = True
+                st.toast(f"✅ AI 최고 추천 주기({best_horizon_lbl})의 최적 파라미터가 스크리너(탭 1)에 자동 적용되었습니다!")
+                st.rerun()
+        with b_c2:
+            if st.button("⚡ 전일 진단 적용", use_container_width=True, key="btn_apply_daily_tune"):
+                st.session_state["pending_tuning_updates"] = meta_opt["horizon_details"]["daily"]["proposals"]
+                st.session_state["tuning_applied_notification"] = True
+                st.toast("✅ 전일(1일) 진단 최적 파라미터가 스크리너에 적용되었습니다.")
+                st.rerun()
+        with b_c3:
+            if st.button("⚡ 주간 진단 적용", use_container_width=True, key="btn_apply_weekly_tune"):
+                st.session_state["pending_tuning_updates"] = meta_opt["horizon_details"]["weekly"]["proposals"]
+                st.session_state["tuning_applied_notification"] = True
+                st.toast("✅ 주간(5일) 진단 최적 파라미터가 스크리너에 적용되었습니다.")
+                st.rerun()
+        with b_c4:
+            if st.button("⚡ 1개월 진단 적용", use_container_width=True, key="btn_apply_monthly_tune"):
+                st.session_state["pending_tuning_updates"] = meta_opt["horizon_details"]["monthly"]["proposals"]
+                st.session_state["tuning_applied_notification"] = True
+                st.toast("✅ 1개월(25일) 진단 최적 파라미터가 스크리너에 적용되었습니다.")
+                st.rerun()
+
+    # -----------------------------------------------------
     # SUB-VIEW 1: ⚡ 전일 성과 정밀 분석 & AI 자가진단 (1일)
     # -----------------------------------------------------
     if "전일" in t5_period_view:
@@ -2739,7 +2799,15 @@ with tab5:
     # -----------------------------------------------------
     elif "주간" in t5_period_view:
         st.markdown('<div class="office-subheading">📅 최근 5거래일(1주간) 5대 전략 종합 성과 & 주간 베스트/워스트 종목</div>', unsafe_allow_html=True)
-        st.caption("최근 1주일(5거래일) 동안 축적된 검증 데이터를 집계하여 전략별 실전 우위와 시장 주도/손실 종목을 입체적으로 조망합니다.")
+        w_hdr_c1, w_hdr_c2 = st.columns([3.4, 1.6])
+        with w_hdr_c1:
+            st.caption("최근 1주일(5거래일) 동안 축적된 검증 데이터를 집계하여 전략별 실전 우위와 시장 주도/손실 종목을 입체적으로 조망합니다.")
+        with w_hdr_c2:
+            if st.button("🔍 최근 주간(5거래일) 성과 검증 실행", type="primary", use_container_width=True, key="btn_run_weekly_verif"):
+                with st.spinner("최근 5거래일 5대 전략 종합 성과 사후 검증 및 데이터 최신화 중..."):
+                    run_weekly_batch_verification(limit_days=5, force_refresh=True)
+                    st.toast("✅ 최근 5거래일 주간 성과 검증이 완료되었습니다!")
+                    st.rerun()
 
         weekly_res = get_weekly_verification_summary(limit_days=5)
 
@@ -2862,18 +2930,26 @@ with tab5:
         st.caption("1개월간 매일 08:30 아침에 자동 실행된 125건의 전수 검증 기록을 기반으로 전략별 장기 안정성과 파라미터 보정 이력을 제공합니다.")
 
         # Morning Automation Status & Refresh
-        m_c1, m_c2 = st.columns([3.6, 1.4])
+        m_c1, m_c2, m_c3 = st.columns([2.6, 1.2, 1.2])
         with m_c1:
             st.success(
                 f"🟢 **[매일 08:30 아침 자동 실행 활성화]** 전일 추천 ➔ 당일 실제 체결 성과 검증 및 AI 자가진단이 매일 아침 자동 수행됩니다. (최근 기준일: **{latest_pred_d} 추천 ➔ {latest_exec_d} 체결** | SQLite 1개월 누적 125건 로그 연동)"
             )
         with m_c2:
-            if st.button("🔄 오늘 아침 5대 전략 전체 재검증", use_container_width=True, key="btn_morning_refresh_all"):
+            if st.button("🔄 오늘 아침 전체 재검증", use_container_width=True, key="btn_morning_refresh_all"):
                 with st.spinner(f"[{latest_pred_d}] 기준 5대 전략 전체 사후검증 및 AI 자가진단 수행 중..."):
                     run_all_strategies_daily_verification(pred_date=latest_pred_d, sample_pool_size=100, force_refresh=True)
                     if "daily_verif_cache" in st.session_state:
                         del st.session_state["daily_verif_cache"]
                     st.toast("✅ 오늘 아침 5대 전략 사후검증 및 자가진단이 완료되었습니다!")
+                    st.rerun()
+        with m_c3:
+            if st.button("🔍 최근 1개월(25일) 성과 전수 검증 실행", type="primary", use_container_width=True, key="btn_run_monthly_verif"):
+                with st.spinner("최근 1개월(25거래일) 5대 전략 전수 사후검증 및 데이터베이스 최신화 중..."):
+                    run_monthly_batch_verification(limit_days=25, force_refresh=True)
+                    if "daily_verif_cache" in st.session_state:
+                        del st.session_state["daily_verif_cache"]
+                    st.toast("✅ 최근 1개월(25거래일) 전수 사후검증이 완료되었습니다!")
                     st.rerun()
 
         monthly_df = get_monthly_verification_summary(limit_days=25)
