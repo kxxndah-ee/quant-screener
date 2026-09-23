@@ -166,12 +166,18 @@ class TestDailyVerifier(unittest.TestCase):
             "diagnosis": {"issues": [], "summary": "완벽"},
             "tuning": {"proposals": []}
         }
-        save_verification_history(sample_payload, "테스트 전략")
-        cached = get_cached_verification_history("2026-09-01", "테스트 전략")
-        self.assertIsNotNone(cached)
-        self.assertEqual(cached["total_screened"], 2)
-        self.assertEqual(cached["kpi"]["win_rate"], 100.0)
-        self.assertFalse(cached["df_results"].empty)
+        try:
+            save_verification_history(sample_payload, "테스트 전략")
+            cached = get_cached_verification_history("2026-09-01", "테스트 전략")
+            self.assertIsNotNone(cached)
+            self.assertEqual(cached["total_screened"], 2)
+            self.assertEqual(cached["kpi"]["win_rate"], 100.0)
+            self.assertFalse(cached["df_results"].empty)
+        finally:
+            from src.database.models import get_db_connection
+            with get_db_connection() as conn:
+                conn.cursor().execute("DELETE FROM daily_verification_history WHERE strategy_mode = ?", ("테스트 전략",))
+                conn.commit()
 
     def test_get_monthly_verification_summary(self):
         from src.core.daily_verifier import get_monthly_verification_summary
