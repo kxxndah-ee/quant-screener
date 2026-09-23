@@ -164,11 +164,14 @@ def get_cached_verification_history(pred_date: str, strategy_mode: str) -> Optio
         return None
 
 
-def get_monthly_verification_summary(strategy_mode: Optional[str] = None, limit_days: int = 30) -> pd.DataFrame:
+def get_monthly_verification_summary(strategy_mode: Any = None, limit_days: int = 30) -> pd.DataFrame:
     """
     Returns a DataFrame containing historical verification performance across dates,
     optionally filtered by strategy_mode.
     """
+    if isinstance(strategy_mode, (int, float)):
+        limit_days = int(strategy_mode)
+        strategy_mode = None
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -402,6 +405,15 @@ def run_daily_point_in_time_verification(
     Performs Point-in-Time verification for predictions made on pred_date (T-1)
     and evaluated against actual market outcomes on exec_date (T).
     """
+    import re
+    m_pred = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", str(pred_date))
+    if m_pred:
+        pred_date = m_pred.group(1)
+    if exec_date is not None:
+        m_exec = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", str(exec_date))
+        if m_exec:
+            exec_date = m_exec.group(1)
+
     if not force_refresh:
         cached = get_cached_verification_history(pred_date, strategy_mode)
         if cached is not None and cached.get("total_screened", 0) > 0:

@@ -628,13 +628,23 @@ with col_top_r:
         unsafe_allow_html=True
     )
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+main_tab_names = [
     "1. 시장 전체 익일 상승 후보 & 고확신 스크리너",
     "2. 관심종목 실시간 스코어보드",
     "3. 워크포워드 검증 & 벤치마크 리포트",
     "4. 예측 다이어리 & 라이브 추적",
     "5. 성과 사후검증 & AI 전략 최적화 (자가진단)",
-], key="main_active_tab_nav")
+]
+
+if "main_active_tab_nav" in st.session_state:
+    _cur_nav = str(st.session_state["main_active_tab_nav"])
+    if _cur_nav not in main_tab_names:
+        if _cur_nav.startswith("5") or "검증" in _cur_nav or "최적화" in _cur_nav:
+            st.session_state["main_active_tab_nav"] = main_tab_names[4]
+        else:
+            st.session_state["main_active_tab_nav"] = main_tab_names[0]
+
+tab1, tab2, tab3, tab4, tab5 = st.tabs(main_tab_names, key="main_active_tab_nav")
 
 
 # =========================================================
@@ -761,8 +771,13 @@ with tab1:
 
     # 1) 전략 원칙 & 시간대별 설정 가이드 통합 접이식(Expander)
     with st.expander("📖 [전략 핵심 원칙 & 시간대별 설정 가이드] (필요 시 클릭하여 열기)", expanded=False):
-        g_tab1, g_tab2 = st.tabs(["전략 핵심 원칙 & 시장 체제 점검", "시간대별 권장 설정 가이드"])
-        with g_tab1:
+        g_guide_mode = st.radio(
+            "가이드 항목 선택",
+            ["📌 전략 핵심 원칙 & 시장 체제 점검", "⏰ 시간대별 권장 설정 가이드"],
+            horizontal=True,
+            key="g_guide_view_radio"
+        )
+        if "핵심 원칙" in g_guide_mode:
             if "당일 단타" in sc_mode:
                 bm_ohlcv = get_benchmark_ohlcv()
                 mkt_ok, mkt_msg, mkt_meta = evaluate_market_regime(bm_ohlcv)
@@ -832,7 +847,7 @@ with tab1:
                     unsafe_allow_html=True
                 )
 
-        with g_tab2:
+        else:
             if "당일 단타" in sc_mode:
                 active_tag = ' <span style="color:#0F172A; font-weight:700; font-size:0.68rem; background:#E2E8F0; padding:1px 5px; border-radius:4px; border:1px solid #94A3B8;">▶ 현재 자동 세팅됨</span>'
                 r0_t = active_tag if rec_time["highlight_idx"] == 0 else ""
@@ -2472,41 +2487,42 @@ with tab5:
     st.markdown('<div class="office-heading">5. 성과 사후 검증 & AI 전략 자가최적화 (Point-in-Time)</div>', unsafe_allow_html=True)
     st.caption("실제 체결 데이터 기반으로 전일(1일), 최근 주간(5일), 1개월(25일) 성과를 입체적으로 분석하고, 실패 원인을 AI가 스스로 진단하여 최적 파라미터를 도출합니다.")
 
-    t5_sub1, t5_sub2, t5_sub3 = st.tabs([
-        "⚡ 전일 성과 정밀 분석 & AI 자가진단 (1일)",
-        "📅 최근 주간 성과 종합 (5거래일)",
-        "📈 1개월 누적 성과 & AI 최적화 (25거래일)"
-    ], key="t5_subtabs")
+    t5_period_view = st.radio(
+        "성과 분석 대상 기간 선택",
+        [
+            "⚡ 전일 성과 정밀 분석 & AI 자가진단 (1일)",
+            "📅 최근 주간 성과 종합 (5거래일)",
+            "📈 1개월 누적 성과 & AI 최적화 (25거래일)"
+        ],
+        horizontal=True,
+        key="t5_period_radio_sel"
+    )
 
     valid_pairs = get_valid_prediction_dates(limit=30)
     latest_pred_d = valid_pairs[-1][0] if valid_pairs else "2026-09-22"
     latest_exec_d = valid_pairs[-1][1] if valid_pairs else "2026-09-23"
 
     # -----------------------------------------------------
-    # SUB-TAB 1: ⚡ 전일 성과 정밀 분석 & AI 자가진단 (1일)
+    # SUB-VIEW 1: ⚡ 전일 성과 정밀 분석 & AI 자가진단 (1일)
     # -----------------------------------------------------
-    with t5_sub1:
+    if "전일" in t5_period_view:
         st.markdown('<div class="office-subheading">⚡ 직전 거래일 추천 ➔ 당일 실제 체결 성과 1:1 대조 분석 및 AI 자가진단</div>', unsafe_allow_html=True)
         st.caption(f"최근 기준일: **{latest_pred_d} 추천 ➔ {latest_exec_d} 체결** | Point-in-Time 원칙으로 추천 시점 이후 실제 시장 체결 데이터와 대조합니다.")
 
-        date_options = [p[0] for p in valid_pairs[::-1]] if valid_pairs else ["2026-09-22"]
-        pair_dict = {p[0]: p[1] for p in valid_pairs}
+        date_options = [
+            f"{p[0]} (전일 추천 ➔ {p[1]} 실제 체결 검증)"
+            for p in (valid_pairs[::-1] if valid_pairs else [("2026-09-22", "2026-09-23")])
+        ]
 
-        def format_date_choice(d):
-            exec_d = pair_dict.get(d, "")
-            if valid_pairs and d == valid_pairs[-1][0]:
-                return f"⭐ {d} (가장 최근 전일 추천 ➔ 오늘 체결 성과)"
-            return f"📅 {d} ({d} 추천 ➔ {exec_d} 체결 검증)"
-
-        v_c1, v_c2, v_c3 = st.columns([1.8, 1.8, 1.0])
+        v_c1, v_c2, v_c3 = st.columns([2.0, 1.6, 1.0])
         with v_c1:
-            sel_verif_date = st.selectbox(
-                "검증 기준일 (T-1 추천 발굴일)",
+            sel_date_raw = st.selectbox(
+                "검증 기준일 (T-1 추천 발굴일 ➔ 당일 실제 체결 검증)",
                 options=date_options,
-                format_func=format_date_choice,
                 index=0,
                 key="verif_pred_date_sel"
             )
+            sel_verif_date = str(sel_date_raw)[:10]
         with v_c2:
             sel_verif_strat = st.selectbox(
                 "검증 대상 전략 모드",
@@ -2719,9 +2735,9 @@ with tab5:
             )
 
     # -----------------------------------------------------
-    # SUB-TAB 2: 📅 최근 주간 성과 종합 (5거래일)
+    # SUB-VIEW 2: 📅 최근 주간 성과 종합 (5거래일)
     # -----------------------------------------------------
-    with t5_sub2:
+    elif "주간" in t5_period_view:
         st.markdown('<div class="office-subheading">📅 최근 5거래일(1주간) 5대 전략 종합 성과 & 주간 베스트/워스트 종목</div>', unsafe_allow_html=True)
         st.caption("최근 1주일(5거래일) 동안 축적된 검증 데이터를 집계하여 전략별 실전 우위와 시장 주도/손실 종목을 입체적으로 조망합니다.")
 
@@ -2839,9 +2855,9 @@ with tab5:
             st.info(f"💡 **[최근 주간 AI 종합 진단]** {weekly_res.get('diagnosis_summary', '')}")
 
     # -----------------------------------------------------
-    # SUB-TAB 3: 📈 1개월 누적 성과 & AI 최적화 (25거래일)
+    # SUB-VIEW 3: 📈 1개월 누적 성과 & AI 최적화 (25거래일)
     # -----------------------------------------------------
-    with t5_sub3:
+    else:
         st.markdown('<div class="office-subheading">📈 최근 1개월(25거래일) 누적 성과 종합 & AI 전략 최적화 히스토리</div>', unsafe_allow_html=True)
         st.caption("1개월간 매일 08:30 아침에 자동 실행된 125건의 전수 검증 기록을 기반으로 전략별 장기 안정성과 파라미터 보정 이력을 제공합니다.")
 
