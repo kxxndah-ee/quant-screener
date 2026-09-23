@@ -6,6 +6,8 @@ diagnoses reasons for failure, and provides actionable parameter auto-tuning rec
 
 import os
 import sys
+import json
+import io
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 import pandas as pd
@@ -24,6 +26,14 @@ from src.core.high_winrate_strategies import (
 from src.core.execution import is_trade_feasible, calculate_net_trade_return
 from src.backtest.exit_rules import simulate_intraday_exit
 
+ALL_VERIF_STRATEGIES = [
+    "⚡ 실시간 당일 단타 (5% 익절)",
+    "🎯 스나이퍼 고확신 (눌림목 반등)",
+    "🚀 5% 급등 타겟 (1~2일 스윙)",
+    "🌙 주도주 종가배팅 (익일 시초 갭)",
+    "📊 일반 퀀트 스코어링"
+]
+
 
 def get_available_trading_dates(limit: int = 30) -> List[str]:
     """Returns recent trading dates from benchmark OHLCV."""
@@ -41,6 +51,149 @@ def get_available_trading_dates(limit: int = 30) -> List[str]:
         if curr.weekday() < 5:
             dates.append(curr.strftime("%Y-%m-%d"))
     return dates
+
+
+def get_valid_prediction_dates(limit: int = 30) -> List[Tuple[str, str]]:
+    """
+    Returns valid (pred_date, exec_date) pairs that have confirmed subsequent market execution.
+    The most recent verifiable pair is at the end of the list.
+    """
+    trading_dates = get_available_trading_dates(limit=limit + 5)
+    pairs = []
+    for i in range(len(trading_dates) - 1):
+        pairs.append((trading_dates[i], trading_dates[i + 1]))
+    return pairs[-limit:] if pairs else []
+
+
+def save_verification_history(result: Dict[str, Any], strategy_mode: str) -> None:
+    """Saves or updates daily verification record in daily_verification_history table."""
+    if not result or result.get("total_screened", 0) == 0 or "error" in result:
+        return
+
+    pred_date = result["pred_date"]
+    exec_date = result["exec_date"]
+    kpi = result.get("kpi", {})
+    diag = result.get("diagnosis", {})
+    tuning = result.get("tuning", {})
+    df_res = result.get("df_results", pd.DataFrame())
+
+    diag_issues_json = json.dumps(diag.get("issues", []), ensure_ascii=False)
+    tuning_json = json.dumps(tuning, ensure_ascii=False)
+    results_json = df_res.to_json(orient="records", force_ascii=False) if not df_res.empty else "[]"
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO daily_verification_history (
+                    pred_date, exec_date, strategy_mode, total_screened, hits, win_rate,
+                    avg_net_ret, avg_max_gain, avg_excess_ret, tp_count, sl_count, bm_day_ret,
+                    diagnosis_summary, diagnosis_issues_json, tuning_proposals_json, results_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                pred_date,
+                exec_date,
+                strategy_mode,
+                int(kpi.get("total", len(df_res))),
+                int(kpi.get("hits", 0)),
+                float(kpi.get("win_rate", 0.0)),
+                float(kpi.get("avg_net_ret", 0.0)),
+                float(kpi.get("avg_max_gain", 0.0)),
+                float(kpi.get("avg_excess_ret", 0.0)),
+                int(kpi.get("tp_count", 0)),
+                int(kpi.get("sl_count", 0)),
+                float(kpi.get("bm_day_ret", 0.0)),
+                diag.get("summary", ""),
+                diag_issues_json,
+                tuning_json,
+                results_json,
+                now_str
+            ))
+            conn.commit()
+    except Exception as e:
+        print(f"Error saving verification history for {pred_date} / {strategy_mode}: {e}")
+
+
+def get_cached_verification_history(pred_date: str, strategy_mode: str) -> Optional[Dict[str, Any]]:
+    """Retrieves cached verification record from SQLite if available."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM daily_verification_history
+                WHERE pred_date = ? AND strategy_mode = ?
+            """, (pred_date, strategy_mode))
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            kpi = {
+                "total": row["total_screened"],
+                "hits": row["hits"],
+                "win_rate": row["win_rate"],
+                "avg_net_ret": row["avg_net_ret"],
+                "avg_max_gain": row["avg_max_gain"],
+                "avg_excess_ret": row["avg_excess_ret"],
+                "tp_count": row["tp_count"],
+                "sl_count": row["sl_count"],
+                "bm_day_ret": row["bm_day_ret"],
+                "bm_intraday_ret": 0.0
+            }
+            issues = json.loads(row["diagnosis_issues_json"]) if row["diagnosis_issues_json"] else []
+            diagnosis = {
+                "issues": issues,
+                "summary": row["diagnosis_summary"] or ""
+            }
+            tuning = json.loads(row["tuning_proposals_json"]) if row["tuning_proposals_json"] else {"proposals": [], "simulation": {}}
+            df_results = pd.read_json(io.StringIO(row["results_json"])) if row["results_json"] else pd.DataFrame()
+
+            return {
+                "pred_date": row["pred_date"],
+                "exec_date": row["exec_date"],
+                "strategy_mode": row["strategy_mode"],
+                "total_screened": row["total_screened"],
+                "df_results": df_results,
+                "kpi": kpi,
+                "diagnosis": diagnosis,
+                "tuning": tuning,
+                "is_cached": True
+            }
+    except Exception as e:
+        print(f"Error loading cached verification for {pred_date} / {strategy_mode}: {e}")
+        return None
+
+
+def get_monthly_verification_summary(strategy_mode: Optional[str] = None, limit_days: int = 30) -> pd.DataFrame:
+    """
+    Returns a DataFrame containing historical verification performance across dates,
+    optionally filtered by strategy_mode.
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            if strategy_mode:
+                cursor.execute("""
+                    SELECT pred_date, exec_date, strategy_mode, total_screened, hits, win_rate,
+                           avg_net_ret, avg_max_gain, avg_excess_ret, tp_count, sl_count, bm_day_ret, created_at
+                    FROM daily_verification_history
+                    WHERE strategy_mode = ?
+                    ORDER BY pred_date DESC
+                    LIMIT ?
+                """, (strategy_mode, limit_days))
+            else:
+                cursor.execute("""
+                    SELECT pred_date, exec_date, strategy_mode, total_screened, hits, win_rate,
+                           avg_net_ret, avg_max_gain, avg_excess_ret, tp_count, sl_count, bm_day_ret, created_at
+                    FROM daily_verification_history
+                    ORDER BY pred_date DESC
+                    LIMIT ?
+                """, (limit_days * 5,))
+            rows = [dict(r) for r in cursor.fetchall()]
+            return pd.DataFrame(rows)
+    except Exception as e:
+        print(f"Error fetching monthly verification summary: {e}")
+        return pd.DataFrame()
 
 
 def get_verification_pool(max_pool_size: int = 250) -> pd.DataFrame:
@@ -83,12 +236,18 @@ def run_daily_point_in_time_verification(
     strategy_mode: str = "⚡ 실시간 당일 단타 (5% 익절)",
     min_val_krw: float = 10_000_000_000,
     score_cutoff: float = 65.0,
-    sample_pool_size: int = 200
+    sample_pool_size: int = 150,
+    force_refresh: bool = False
 ) -> Dict[str, Any]:
     """
     Performs Point-in-Time verification for predictions made on pred_date (T-1)
     and evaluated against actual market outcomes on exec_date (T).
     """
+    if not force_refresh:
+        cached = get_cached_verification_history(pred_date, strategy_mode)
+        if cached is not None and cached.get("total_screened", 0) > 0:
+            return cached
+
     bm = get_benchmark_ohlcv()
     trading_dates = [d.strftime("%Y-%m-%d") for d in bm.index] if not bm.empty else []
 
@@ -98,9 +257,18 @@ def run_daily_point_in_time_verification(
             if p_idx + 1 < len(trading_dates):
                 exec_date = trading_dates[p_idx + 1]
             else:
-                return {"error": f"{pred_date} 이후의 실제 거래일 체결 데이터가 아직 없습니다."}
+                suggested = trading_dates[-2] if len(trading_dates) >= 2 else pred_date
+                return {
+                    "error": f"선택하신 일자({pred_date})는 가장 최신 거래일이라 익일(T) 체결 데이터가 아직 완성되지 않았습니다. 전일 거래일({suggested})을 선택해 주세요.",
+                    "pred_date": pred_date,
+                    "total_screened": 0
+                }
         else:
-            return {"error": f"{pred_date}는 거래일 데이터에 존재하지 않습니다."}
+            return {
+                "error": f"{pred_date}는 거래일 데이터에 존재하지 않습니다.",
+                "pred_date": pred_date,
+                "total_screened": 0
+            }
 
     # Benchmark metrics on exec_date
     bm_intraday_ret = 0.0
@@ -313,15 +481,18 @@ def run_daily_point_in_time_verification(
         "score_cutoff": score_cutoff
     })
 
-    return {
+    res_payload = {
         "pred_date": pred_date,
         "exec_date": exec_date,
+        "strategy_mode": strategy_mode,
         "total_screened": total,
         "df_results": df_res,
         "kpi": kpi,
         "diagnosis": diagnosis,
         "tuning": tuning
     }
+    save_verification_history(res_payload, strategy_mode)
+    return res_payload
 
 
 def diagnose_failure_reasons(df_results: pd.DataFrame, bm_change_pct: float = 0.0) -> Dict[str, Any]:
@@ -499,3 +670,66 @@ def generate_auto_tuning_recommendations(
         "proposals": proposals,
         "simulation": simulation
     }
+
+
+def run_all_strategies_daily_verification(
+    pred_date: Optional[str] = None,
+    sample_pool_size: int = 80,
+    force_refresh: bool = False
+) -> Dict[str, Any]:
+    """
+    Executes and records daily verification for ALL 5 strategy modes on the target date.
+    Used by the morning automated scheduler (08:30 KST) and manual batch run.
+    """
+    if pred_date is None:
+        valid_pairs = get_valid_prediction_dates(limit=10)
+        if not valid_pairs:
+            return {"error": "검증 가능한 유효 거래일이 없습니다."}
+        pred_date = valid_pairs[-1][0]
+
+    outcomes = {}
+    for strat in ALL_VERIF_STRATEGIES:
+        res = run_daily_point_in_time_verification(
+            pred_date=pred_date,
+            strategy_mode=strat,
+            sample_pool_size=sample_pool_size,
+            force_refresh=force_refresh
+        )
+        outcomes[strat] = {
+            "total_screened": res.get("total_screened", 0),
+            "win_rate": res.get("kpi", {}).get("win_rate", 0.0),
+            "avg_net_ret": res.get("kpi", {}).get("avg_net_ret", 0.0),
+            "is_cached": res.get("is_cached", False)
+        }
+
+    return {
+        "pred_date": pred_date,
+        "completed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "strategies_evaluated": len(outcomes),
+        "outcomes": outcomes
+    }
+
+
+def backfill_monthly_verifications(limit_days: int = 25, sample_pool_size: int = 60) -> int:
+    """
+    Checks the last `limit_days` of valid prediction dates and runs any missing
+    verifications across strategies to ensure a full 1-month accumulated dataset in SQLite.
+    """
+    valid_pairs = get_valid_prediction_dates(limit=limit_days)
+    new_records = 0
+
+    for pred_d, exec_d in valid_pairs:
+        for strat in ALL_VERIF_STRATEGIES:
+            cached = get_cached_verification_history(pred_d, strat)
+            if cached is None:
+                res = run_daily_point_in_time_verification(
+                    pred_date=pred_d,
+                    exec_date=exec_d,
+                    strategy_mode=strat,
+                    sample_pool_size=sample_pool_size,
+                    force_refresh=False
+                )
+                if res.get("total_screened", 0) > 0:
+                    new_records += 1
+
+    return new_records

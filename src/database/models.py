@@ -140,6 +140,33 @@ def init_db(db_path: str = DB_PATH) -> None:
                 VALUES (1, ?, 10000000.0, 0.0, 0, 0, 0)
             """, (datetime.now().strftime("%Y-%m-%d"),))
 
+        # 7. Daily Verification History (Accumulated 1-Month Self-Verification & Diagnosis Logs)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_verification_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pred_date TEXT NOT NULL,
+                exec_date TEXT NOT NULL,
+                strategy_mode TEXT NOT NULL,
+                total_screened INTEGER NOT NULL,
+                hits INTEGER NOT NULL,
+                win_rate REAL NOT NULL,
+                avg_net_ret REAL NOT NULL,
+                avg_max_gain REAL NOT NULL,
+                avg_excess_ret REAL NOT NULL,
+                tp_count INTEGER NOT NULL,
+                sl_count INTEGER NOT NULL,
+                bm_day_ret REAL NOT NULL,
+                diagnosis_summary TEXT,
+                diagnosis_issues_json TEXT,
+                tuning_proposals_json TEXT,
+                results_json TEXT,
+                created_at TEXT NOT NULL,
+                UNIQUE(pred_date, strategy_mode)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_verif_pred_strat ON daily_verification_history(pred_date, strategy_mode)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_verif_pred_date ON daily_verification_history(pred_date)")
+
         # Populate default watchlist if empty
         cursor.execute("SELECT COUNT(*) FROM watchlist")
         if cursor.fetchone()[0] == 0:

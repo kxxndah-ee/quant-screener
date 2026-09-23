@@ -8,6 +8,7 @@ import numpy as np
 
 from src.core.daily_verifier import (
     get_available_trading_dates,
+    get_valid_prediction_dates,
     diagnose_failure_reasons,
     generate_auto_tuning_recommendations
 )
@@ -134,6 +135,52 @@ class TestDailyVerifier(unittest.TestCase):
         self.assertEqual(sim["after_win_rate"], 100.0)
         self.assertEqual(sim["filtered_losses"], 2)
         self.assertEqual(sim["win_rate_boost"], 50.0)
+
+    def test_get_valid_prediction_dates(self):
+        pairs = get_valid_prediction_dates(limit=5)
+        self.assertIsInstance(pairs, list)
+        self.assertGreater(len(pairs), 0)
+        for p in pairs:
+            self.assertEqual(len(p), 2)
+            self.assertNotEqual(p[0], p[1])
+
+    def test_save_and_get_cached_verification_history(self):
+        from src.core.daily_verifier import save_verification_history, get_cached_verification_history
+        sample_payload = {
+            "pred_date": "2026-09-01",
+            "exec_date": "2026-09-02",
+            "strategy_mode": "테스트 전략",
+            "total_screened": 2,
+            "df_results": self.sample_results.head(2),
+            "kpi": {
+                "total": 2,
+                "hits": 2,
+                "win_rate": 100.0,
+                "avg_net_ret": 3.45,
+                "avg_max_gain": 4.3,
+                "avg_excess_ret": 2.8,
+                "tp_count": 1,
+                "sl_count": 0,
+                "bm_day_ret": 0.5
+            },
+            "diagnosis": {"issues": [], "summary": "완벽"},
+            "tuning": {"proposals": []}
+        }
+        save_verification_history(sample_payload, "테스트 전략")
+        cached = get_cached_verification_history("2026-09-01", "테스트 전략")
+        self.assertIsNotNone(cached)
+        self.assertEqual(cached["total_screened"], 2)
+        self.assertEqual(cached["kpi"]["win_rate"], 100.0)
+        self.assertFalse(cached["df_results"].empty)
+
+    def test_get_monthly_verification_summary(self):
+        from src.core.daily_verifier import get_monthly_verification_summary
+        df_summary = get_monthly_verification_summary(limit_days=30)
+        self.assertIsInstance(df_summary, pd.DataFrame)
+        self.assertGreater(len(df_summary), 0)
+        self.assertIn("pred_date", df_summary.columns)
+        self.assertIn("strategy_mode", df_summary.columns)
+        self.assertIn("win_rate", df_summary.columns)
 
 
 if __name__ == "__main__":

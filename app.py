@@ -62,9 +62,12 @@ from src.database.diary_manager import (
     get_diary_history,
     evaluate_model_decay
 )
-from src.automation.scheduler import run_post_market_job, run_pre_market_job
+from src.automation.scheduler import run_post_market_job, run_pre_market_job, run_morning_strategy_verification_job
 from src.core.daily_verifier import (
     get_available_trading_dates,
+    get_valid_prediction_dates,
+    get_monthly_verification_summary,
+    run_all_strategies_daily_verification,
     run_daily_point_in_time_verification,
     diagnose_failure_reasons,
     generate_auto_tuning_recommendations
@@ -2409,15 +2412,122 @@ with tab5:
     st.markdown('<div class="office-heading">5. 전일 성과 사후 검증 & AI 전략 자가최적화 (Self-Tuning)</div>', unsafe_allow_html=True)
     st.caption("매일 전일 추천 종목의 당일 실제 체결 성과(승률/수익률/알파)를 사후 검증하고, 실패 요인을 스스로 학습하여 최적 스크리닝 파라미터로 자동 보정합니다.")
 
-    # 1. Date & Strategy Controls
-    avail_dates = get_available_trading_dates(limit=30)
+    # 1. Morning Automation Status & One-Click Batch Sync
+    valid_pairs = get_valid_prediction_dates(limit=30)
+    latest_pred_d = valid_pairs[-1][0] if valid_pairs else "2026-09-22"
+    latest_exec_d = valid_pairs[-1][1] if valid_pairs else "2026-09-23"
 
-    v_c1, v_c2, v_c3 = st.columns([1.5, 2.0, 1.2])
+    m_c1, m_c2 = st.columns([3.6, 1.4])
+    with m_c1:
+        st.success(
+            f"🟢 **[매일 08:30 아침 자동 실행 활성화]** 전일 추천 ➔ 당일 실제 체결 성과 검증 및 AI 자가진단이 매일 아침 자동 수행됩니다. (최근 기준일: **{latest_pred_d} 추천 ➔ {latest_exec_d} 체결** | SQLite 1개월 누적 데이터 연동)"
+        )
+    with m_c2:
+        if st.button("🔄 오늘 아침 5대 전략 전체 재검증", use_container_width=True, key="btn_morning_refresh_all"):
+            with st.spinner(f"[{latest_pred_d}] 기준 5대 전략 전체 사후검증 및 AI 자가진단 수행 중..."):
+                run_all_strategies_daily_verification(pred_date=latest_pred_d, sample_pool_size=100, force_refresh=True)
+                if "daily_verif_cache" in st.session_state:
+                    del st.session_state["daily_verif_cache"]
+                st.toast("✅ 오늘 아침 5대 전략 사후검증 및 자가진단이 완료되었습니다!")
+                st.rerun()
+
+    # 2. 1-Month Historical Performance & Strategy Ranking Overview
+    monthly_df = get_monthly_verification_summary(limit_days=30)
+    if not monthly_df.empty:
+        with st.expander("📈 [1개월 누적 성과 & 전략별 승률 추이 트렌드] (클릭하여 열기/접기)", expanded=True):
+            m_total_preds = int(monthly_df["total_screened"].sum())
+            m_total_hits = int(monthly_df["hits"].sum())
+            m_overall_win_rate = (m_total_hits / m_total_preds * 100.0) if m_total_preds > 0 else 0.0
+            m_avg_net_ret = float(monthly_df["avg_net_ret"].mean())
+            m_unique_days = monthly_df["pred_date"].nunique()
+
+            strat_group = monthly_df.groupby("strategy_mode").agg({
+                "win_rate": "mean",
+                "avg_net_ret": "mean",
+                "total_screened": "sum",
+                "hits": "sum"
+            }).reset_index()
+            strat_group = strat_group.sort_values(by="win_rate", ascending=False)
+            best_strat_row = strat_group.iloc[0] if not strat_group.empty else None
+            best_strat_name = best_strat_row["strategy_mode"].split("(")[0].strip() if best_strat_row is not None else "-"
+            best_strat_rate = best_strat_row["win_rate"] if best_strat_row is not None else 0.0
+
+            m_k1, m_k2, m_k3, m_k4 = st.columns(4)
+            with m_k1:
+                st.metric(
+                    "1개월 누적 전체 승률",
+                    f"{m_overall_win_rate:.1f}%",
+                    delta=f"{m_total_hits} / {m_total_preds} 종목 적중"
+                )
+            with m_k2:
+                st.metric(
+                    "1개월 누적 평균 수익률",
+                    f"{m_avg_net_ret:+.2f}%",
+                    delta="전체 검증 체결 평균"
+                )
+            with m_k3:
+                st.metric(
+                    "1개월 최고 승률 전략",
+                    best_strat_name,
+                    delta=f"승률 {best_strat_rate:.1f}%"
+                )
+            with m_k4:
+                st.metric(
+                    "누적 검증 기록 일수",
+                    f"{m_unique_days}일간 축적",
+                    delta=f"총 {len(monthly_df)}건 전략 분석 로그"
+                )
+
+            st_col1, st_col2 = st.columns([1.5, 2.0])
+            with st_col1:
+                st.markdown("**📊 전략별 1개월 누적 승률 및 수익률 랭킹**")
+                disp_strat = strat_group.rename(columns={
+                    "strategy_mode": "전략 모드",
+                    "win_rate": "평균 승률(%)",
+                    "avg_net_ret": "평균 수익률(%)",
+                    "total_screened": "총 검증수",
+                    "hits": "적중수"
+                }).copy()
+                disp_strat["평균 승률(%)"] = disp_strat["평균 승률(%)"].map(lambda x: f"{x:.1f}%")
+                disp_strat["평균 수익률(%)"] = disp_strat["평균 수익률(%)"].map(lambda x: f"{x:+.2f}%")
+                st.table(disp_strat[["전략 모드", "평균 승률(%)", "평균 수익률(%)", "총 검증수", "적중수"]])
+
+            with st_col2:
+                st.markdown("**📈 최근 1개월 일별 승률 추이 (%)**")
+                daily_trend = monthly_df.groupby("pred_date")["win_rate"].mean().reset_index()
+                daily_trend = daily_trend.sort_values("pred_date")
+                fig_trend = px.line(
+                    daily_trend,
+                    x="pred_date",
+                    y="win_rate",
+                    markers=True,
+                    labels={"pred_date": "추천일(T-1)", "win_rate": "승률 (%)"}
+                )
+                fig_trend.add_hline(y=50.0, line_dash="dash", line_color="gray", annotation_text="50% 기준선")
+                fig_trend.update_layout(margin=dict(l=20, r=20, t=20, b=20), height=230)
+                st.plotly_chart(fig_trend, use_container_width=True)
+
+    # 3. Daily Point-in-Time Deep Dive & AI Diagnosis Controls
+    st.markdown("---")
+    st.markdown("#### 📅 일별 정밀 성과 검증 & AI 전략 자가최적화 (Point-in-Time)")
+    st.caption("특정 추천일자를 선택하여 추천 종목의 익일 실제 체결 성과를 1:1 대조 분석하고, 손실 패턴 진단 및 1-클릭 파라미터 자동 수정을 적용합니다.")
+
+    date_options = [p[0] for p in valid_pairs[::-1]] if valid_pairs else ["2026-09-22"]
+    pair_dict = {p[0]: p[1] for p in valid_pairs}
+
+    def format_date_choice(d):
+        exec_d = pair_dict.get(d, "")
+        if valid_pairs and d == valid_pairs[-1][0]:
+            return f"⭐ {d} (가장 최근 전일 추천 ➔ 오늘 체결 성과)"
+        return f"📅 {d} ({d} 추천 ➔ {exec_d} 체결 검증)"
+
+    v_c1, v_c2, v_c3 = st.columns([1.8, 1.8, 1.0])
     with v_c1:
         sel_verif_date = st.selectbox(
             "검증 기준일 (T-1 추천 발굴일)",
-            options=avail_dates[::-1] if avail_dates else ["2026-09-09"],
-            index=1 if len(avail_dates) > 1 else 0,
+            options=date_options,
+            format_func=format_date_choice,
+            index=0,
             key="verif_pred_date_sel"
         )
     with v_c2:
@@ -2435,20 +2545,21 @@ with tab5:
         )
     with v_c3:
         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-        run_verif_btn = st.button("🔍 전일 성과 검증 & 자가 진단 실행", type="primary", use_container_width=True, key="btn_run_daily_verif")
+        run_verif_btn = st.button("🔍 전일 성과 검증 실행", type="primary", use_container_width=True, key="btn_run_daily_verif")
 
     # Auto-run on first load or when user clicks run button
     cache_key = f"{sel_verif_date}_{sel_verif_strat}"
     cached_key = st.session_state.get("daily_verif_cache_key")
 
-    if run_verif_btn or ("daily_verif_cache" not in st.session_state):
+    if run_verif_btn or ("daily_verif_cache" not in st.session_state) or (cached_key != cache_key and run_verif_btn):
         with st.spinner(f"[{sel_verif_date}] 기준 스크리닝 및 익일 실제 체결 데이터 사후 검증 중..."):
             v_res = run_daily_point_in_time_verification(
                 pred_date=sel_verif_date,
                 strategy_mode=sel_verif_strat,
                 min_val_krw=10_000_000_000,
                 score_cutoff=65.0,
-                sample_pool_size=150
+                sample_pool_size=150,
+                force_refresh=run_verif_btn
             )
             st.session_state["daily_verif_cache"] = v_res
             st.session_state["daily_verif_cache_key"] = cache_key
@@ -2457,7 +2568,7 @@ with tab5:
     verif_data = st.session_state.get("daily_verif_cache")
 
     if not verif_data:
-        st.info("💡 상단의 **[🔍 전일 성과 검증 & 자가 진단 실행]** 버튼을 누르시면, 선택하신 날짜의 추천 종목과 익일 실제 체결 성과를 대조 분석하여 실패 요인 진단 및 최적화 파라미터를 도출합니다.")
+        st.info("💡 상단의 **[🔍 전일 성과 검증 실행]** 버튼을 누르시면, 선택하신 날짜의 추천 종목과 익일 실제 체결 성과를 대조 분석하여 실패 요인 진단 및 최적화 파라미터를 도출합니다.")
     elif "error" in verif_data:
         st.warning(f"⚠️ {verif_data['error']}")
     elif verif_data.get("total_screened", 0) == 0:

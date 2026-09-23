@@ -167,12 +167,30 @@ def run_pre_market_job() -> Dict[str, Any]:
     briefing_text = "\n".join(briefing_lines)
     print(briefing_text)
 
+    # 3. Morning Strategy Verification & AI Self-Tuning
+    verif_res = run_morning_strategy_verification_job()
+
     return {
         "job": "PRE_MARKET_0830",
         "candidates_count": len(bullish_candidates),
         "briefing": briefing_text,
+        "verification_summary": verif_res,
         "timestamp": now_str,
     }
+
+
+def run_morning_strategy_verification_job() -> Dict[str, Any]:
+    """
+    08:30 Morning Batch Job:
+    Automatically evaluates yesterday's recommendations across all 5 strategies,
+    diagnoses failures, calculates tuning recommendations, and logs to daily_verification_history.
+    """
+    from src.core.daily_verifier import run_all_strategies_daily_verification
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{now_str}] Starting Morning 08:30 Strategy Verification & AI Self-Tuning Auto-Job...")
+    res = run_all_strategies_daily_verification(force_refresh=True)
+    print(f"  - Completed verification for {res.get('strategies_evaluated', 0)} strategies.")
+    return res
 
 
 def start_scheduler(blocking: bool = True):
@@ -188,7 +206,7 @@ def start_scheduler(blocking: bool = True):
         replace_existing=True
     )
 
-    # Mon-Fri 08:30 KST
+    # Mon-Fri 08:30 KST - Pre-market briefing & Risk reset
     sched.add_job(
         run_pre_market_job,
         CronTrigger(day_of_week="mon-fri", hour=8, minute=30, timezone="Asia/Seoul"),
@@ -196,7 +214,15 @@ def start_scheduler(blocking: bool = True):
         replace_existing=True
     )
 
-    print("APScheduler configured for Mon-Fri 08:30 and 15:40 KST.")
+    # Mon-Fri 08:30 KST - Morning Strategy Verification & AI Self-Tuning
+    sched.add_job(
+        run_morning_strategy_verification_job,
+        CronTrigger(day_of_week="mon-fri", hour=8, minute=30, timezone="Asia/Seoul"),
+        id="job_morning_verif_0830",
+        replace_existing=True
+    )
+
+    print("APScheduler configured for Mon-Fri 08:30 and 15:40 KST (including daily strategy verifications).")
     if blocking:
         try:
             sched.start()
