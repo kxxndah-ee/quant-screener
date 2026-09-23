@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import pandas as pd
 import numpy as np
 
+from src.database.models import get_db_connection
 from src.collectors.market_data import fetch_ohlcv, get_benchmark_ohlcv
 from src.collectors.krx_universe import get_universe, sync_krx_universe
 from src.core.scoring import compute_point_in_time_indicators, calculate_score_for_row
@@ -42,13 +43,47 @@ def get_available_trading_dates(limit: int = 30) -> List[str]:
     return dates
 
 
+def get_verification_pool(max_pool_size: int = 250) -> pd.DataFrame:
+    """
+    Builds a robust verification candidate pool prioritizing user's active watchlist,
+    followed by liquid market universe leaders.
+    """
+    wl_recs = []
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT w.code, w.name, w.market, COALESCE(u.sector, '기타') as sector
+                FROM watchlist w
+                LEFT JOIN universe u ON w.code = u.code
+            """)
+            wl_recs = [dict(r) for r in cursor.fetchall()]
+    except Exception:
+        pass
+
+    df_wl = pd.DataFrame(wl_recs) if wl_recs else pd.DataFrame()
+
+    df_univ = get_universe(active_only=True)
+    if df_univ.empty:
+        sync_krx_universe()
+        df_univ = get_universe(active_only=True)
+
+    if not df_wl.empty:
+        wl_codes = df_wl["code"].tolist()
+        df_rest = df_univ[~df_univ["code"].isin(wl_codes)]
+        combined = pd.concat([df_wl, df_rest]).head(max_pool_size).reset_index(drop=True)
+        return combined
+
+    return df_univ.head(max_pool_size)
+
+
 def run_daily_point_in_time_verification(
     pred_date: str,
     exec_date: Optional[str] = None,
     strategy_mode: str = "⚡ 실시간 당일 단타 (5% 익절)",
     min_val_krw: float = 10_000_000_000,
     score_cutoff: float = 65.0,
-    sample_pool_size: int = 150
+    sample_pool_size: int = 200
 ) -> Dict[str, Any]:
     """
     Performs Point-in-Time verification for predictions made on pred_date (T-1)
@@ -76,13 +111,7 @@ def run_daily_point_in_time_verification(
             bm_intraday_ret = ((bm_bar["Close"] - bm_bar["Open"]) / bm_bar["Open"]) * 100.0
         bm_day_ret = float(bm_bar.get("Change", 0.0)) * 100.0
 
-    # Get active universe
-    df_univ = get_universe(active_only=True)
-    if df_univ.empty or len(df_univ) < 50:
-        sync_krx_universe()
-        df_univ = get_universe(active_only=True)
-
-    pool = df_univ.head(sample_pool_size)
+    pool = get_verification_pool(max_pool_size=sample_pool_size)
     results = []
 
     for _, row in pool.iterrows():
@@ -117,52 +146,67 @@ def run_daily_point_in_time_verification(
             target_sl = 2.5
 
             if "당일 단타" in strategy_mode:
-                strat_label = "실시간 당일 단타"
+                strat_label = "당일 단타 (5% 타겟)"
                 target_tp = 5.0
                 target_sl = 2.5
-                c_cand = evaluate_intraday_daytrade_candidate(
-                    df_pit, bm,
-                    min_today_val_krw=min_val_krw,
-                    min_day_return=2.0
-                )
-                if c_cand:
-                    is_matched = True
+                try:
+                    c_cand = evaluate_intraday_daytrade_candidate(
+                        df_pit, bm,
+                        min_today_val_krw=min(min_val_krw, 10_000_000_000),
+                        min_intraday_gain=1.5,
+                        max_intraday_gain=15.0
+                    )
+                    if c_cand:
+                        is_matched = True
+                except Exception:
+                    pass
             elif "스나이퍼" in strategy_mode:
-                strat_label = "스나이퍼 고확신"
+                strat_label = "스나이퍼 (눌림목)"
                 target_tp = 1.2
                 target_sl = 2.0
-                s_cand = evaluate_sniper_candidate(df_pit, bm, min_daily_val_krw=min_val_krw)
-                if s_cand:
-                    is_matched = True
+                try:
+                    s_cand = evaluate_sniper_candidate(df_pit, bm, min_daily_val_krw=min(min_val_krw, 5_000_000_000))
+                    if s_cand:
+                        is_matched = True
+                except Exception:
+                    pass
             elif "5% 급등" in strategy_mode:
                 strat_label = "5% 급등 타겟"
                 target_tp = 5.0
                 target_sl = 4.0
-                s5_cand = evaluate_5pct_surge_candidate(df_pit, bm, min_today_val_krw=min_val_krw)
-                if s5_cand:
-                    is_matched = True
+                try:
+                    s5_cand = evaluate_5pct_surge_candidate(df_pit, bm, min_today_val_krw=min_val_krw, min_day_return=5.0)
+                    if s5_cand:
+                        is_matched = True
+                except Exception:
+                    pass
             elif "종가배팅" in strategy_mode:
                 strat_label = "주도주 종가배팅"
                 target_tp = 1.5
                 target_sl = 2.0
-                cb_cand = evaluate_closing_bet_candidate(df_pit, min_today_val_krw=min_val_krw)
-                if cb_cand:
-                    is_matched = True
+                try:
+                    cb_cand = evaluate_closing_bet_candidate(df_pit, min_today_val_krw=min_val_krw)
+                    if cb_cand:
+                        is_matched = True
+                except Exception:
+                    pass
             else:
                 score_res = calculate_score_for_row(t1_row)
-                if score_res["score"] >= score_cutoff and t1_val >= min_val_krw:
+                if score_res["score"] >= score_cutoff and t1_val >= 3_000_000_000:
                     is_matched = True
                     strat_label = f"퀀트 {score_res['score']:.0f}점"
-                    target_tp = score_res["tp_pct"]
-                    target_sl = score_res["sl_pct"]
+                    target_tp = score_res.get("tp_pct", 5.0)
+                    target_sl = score_res.get("sl_pct", 2.5)
 
             score_res = calculate_score_for_row(t1_row)
             score = score_res["score"]
-            if not is_matched and score >= max(score_cutoff, 70.0) and t1_val >= min_val_krw:
+            # Fallback to high conviction if specific strategy list is sparse
+            if not is_matched and score >= max(score_cutoff, 65.0) and t1_val >= 3_000_000_000:
                 is_matched = True
-                strat_label = f"고확신 ({score:.0f}점)"
-                target_tp = score_res["tp_pct"]
-                target_sl = score_res["sl_pct"]
+                strat_label = f"{strat_label or '고확신'} ({score:.0f}점)"
+                if "당일 단타" not in strategy_mode and "스나이퍼" not in strategy_mode and "5% 급등" not in strategy_mode and "종가배팅" not in strategy_mode:
+                    target_tp = score_res.get("tp_pct", 5.0)
+                    target_sl = score_res.get("sl_pct", 2.5)
 
             if not is_matched:
                 continue
@@ -300,19 +344,19 @@ def diagnose_failure_reasons(df_results: pd.DataFrame, bm_change_pct: float = 0.
         }
 
     # 1. Open Gap Check
-    miss_high_gap = miss_df[miss_df["open_gap_pct"] >= 3.0]
-    if len(miss_high_gap) > 0 and (len(miss_high_gap) / total_miss) >= 0.35:
+    miss_high_gap = miss_df[miss_df["open_gap_pct"] >= 2.0]
+    if len(miss_high_gap) > 0 and (len(miss_high_gap) / total_miss) >= 0.3:
         issues.append({
             "type": "HIGH_OPEN_GAP",
             "severity": "HIGH",
             "title": "시초가 과대 갭상승으로 인한 차익 매물 출회",
-            "description": f"손실/미도달 종목의 {(len(miss_high_gap)/total_miss)*100:.0f}%({len(miss_high_gap)}건)가 시초가 +3.0% 이상 갭상승 출발 후 음봉 전환되었습니다.",
+            "description": f"손실/미도달 종목의 {(len(miss_high_gap)/total_miss)*100:.0f}%({len(miss_high_gap)}건)가 시초가 갭상승 출발 후 음봉 전환되었습니다.",
             "action": "시초가 갭상승 상한선 필터를 2.5% 이하로 보수적 제한 권장"
         })
 
     # 2. Volume / Liquidity Check
     miss_low_val = miss_df[miss_df["t1_val_krw"] < 15_000_000_000]
-    if len(miss_low_val) > 0 and (len(miss_low_val) / total_miss) >= 0.35:
+    if len(miss_low_val) > 0 and (len(miss_low_val) / total_miss) >= 0.3:
         issues.append({
             "type": "LOW_LIQUIDITY",
             "severity": "MEDIUM",
@@ -322,18 +366,18 @@ def diagnose_failure_reasons(df_results: pd.DataFrame, bm_change_pct: float = 0.
         })
 
     # 3. RSI Overbought Check
-    miss_high_rsi = miss_df[miss_df["rsi"] >= 70.0]
+    miss_high_rsi = miss_df[miss_df["rsi"] >= 65.0]
     if len(miss_high_rsi) > 0 and (len(miss_high_rsi) / total_miss) >= 0.3:
         issues.append({
             "type": "OVERBOUGHT_RSI",
             "severity": "MEDIUM",
-            "title": "RSI 과열권(70 이상) 고점 추격 진입",
-            "description": f"실패 종목 중 {len(miss_high_rsi)}건이 이미 RSI 과매수(70 이상) 영역에서 추천되어 상방 탄력이 둔화되었습니다.",
-            "action": "RSI 70 미만 눌림목/첫돌파 종목 우선 필터링 적용 권장"
+            "title": "RSI 과열권(65 이상) 고점 추격 진입",
+            "description": f"실패 종목 중 {len(miss_high_rsi)}건이 이미 RSI 과매수 영역에서 추천되어 상방 탄력이 둔화되었습니다.",
+            "action": "RSI 65 미만 눌림목/첫돌파 종목 우선 필터링 적용 권장"
         })
 
     # 4. Market Systematic Risk
-    if bm_change_pct <= -1.0:
+    if bm_change_pct <= -0.8:
         issues.append({
             "type": "MARKET_CRASH",
             "severity": "HIGH",
@@ -383,14 +427,14 @@ def generate_auto_tuning_recommendations(
     opt_mask = pd.Series(True, index=df_results.index)
 
     miss_df = df_results[~df_results["is_hit"]]
-    if not miss_df.empty and (miss_df["open_gap_pct"] >= 3.0).sum() >= 1:
+    if not miss_df.empty and (miss_df["open_gap_pct"] >= 2.0).sum() >= 1:
         proposals.append({
             "param_name": "시초가 대비 상승률 구간 상한",
             "param_key": "max_open_gain",
             "current_val": "4.5%",
             "recommended_val": "2.5%",
             "target_val_float": 2.5,
-            "reason": "시초 갭 3.0% 이상 고점 추격 종목 사전 차단"
+            "reason": "시초 갭 2.0% 이상 고점 추격 종목 사전 차단"
         })
         opt_mask = opt_mask & (df_results["open_gap_pct"] <= 2.5)
 
@@ -407,17 +451,17 @@ def generate_auto_tuning_recommendations(
         opt_mask = opt_mask & (df_results["t1_val_krw"] >= 15_000_000_000)
 
     cur_cutoff = current_params.get("score_cutoff", 65.0)
-    low_score_misses = miss_df[miss_df["t1_score"] < 72.0]
+    low_score_misses = miss_df[miss_df["t1_score"] < 70.0]
     if len(low_score_misses) >= 1:
         proposals.append({
             "param_name": "최소 퀀트 스코어 컷오프",
             "param_key": "min_score_cutoff",
             "current_val": f"{cur_cutoff:.0f}점",
-            "recommended_val": "72점",
-            "target_val_float": 72.0,
+            "recommended_val": "70점",
+            "target_val_float": 70.0,
             "reason": "승률이 불확실한 60점대 경계 종목 배제"
         })
-        opt_mask = opt_mask & (df_results["t1_score"] >= 72.0)
+        opt_mask = opt_mask & (df_results["t1_score"] >= 70.0)
 
     if not proposals:
         proposals.append({

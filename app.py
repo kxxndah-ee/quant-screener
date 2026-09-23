@@ -2437,7 +2437,11 @@ with tab5:
         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
         run_verif_btn = st.button("🔍 전일 성과 검증 & 자가 진단 실행", type="primary", use_container_width=True, key="btn_run_daily_verif")
 
-    if run_verif_btn:
+    # Auto-run on first load or when user clicks run button
+    cache_key = f"{sel_verif_date}_{sel_verif_strat}"
+    cached_key = st.session_state.get("daily_verif_cache_key")
+
+    if run_verif_btn or ("daily_verif_cache" not in st.session_state):
         with st.spinner(f"[{sel_verif_date}] 기준 스크리닝 및 익일 실제 체결 데이터 사후 검증 중..."):
             v_res = run_daily_point_in_time_verification(
                 pred_date=sel_verif_date,
@@ -2447,6 +2451,7 @@ with tab5:
                 sample_pool_size=150
             )
             st.session_state["daily_verif_cache"] = v_res
+            st.session_state["daily_verif_cache_key"] = cache_key
 
     # Display results if available in session state
     verif_data = st.session_state.get("daily_verif_cache")
@@ -2456,7 +2461,7 @@ with tab5:
     elif "error" in verif_data:
         st.warning(f"⚠️ {verif_data['error']}")
     elif verif_data.get("total_screened", 0) == 0:
-        st.info(f"선택일({verif_data['pred_date']})에 해당 전략 조건으로 포착된 종목이 없습니다. 다른 일자나 전략을 선택해 보세요.")
+        st.info(f"선택일({verif_data.get('pred_date', sel_verif_date)})에 해당 전략 조건으로 포착된 종목이 없습니다. 다른 일자나 전략을 선택해 보세요.")
     else:
         kpi = verif_data["kpi"]
         diag = verif_data["diagnosis"]
