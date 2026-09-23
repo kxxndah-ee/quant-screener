@@ -63,6 +63,13 @@ from src.database.diary_manager import (
     evaluate_model_decay
 )
 from src.automation.scheduler import run_post_market_job, run_pre_market_job
+from src.core.daily_verifier import (
+    get_available_trading_dates,
+    run_daily_point_in_time_verification,
+    diagnose_failure_reasons,
+    generate_auto_tuning_recommendations
+)
+
 
 # Page configuration (Office stealth friendly)
 st.set_page_config(
@@ -566,11 +573,12 @@ def load_all_watchlist_metrics(codes_tuple):
 # ---------------------------------------------------------
 # 3 Main Tabs
 # ---------------------------------------------------------
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "1. 시장 전체 익일 상승 후보 & 고확신 스크리너",
     "2. 관심종목 실시간 스코어보드",
     "3. 워크포워드 검증 & 벤치마크 리포트",
     "4. 예측 다이어리 & 라이브 추적",
+    "5. 전일 성과 자가검증 & AI 전략 최적화",
 ])
 
 
@@ -2392,3 +2400,201 @@ with tab4:
             fig_live.add_hline(y=50.0, line_dash="dash", line_color="gray", annotation_text="50% 기준선")
             fig_live.update_layout(margin=dict(l=20, r=20, t=40, b=20))
             st.plotly_chart(fig_live, use_container_width=True)
+
+
+# =========================================================
+# TAB 5: 전일 성과 자가검증 & AI 전략 최적화 (Self-Tuning)
+# =========================================================
+with tab5:
+    st.markdown('<div class="office-heading">5. 전일 성과 사후 검증 & AI 전략 자가최적화 (Self-Tuning)</div>', unsafe_allow_html=True)
+    st.caption("매일 전일 추천 종목의 당일 실제 체결 성과(승률/수익률/알파)를 사후 검증하고, 실패 요인을 스스로 학습하여 최적 스크리닝 파라미터로 자동 보정합니다.")
+
+    # 1. Date & Strategy Controls
+    avail_dates = get_available_trading_dates(limit=30)
+
+    v_c1, v_c2, v_c3 = st.columns([1.5, 2.0, 1.2])
+    with v_c1:
+        sel_verif_date = st.selectbox(
+            "검증 기준일 (T-1 추천 발굴일)",
+            options=avail_dates[::-1] if avail_dates else ["2026-09-09"],
+            index=1 if len(avail_dates) > 1 else 0,
+            key="verif_pred_date_sel"
+        )
+    with v_c2:
+        sel_verif_strat = st.selectbox(
+            "검증 대상 전략 모드",
+            [
+                "⚡ 실시간 당일 단타 (5% 익절)",
+                "🎯 스나이퍼 고확신 (눌림목 반등)",
+                "🚀 5% 급등 타겟 (1~2일 스윙)",
+                "🌙 주도주 종가배팅 (익일 시초 갭)",
+                "📊 일반 퀀트 스코어링"
+            ],
+            index=0,
+            key="verif_strat_mode_sel"
+        )
+    with v_c3:
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+        run_verif_btn = st.button("🔍 전일 성과 검증 & 자가 진단 실행", type="primary", use_container_width=True, key="btn_run_daily_verif")
+
+    if run_verif_btn:
+        with st.spinner(f"[{sel_verif_date}] 기준 스크리닝 및 익일 실제 체결 데이터 사후 검증 중..."):
+            v_res = run_daily_point_in_time_verification(
+                pred_date=sel_verif_date,
+                strategy_mode=sel_verif_strat,
+                min_val_krw=10_000_000_000,
+                score_cutoff=65.0,
+                sample_pool_size=150
+            )
+            st.session_state["daily_verif_cache"] = v_res
+
+    # Display results if available in session state
+    verif_data = st.session_state.get("daily_verif_cache")
+
+    if not verif_data:
+        st.info("💡 상단의 **[🔍 전일 성과 검증 & 자가 진단 실행]** 버튼을 누르시면, 선택하신 날짜의 추천 종목과 익일 실제 체결 성과를 대조 분석하여 실패 요인 진단 및 최적화 파라미터를 도출합니다.")
+    elif "error" in verif_data:
+        st.warning(f"⚠️ {verif_data['error']}")
+    elif verif_data.get("total_screened", 0) == 0:
+        st.info(f"선택일({verif_data['pred_date']})에 해당 전략 조건으로 포착된 종목이 없습니다. 다른 일자나 전략을 선택해 보세요.")
+    else:
+        kpi = verif_data["kpi"]
+        diag = verif_data["diagnosis"]
+        tuning = verif_data["tuning"]
+        df_res = verif_data["df_results"]
+
+        st.markdown("---")
+
+        # 1. KPI Metric Row
+        k_c1, k_c2, k_c3, k_c4 = st.columns(4)
+        with k_c1:
+            st.metric(
+                "실현 적중률 (승률)",
+                f"{kpi['win_rate']:.1f}%",
+                delta=f"{kpi['hits']} / {kpi['total']} 종목 적중"
+            )
+        with k_c2:
+            st.metric(
+                "평균 실현 순수익률",
+                f"{kpi['avg_net_ret']:+.2f}%",
+                delta=f"목표익절 {kpi['tp_count']}건 / 손절 {kpi['sl_count']}건"
+            )
+        with k_c3:
+            st.metric(
+                "KODEX 200 대비 알파",
+                f"{kpi['avg_excess_ret']:+.2f}%p",
+                delta=f"시장수익률: {kpi['bm_day_ret']:+.2f}%"
+            )
+        with k_c4:
+            st.metric(
+                "장중 최대상승폭 평균",
+                f"{kpi['avg_max_gain']:+.2f}%",
+                delta="장중 최고가 기준"
+            )
+
+        # 2. AI Root Cause Diagnosis & Failure Analysis
+        st.markdown("---")
+        st.markdown("#### 🧠 AI 자가 진단 & 실패 원인 분석 보고서")
+        st.caption(f"검증 기준일: **{verif_data['pred_date']}** ➔ 체결 검증일: **{verif_data['exec_date']}** | {diag.get('summary', '')}")
+
+        issues = diag.get("issues", [])
+        if not issues:
+            st.success("🎉 **[결함 요인 없음]** 모든 추천 종목이 목표 익절 또는 안정적인 양의 수익률을 달성하였습니다! 현행 파라미터가 장세와 완벽하게 일치합니다.")
+        else:
+            for iss in issues:
+                sev_icon = "🚨" if iss["severity"] == "HIGH" else "⚠️"
+                with st.expander(f"{sev_icon} [{iss['title']}]", expanded=True):
+                    st.markdown(f"**진단 내역**: {iss['description']}")
+                    st.markdown(f"**권장 조치**: `{iss['action']}`")
+
+        # Feature Comparison Table (Hits vs Misses)
+        stats_cmp = diag.get("stats_comparison", {})
+        if stats_cmp and "metric" in stats_cmp:
+            with st.expander("📊 성공 종목 vs 실패 종목 핵심 팩터 비교표", expanded=False):
+                cmp_df = pd.DataFrame(stats_cmp).rename(columns={
+                    "metric": "비교 지표",
+                    "hits": "성공/익절 종목군",
+                    "misses": "실패/손절 종목군"
+                })
+                st.table(cmp_df)
+
+        # 3. Strategy Auto-Tuning Proposals & 1-Click Apply
+        st.markdown("---")
+        st.markdown("#### ⚙️ 전략 자가 수정(Auto-Tuning) 제안 & 원클릭 최적화 반영")
+        st.caption("발굴된 결함 요인을 보정하기 위해 도출된 최적 스크리너 파라미터입니다. 적용 시 스크리너 필터에 즉시 반영됩니다.")
+
+        proposals = tuning.get("proposals", [])
+        sim = tuning.get("simulation", {})
+
+        if proposals:
+            t_col1, t_col2 = st.columns([1.6, 1.2])
+            with t_col1:
+                prop_rows = []
+                for p in proposals:
+                    prop_rows.append({
+                        "조정 파라미터": p["param_name"],
+                        "현재 설정값": p["current_val"],
+                        "AI 제안 최적값": p["recommended_val"],
+                        "개선 근거": p["reason"]
+                    })
+                st.table(pd.DataFrame(prop_rows))
+
+            with t_col2:
+                st.markdown("**💡 자가 수정 시뮬레이션 개선 효과**")
+                st.markdown(
+                    f"""
+                    - **적용 전 승률**: `{sim.get('before_win_rate', 0):.1f}%` ({sim.get('before_total', 0)}종목)
+                    - **최적화 후 승률**: **`{sim.get('after_win_rate', 0):.1f}%`** ({sim.get('after_total', 0)}종목)
+                    - **승률 향상폭**: **`+{sim.get('win_rate_boost', 0):.1f}%p`**
+                    - **손실 종목 사전 차단**: **`{sim.get('filtered_losses', 0)}개`** 손실 유발 종목 원천 배제
+                    """
+                )
+
+                if st.button("⚡ 진단된 최적 파라미터를 스크리너에 즉시 자동 적용", type="primary", use_container_width=True, key="btn_apply_auto_tune"):
+                    for p in proposals:
+                        pkey = p.get("param_key")
+                        tval = p.get("target_val_float")
+                        if pkey == "max_open_gain" and tval:
+                            cur_g = st.session_state.get("sc_intraday_gain_range", (3.0, 8.5))
+                            st.session_state["sc_intraday_gain_range"] = (min(cur_g[0], tval - 0.5), float(tval))
+                        elif pkey == "min_trading_val" and tval:
+                            val_options = [50, 100, 200, 300]
+                            best_val = min(val_options, key=lambda x: abs(x - int(tval)))
+                            st.session_state["sc_min_daytrade_val"] = best_val
+                            st.session_state["sc_min_val_krw"] = best_val
+                    st.toast("✅ 자가 최적화 파라미터가 스크리너(탭 1)에 성공적으로 자동 반영되었습니다!")
+                    st.success("✅ **[적용 완료]** 최적화 파라미터가 반영되었습니다! 탭 1로 이동하시면 한층 정밀해진 스크리닝 결과를 바로 확인하실 수 있습니다.")
+
+        # 4. Detailed Stock Performance Table
+        st.markdown("---")
+        st.markdown("#### 📋 검증 대상 종목별 상세 성적표")
+
+        disp_cols = [
+            "code", "name", "market", "t1_score", "strategy", "open_gap_pct",
+            "t_open", "t_high", "t_close", "max_gain_pct", "net_return_pct",
+            "is_hit", "exit_code", "exit_reason", "excess_return"
+        ]
+        disp_df = df_res[disp_cols].copy()
+        disp_df["is_hit"] = disp_df["is_hit"].apply(lambda x: "✅ 적중" if x else "❌ 손절/미달")
+
+        st.dataframe(
+            disp_df.rename(columns={
+                "code": "종목코드",
+                "name": "종목명",
+                "market": "시장",
+                "t1_score": "T-1스코어",
+                "strategy": "전략구분",
+                "open_gap_pct": "시초갭(%)",
+                "t_open": "시초가",
+                "t_high": "고가",
+                "t_close": "종가",
+                "max_gain_pct": "장중최대상승(%)",
+                "net_return_pct": "실현수익률(%)",
+                "is_hit": "적중여부",
+                "exit_code": "청산코드",
+                "exit_reason": "청산상세",
+                "excess_return": "알파(%)"
+            }),
+            height=388,
+            use_container_width=True
+        )
