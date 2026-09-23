@@ -10,9 +10,9 @@ import sys
 from datetime import datetime
 from typing import List, Dict, Any
 
-from apscheduler.schedulers.blocking import BlockingScheduler
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
+# Note: apscheduler is imported lazily inside start_scheduler() so that
+# this module and its batch jobs can be imported safely in web environments
+# (like Streamlit Cloud) without requiring APScheduler at import time.
 
 from src.database.models import get_db_connection, init_db
 from src.collectors.market_data import fetch_ohlcv, get_benchmark_ohlcv
@@ -196,6 +196,14 @@ def run_morning_strategy_verification_job() -> Dict[str, Any]:
 def start_scheduler(blocking: bool = True):
     """Starts the APScheduler with Korea Standard Time (Asia/Seoul)."""
     init_db()
+    try:
+        from apscheduler.schedulers.blocking import BlockingScheduler
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+    except ImportError as e:
+        print(f"APScheduler not available in this environment: {e}")
+        return None
+
     sched = BlockingScheduler(timezone="Asia/Seoul") if blocking else BackgroundScheduler(timezone="Asia/Seoul")
 
     # Mon-Fri 15:40 KST

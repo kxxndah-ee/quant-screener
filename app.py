@@ -62,7 +62,20 @@ from src.database.diary_manager import (
     get_diary_history,
     evaluate_model_decay
 )
-from src.automation.scheduler import run_post_market_job, run_pre_market_job, run_morning_strategy_verification_job
+try:
+    from src.automation.scheduler import (
+        run_post_market_job,
+        run_pre_market_job,
+        run_morning_strategy_verification_job
+    )
+except Exception as _sched_err:
+    def run_post_market_job():
+        return {"settled_count": 0, "new_predictions_count": 0}
+    def run_pre_market_job():
+        return {"candidates_count": 0, "briefing": "스케줄러 모듈 로드 대기 중"}
+    def run_morning_strategy_verification_job():
+        return {"strategies_evaluated": 0}
+
 from src.core.daily_verifier import (
     get_available_trading_dates,
     get_valid_prediction_dates,
