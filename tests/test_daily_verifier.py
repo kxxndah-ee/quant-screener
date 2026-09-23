@@ -188,6 +188,22 @@ class TestDailyVerifier(unittest.TestCase):
         self.assertIn("strategy_mode", df_summary.columns)
         self.assertIn("win_rate", df_summary.columns)
 
+    def test_get_weekly_verification_summary(self):
+        from src.core.daily_verifier import get_weekly_verification_summary
+        res = get_weekly_verification_summary(limit_days=5)
+        self.assertIsInstance(res, dict)
+        self.assertIn("overall_win_rate", res)
+        self.assertIn("avg_net_ret", res)
+        self.assertIn("best_strategy", res)
+        self.assertIn("top_winners", res)
+        self.assertIn("top_losers", res)
+        self.assertIsInstance(res["df_history"], pd.DataFrame)
+        self.assertIsInstance(res["strategy_summary"], pd.DataFrame)
+        self.assertIsInstance(res["daily_trend"], pd.DataFrame)
+        self.assertGreaterEqual(len(res["dates"]), 1)
+        self.assertGreaterEqual(len(res["top_winners"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
+

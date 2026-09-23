@@ -196,6 +196,165 @@ def get_monthly_verification_summary(strategy_mode: Optional[str] = None, limit_
         return pd.DataFrame()
 
 
+def get_weekly_verification_summary(limit_days: int = 5) -> Dict[str, Any]:
+    """
+    Returns an aggregated verification performance report for the most recent `limit_days`
+    trading days (typically 5 trading days / 1 trading week).
+    Includes overall metrics, strategy breakdown, daily trends, and top winning / losing stock trades.
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT DISTINCT pred_date FROM daily_verification_history
+                ORDER BY pred_date DESC
+                LIMIT ?
+            """, (limit_days,))
+            recent_dates = [r[0] for r in cursor.fetchall()]
+
+            if not recent_dates:
+                return {
+                    "dates": [],
+                    "date_range": "",
+                    "total_screened": 0,
+                    "total_hits": 0,
+                    "overall_win_rate": 0.0,
+                    "avg_net_ret": 0.0,
+                    "best_strategy": "-",
+                    "best_strat_win_rate": 0.0,
+                    "df_history": pd.DataFrame(),
+                    "strategy_summary": pd.DataFrame(),
+                    "daily_trend": pd.DataFrame(),
+                    "top_winners": [],
+                    "top_losers": [],
+                    "diagnosis_summary": "최근 주간 검증 데이터가 없습니다."
+                }
+
+            placeholders = ",".join("?" * len(recent_dates))
+            query = f"""
+                SELECT pred_date, exec_date, strategy_mode, total_screened, hits, win_rate,
+                       avg_net_ret, avg_max_gain, avg_excess_ret, tp_count, sl_count, bm_day_ret,
+                       diagnosis_summary, results_json, created_at
+                FROM daily_verification_history
+                WHERE pred_date IN ({placeholders})
+                ORDER BY pred_date DESC, strategy_mode ASC
+            """
+            cursor.execute(query, recent_dates)
+            rows = [dict(r) for r in cursor.fetchall()]
+
+        df_history = pd.DataFrame(rows)
+        if df_history.empty:
+            return {
+                "dates": recent_dates,
+                "date_range": "",
+                "total_screened": 0,
+                "total_hits": 0,
+                "overall_win_rate": 0.0,
+                "avg_net_ret": 0.0,
+                "best_strategy": "-",
+                "best_strat_win_rate": 0.0,
+                "df_history": pd.DataFrame(),
+                "strategy_summary": pd.DataFrame(),
+                "daily_trend": pd.DataFrame(),
+                "top_winners": [],
+                "top_losers": [],
+                "diagnosis_summary": "최근 주간 검증 데이터가 없습니다."
+            }
+
+        total_screened = int(df_history["total_screened"].sum())
+        total_hits = int(df_history["hits"].sum())
+        overall_win_rate = (total_hits / total_screened * 100.0) if total_screened > 0 else 0.0
+        avg_net_ret = float(df_history["avg_net_ret"].mean()) if not df_history.empty else 0.0
+
+        # Strategy breakdown
+        strat_group = df_history.groupby("strategy_mode").agg({
+            "win_rate": "mean",
+            "avg_net_ret": "mean",
+            "total_screened": "sum",
+            "hits": "sum",
+            "avg_max_gain": "mean"
+        }).reset_index()
+        strat_group = strat_group.sort_values(by="win_rate", ascending=False).reset_index(drop=True)
+
+        best_strat_name = strat_group.iloc[0]["strategy_mode"] if not strat_group.empty else "-"
+        best_strat_win_rate = float(strat_group.iloc[0]["win_rate"]) if not strat_group.empty else 0.0
+
+        # Daily trend
+        daily_trend = df_history.groupby("pred_date").agg({
+            "win_rate": "mean",
+            "avg_net_ret": "mean",
+            "hits": "sum",
+            "total_screened": "sum"
+        }).reset_index().sort_values("pred_date")
+
+        # Parse individual stock results across the 5 days
+        all_stocks = []
+        for _, r in df_history.iterrows():
+            res_str = r.get("results_json")
+            if res_str:
+                try:
+                    items = json.loads(res_str)
+                    for it in items:
+                        it["pred_date"] = r["pred_date"]
+                        it["exec_date"] = r["exec_date"]
+                        it["strategy_mode"] = r["strategy_mode"]
+                        all_stocks.append(it)
+                except Exception:
+                    pass
+
+        df_stocks = pd.DataFrame(all_stocks)
+        top_winners = []
+        top_losers = []
+        if not df_stocks.empty and "net_return_pct" in df_stocks.columns:
+            dedup_stocks = df_stocks.drop_duplicates(subset=["code", "pred_date", "strategy_mode"])
+            top_w_df = dedup_stocks.sort_values("net_return_pct", ascending=False).head(5)
+            top_l_df = dedup_stocks.sort_values("net_return_pct", ascending=True).head(5)
+            top_winners = top_w_df.to_dict(orient="records")
+            top_losers = top_l_df.to_dict(orient="records")
+
+        date_range_str = f"{recent_dates[-1]} ~ {recent_dates[0]}" if len(recent_dates) > 1 else recent_dates[0]
+        diagnosis_summary = (
+            f"최근 {len(recent_dates)}거래일({date_range_str}) 동안 5대 전략 총 {total_screened}개 종목 검증 결과, "
+            f"실현 승률 {overall_win_rate:.1f}%, 평균 실현 수익률 {avg_net_ret:+.2f}%를 기록하였습니다. "
+            f"주간 최고 성과 전략은 '{best_strat_name}' (승률 {best_strat_win_rate:.1f}%)입니다."
+        )
+
+        return {
+            "dates": recent_dates,
+            "date_range": date_range_str,
+            "total_screened": total_screened,
+            "total_hits": total_hits,
+            "overall_win_rate": round(overall_win_rate, 1),
+            "avg_net_ret": round(avg_net_ret, 2),
+            "best_strategy": best_strat_name,
+            "best_strat_win_rate": round(best_strat_win_rate, 1),
+            "df_history": df_history,
+            "strategy_summary": strat_group,
+            "daily_trend": daily_trend,
+            "top_winners": top_winners,
+            "top_losers": top_losers,
+            "diagnosis_summary": diagnosis_summary
+        }
+    except Exception as e:
+        print(f"Error fetching weekly verification summary: {e}")
+        return {
+            "dates": [],
+            "date_range": "",
+            "total_screened": 0,
+            "total_hits": 0,
+            "overall_win_rate": 0.0,
+            "avg_net_ret": 0.0,
+            "best_strategy": "-",
+            "best_strat_win_rate": 0.0,
+            "df_history": pd.DataFrame(),
+            "strategy_summary": pd.DataFrame(),
+            "daily_trend": pd.DataFrame(),
+            "top_winners": [],
+            "top_losers": [],
+            "diagnosis_summary": f"주간 데이터 조회 중 오류: {e}"
+        }
+
+
 def get_verification_pool(max_pool_size: int = 250) -> pd.DataFrame:
     """
     Builds a robust verification candidate pool prioritizing user's active watchlist,
