@@ -2566,11 +2566,18 @@ with tab5:
         st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
         run_verif_btn = st.button("🔍 전일 성과 검증 실행", type="primary", use_container_width=True, key="btn_run_daily_verif")
 
-    # Auto-run on first load or when user clicks run button
+    # Auto-run on first load, when user clicks run button, or when dropdowns change
     cache_key = f"{sel_verif_date}_{sel_verif_strat}"
     cached_key = st.session_state.get("daily_verif_cache_key")
 
-    if run_verif_btn or ("daily_verif_cache" not in st.session_state) or (cached_key != cache_key and run_verif_btn):
+    should_run_verif = (
+        run_verif_btn
+        or ("daily_verif_cache" not in st.session_state)
+        or (st.session_state.get("daily_verif_cache") is None)
+        or (cached_key != cache_key)
+    )
+
+    if should_run_verif:
         with st.spinner(f"[{sel_verif_date}] 기준 스크리닝 및 익일 실제 체결 데이터 사후 검증 중..."):
             v_res = run_daily_point_in_time_verification(
                 pred_date=sel_verif_date,
@@ -2726,8 +2733,13 @@ with tab5:
             "t_open", "t_high", "t_close", "max_gain_pct", "net_return_pct",
             "is_hit", "exit_code", "exit_reason", "excess_return"
         ]
-        disp_df = df_res[disp_cols].copy()
-        disp_df["is_hit"] = disp_df["is_hit"].apply(lambda x: "✅ 적중" if x else "❌ 손절/미달")
+        if isinstance(df_res, pd.DataFrame) and not df_res.empty:
+            avail_cols = [c for c in disp_cols if c in df_res.columns]
+            disp_df = df_res[avail_cols].copy()
+            if "is_hit" in disp_df.columns:
+                disp_df["is_hit"] = disp_df["is_hit"].apply(lambda x: "✅ 적중" if x else "❌ 손절/미달")
+        else:
+            disp_df = pd.DataFrame()
 
         st.dataframe(
             disp_df.rename(columns={
