@@ -14,7 +14,7 @@ from typing import List, Dict, Any
 # this module and its batch jobs can be imported safely in web environments
 # (like Streamlit Cloud) without requiring APScheduler at import time.
 
-from src.database.models import get_db_connection, init_db
+from src.database.models import get_db_connection, init_db, get_now_kst
 from src.collectors.market_data import fetch_ohlcv, get_benchmark_ohlcv
 from src.collectors.krx_universe import get_universe
 from src.core.scoring import evaluate_stock_latest
@@ -38,8 +38,8 @@ def run_post_market_job() -> Dict[str, Any]:
     2. Settle yesterday's pending predictions.
     3. Calculate score & dynamic TP/SL for tomorrow, and record to Prediction Diary.
     """
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+    today_str = get_now_kst().strftime("%Y-%m-%d")
     print(f"[{now_str}] Starting 15:40 Post-Market Automation Job...")
 
     # 1. Settle pending predictions first
@@ -127,8 +127,8 @@ def run_pre_market_job() -> Dict[str, Any]:
     2. Screen watchlist & candidates with Score >= 70.
     3. Generate pre-market briefing log.
     """
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
+    today_str = get_now_kst().strftime("%Y-%m-%d")
     print(f"[{now_str}] Starting 08:30 Pre-Market Automation Job...")
 
     # 1. Reset Risk State in DB
@@ -186,7 +186,7 @@ def run_morning_strategy_verification_job() -> Dict[str, Any]:
     diagnoses failures, calculates tuning recommendations, and logs to daily_verification_history.
     """
     from src.core.daily_verifier import run_all_strategies_daily_verification
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{now_str}] Starting Morning 08:30 Strategy Verification & AI Self-Tuning Auto-Job...")
     res = run_all_strategies_daily_verification(force_refresh=True)
     print(f"  - Completed verification for {res.get('strategies_evaluated', 0)} strategies.")

@@ -40,7 +40,8 @@ from src.database.models import (
     get_db_connection,
     update_watchlist_group,
     batch_update_watchlist_groups,
-    get_watchlist_groups
+    get_watchlist_groups,
+    get_now_kst
 )
 from src.collectors.market_data import fetch_ohlcv, get_latest_market_info, get_benchmark_ohlcv
 from src.collectors.krx_universe import (
@@ -682,7 +683,7 @@ def load_all_watchlist_metrics(codes_tuple):
 # ---------------------------------------------------------
 # Top Navigation & Status Bar (Office Stealth Mode)
 # ---------------------------------------------------------
-now_dt = datetime.now()
+now_dt = get_now_kst()
 is_weekday = now_dt.weekday() < 5
 cur_hm = now_dt.hour * 100 + now_dt.minute
 
@@ -691,13 +692,13 @@ if is_weekday and 900 <= cur_hm < 1530:
 elif is_weekday and 830 <= cur_hm < 900:
     market_badge = '<span style="color:#D97706; font-weight:700;">○ 장전 동시호가 (08:30~09:00)</span>'
 elif is_weekday and 1530 <= cur_hm < 1800:
-    market_badge = '<span style="color:#475569; font-weight:700;">○ 시간외 거래 (15:30~18:00)</span>'
+    market_badge = '<span style="color:#0284C7; font-weight:700;">○ 시간외 단일가 (15:30~18:00)</span>'
 else:
     market_badge = '<span style="color:#64748B; font-weight:600;">○ 장마감 (휴장)</span>'
 
 time_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
-col_top_l, col_top_r = st.columns([3.2, 1.8])
+col_top_l, col_top_r = st.columns([3.0, 2.0])
 with col_top_l:
     st.markdown(
         '<div style="display:flex; align-items:center; gap:8px; padding:2px 0 6px 0;">'
@@ -707,12 +708,17 @@ with col_top_l:
         unsafe_allow_html=True
     )
 with col_top_r:
-    st.markdown(
-        f'<div style="text-align:right; font-size:0.80rem; color:#475569; padding:2px 0 6px 0;">'
-        f'🕒 <strong style="color:#0F172A;">{time_str} KST</strong> &nbsp;|&nbsp; {market_badge}'
-        f'</div>',
-        unsafe_allow_html=True
-    )
+    top_c1, top_c2 = st.columns([4.2, 0.8])
+    with top_c1:
+        st.markdown(
+            f'<div style="text-align:right; font-size:0.80rem; color:#475569; padding:4px 0 4px 0;">'
+            f'🕒 <strong style="color:#0F172A;">{time_str} KST</strong> &nbsp;|&nbsp; {market_badge}'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+    with top_c2:
+        if st.button("🔄", help="현재시각 및 시장상태 최신화", key="btn_top_time_sync"):
+            st.rerun()
 
 main_tab_names = [
     "1. 시장 전체 익일 상승 후보 & 고확신 스크리너",
@@ -773,7 +779,7 @@ with tab1:
     # 시간대별 최적 거래대금 설정 가이드 및 실시간 자동 세팅 엔진
     def get_auto_time_recommendation(dt=None):
         if dt is None:
-            dt = datetime.now()
+            dt = get_now_kst()
         cur_hm = dt.hour * 100 + dt.minute
 
         if 910 <= cur_hm < 940:
@@ -844,7 +850,7 @@ with tab1:
             }
 
     rec_time = get_auto_time_recommendation()
-    now_str = datetime.now().strftime("%H:%M")
+    now_str = get_now_kst().strftime("%H:%M")
     cur_slot_id = f"slot_{rec_time['highlight_idx']}"
 
     # Auto-sync session state when slot changes or sync is triggered
@@ -1160,7 +1166,7 @@ with tab1:
                         vol_p = int(df_stock["Volume"].iloc[-1])
 
                         # Detect intraday session (before 15:30 on trading day)
-                        now_dt = datetime.now()
+                        now_dt = get_now_kst()
                         last_bar_dt = df_stock.index[-1]
                         is_today_intraday = (last_bar_dt.strftime("%Y-%m-%d") == now_dt.strftime("%Y-%m-%d") and now_dt.hour < 15)
 

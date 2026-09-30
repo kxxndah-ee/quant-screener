@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import pandas as pd
 
-from src.database.models import get_db_connection
+from src.database.models import get_db_connection, get_now_kst
 from src.collectors.market_data import fetch_ohlcv
 from src.backtest.exit_rules import simulate_intraday_exit
 from src.core.execution import calculate_net_trade_return
@@ -34,7 +34,7 @@ def record_daily_prediction(
     Inserts a new prediction into the predictions table.
     Avoids duplicate entries for the same date and code.
     """
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -69,7 +69,7 @@ def settle_pending_predictions() -> List[Dict[str, Any]]:
     Computes Hit/Miss, actual return, exit reason, and inserts into settlements table.
     """
     settled_results = []
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     with get_db_connection() as conn:
         cursor = conn.cursor()

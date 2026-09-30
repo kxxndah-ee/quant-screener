@@ -18,7 +18,7 @@ import pandas as pd
 import numpy as np
 import FinanceDataReader as fdr
 
-from src.database.models import CACHE_DIR
+from src.database.models import CACHE_DIR, get_now_kst
 
 BENCHMARK_CODE = "069500"  # KODEX 200
 
@@ -39,7 +39,7 @@ def fetch_ohlcv(
     Loads from parquet cache if present, fetching only missing dates incrementally.
     """
     cache_path = get_cache_path(code)
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = get_now_kst().strftime("%Y-%m-%d")
     target_end = end or today_str
 
     df_cached: Optional[pd.DataFrame] = None

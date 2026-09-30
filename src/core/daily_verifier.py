@@ -13,7 +13,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import pandas as pd
 import numpy as np
 
-from src.database.models import get_db_connection
+from src.database.models import get_db_connection, get_now_kst
 from src.collectors.market_data import fetch_ohlcv, get_benchmark_ohlcv
 from src.collectors.krx_universe import get_universe, sync_krx_universe
 from src.core.scoring import compute_point_in_time_indicators, calculate_score_for_row
@@ -45,7 +45,7 @@ def get_available_trading_dates(limit: int = 30) -> List[str]:
     except Exception:
         pass
     dates = []
-    curr = datetime.now()
+    curr = get_now_kst()
     while len(dates) < limit:
         curr -= timedelta(days=1)
         if curr.weekday() < 5:
@@ -80,7 +80,7 @@ def save_verification_history(result: Dict[str, Any], strategy_mode: str) -> Non
     diag_issues_json = json.dumps(diag.get("issues", []), ensure_ascii=False)
     tuning_json = json.dumps(tuning, ensure_ascii=False)
     results_json = df_res.to_json(orient="records", force_ascii=False) if not df_res.empty else "[]"
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
     try:
         with get_db_connection() as conn:
@@ -903,7 +903,7 @@ def run_all_strategies_daily_verification(
 
     return {
         "pred_date": pred_date,
-        "completed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "completed_at": get_now_kst().strftime("%Y-%m-%d %H:%M:%S"),
         "strategies_evaluated": len(outcomes),
         "outcomes": outcomes
     }

@@ -8,6 +8,19 @@ import sqlite3
 from datetime import datetime
 from typing import Optional, List
 
+try:
+    import zoneinfo
+    KST_TZ = zoneinfo.ZoneInfo("Asia/Seoul")
+except Exception:
+    import pytz
+    KST_TZ = pytz.timezone("Asia/Seoul")
+
+
+def get_now_kst() -> datetime:
+    """Returns the current datetime in Korea Standard Time (Asia/Seoul, UTC+9)."""
+    return datetime.now(KST_TZ)
+
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DB_PATH = os.path.join(DATA_DIR, "app.db")
@@ -138,7 +151,7 @@ def init_db(db_path: str = DB_PATH) -> None:
             cursor.execute("""
                 INSERT INTO risk_state (id, date, current_equity, daily_realized_loss, is_circuit_breaker_active, consecutive_losses, cooldown_active)
                 VALUES (1, ?, 10000000.0, 0.0, 0, 0, 0)
-            """, (datetime.now().strftime("%Y-%m-%d"),))
+            """, (get_now_kst().strftime("%Y-%m-%d"),))
 
         # 7. Daily Verification History (Accumulated 1-Month Self-Verification & Diagnosis Logs)
         cursor.execute("""
@@ -171,11 +184,11 @@ def init_db(db_path: str = DB_PATH) -> None:
         cursor.execute("SELECT COUNT(*) FROM watchlist")
         if cursor.fetchone()[0] == 0:
             defaults = [
-                ("005930", "삼성전자", "KOSPI", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "반도체 대장주"),
-                ("000660", "SK하이닉스", "KOSPI", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "HBM/메모리"),
-                ("035420", "NAVER", "KOSPI", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "플랫폼"),
-                ("005380", "현대차", "KOSPI", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "완성차/모빌리티"),
-                ("068270", "셀트리온", "KOSPI", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "바이오시밀러"),
+                ("005930", "삼성전자", "KOSPI", get_now_kst().strftime("%Y-%m-%d %H:%M:%S"), "반도체 대장주"),
+                ("000660", "SK하이닉스", "KOSPI", get_now_kst().strftime("%Y-%m-%d %H:%M:%S"), "HBM/메모리"),
+                ("035420", "NAVER", "KOSPI", get_now_kst().strftime("%Y-%m-%d %H:%M:%S"), "플랫폼"),
+                ("005380", "현대차", "KOSPI", get_now_kst().strftime("%Y-%m-%d %H:%M:%S"), "완성차/모빌리티"),
+                ("068270", "셀트리온", "KOSPI", get_now_kst().strftime("%Y-%m-%d %H:%M:%S"), "바이오시밀러"),
             ]
             cursor.executemany("""
                 INSERT INTO watchlist (code, name, market, added_at, notes)

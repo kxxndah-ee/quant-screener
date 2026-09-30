@@ -22,7 +22,7 @@ import requests
 import urllib3
 urllib3.disable_warnings()
 
-from src.database.models import get_db_connection, DB_PATH
+from src.database.models import get_db_connection, DB_PATH, get_now_kst
 
 
 def fetch_active_stocks_from_krx() -> pd.DataFrame:
@@ -131,7 +131,7 @@ def sync_krx_universe(force: bool = False) -> int:
 
         print("Syncing KRX Universe into local database...")
         df_active = fetch_active_stocks_from_krx()
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
 
         records_to_upsert = []
         if not df_active.empty:
@@ -321,7 +321,7 @@ def batch_add_to_watchlist(codes: List[str], group_name: str = "기본그룹") -
     clean_codes = list(dict.fromkeys(clean_codes))  # remove duplicates
     clean_group = group_name.strip() if group_name and group_name.strip() else "기본그룹"
 
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = get_now_kst().strftime("%Y-%m-%d %H:%M:%S")
     added_count = 0
 
     with get_db_connection() as conn:
