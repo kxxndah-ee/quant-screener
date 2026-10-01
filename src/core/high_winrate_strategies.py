@@ -153,18 +153,18 @@ def evaluate_closing_bet_candidate(
     4. Above MAs: Close > MA5 and Close > MA20
     5. Target: Next morning gap-up / early surge harvest (TP +1.5%, SL -2.0%)
     """
-    if df is None or len(df) < 30:
+    if df is None or len(df) < 5:
         return None
 
     today = df.iloc[-1]
-    prev = df.iloc[-2]
+    prev = df.iloc[-2] if len(df) >= 2 else today
 
     open_p = float(today["Open"])
     high_p = float(today["High"])
     low_p = float(today["Low"])
     close_p = float(today["Close"])
     vol_p = float(today["Volume"])
-    prev_close = float(prev["Close"])
+    prev_close = float(prev["Close"]) if len(df) >= 2 else open_p
 
     if prev_close <= 0 or (high_p - low_p) <= 0:
         return None
@@ -179,16 +179,17 @@ def evaluate_closing_bet_candidate(
     if day_return < 3.0:
         return None
 
-    # 3. High-Close ratio (close in top 15% of day range)
+    # 3. High-Close ratio (close in top 30% of day range)
     high_close_ratio = (close_p - low_p) / (high_p - low_p)
-    if high_close_ratio < 0.82:
+    if high_close_ratio < 0.70:
         return None
 
-    # 4. Above short-term moving average
-    ma5 = float(df["Close"].rolling(5).mean().iloc[-1])
-    ma20 = float(df["Close"].rolling(20).mean().iloc[-1])
-    if not (close_p > ma5 and close_p > ma20):
-        return None
+    # 4. Above short-term moving average (if enough history available)
+    if len(df) >= 20:
+        ma5 = float(df["Close"].rolling(5).mean().iloc[-1])
+        ma20 = float(df["Close"].rolling(20).mean().iloc[-1])
+        if not (close_p > ma5 and close_p > ma20):
+            return None
 
     tp_pct = 1.5
     sl_pct = 2.0
@@ -285,7 +286,7 @@ def evaluate_5pct_surge_candidate(
     4. Solid Marubozu: High close ratio >= 0.88 (윗꼬리 짧은 견고한 종가 고가마감)
     5. Target: Take Profit +5.0%, Stop Loss -3.5%~-4.0%
     """
-    if df is None or len(df) < 30:
+    if df is None or len(df) < 5:
         return None
 
     # Market regime check
@@ -296,14 +297,14 @@ def evaluate_5pct_surge_candidate(
             return None
 
     today = df.iloc[-1]
-    prev = df.iloc[-2]
+    prev = df.iloc[-2] if len(df) >= 2 else today
 
     open_p = float(today["Open"])
     high_p = float(today["High"])
     low_p = float(today["Low"])
     close_p = float(today["Close"])
     vol_p = float(today["Volume"])
-    prev_close = float(prev["Close"])
+    prev_close = float(prev["Close"]) if len(df) >= 2 else open_p
 
     if prev_close <= 0 or (high_p - low_p) <= 0:
         return None
@@ -318,9 +319,9 @@ def evaluate_5pct_surge_candidate(
     if day_return < min_day_return:
         return None
 
-    # 3. High-Close ratio
+    # 3. High-Close ratio (close in upper range, allowing intraday fluctuations)
     high_close_ratio = (close_p - low_p) / (high_p - low_p)
-    if high_close_ratio < 0.88:
+    if high_close_ratio < 0.70:
         return None
 
     tp_pct = 5.0
@@ -424,19 +425,19 @@ def evaluate_intraday_daytrade_candidate(
     5. Solid Body: Close > Open, and (Close - Low) / (High - Low) >= 0.65 (저점 대비 탄탄한 양봉 지지)
     6. Targets: Take Profit +5.0% from entry, Stop Loss -2.5%, Exit all at 15:15 market close!
     """
-    if df is None or len(df) < 30:
+    if df is None or len(df) < 1:
         return None
 
     today = df.iloc[-1]
-    prev = df.iloc[-2]
+    prev = df.iloc[-2] if len(df) >= 2 else today
 
     open_p = float(today["Open"])
     high_p = float(today["High"])
     low_p = float(today["Low"])
     close_p = float(today["Close"])
     vol_p = float(today["Volume"])
-    prev_close = float(prev["Close"])
-    prev_vol = float(prev["Volume"])
+    prev_close = float(prev["Close"]) if len(df) >= 2 else open_p
+    prev_vol = float(prev["Volume"]) if len(df) >= 2 else vol_p
 
     if open_p <= 0 or prev_close <= 0 or (high_p - low_p) <= 0:
         return None
@@ -453,27 +454,28 @@ def evaluate_intraday_daytrade_candidate(
 
     # 3. Overall day return & remaining room to upper limit (+30%)
     day_return = ((close_p - prev_close) / prev_close) * 100.0
-    if day_return < 3.0:
+    if day_return < 2.5:
         return None
 
-    # Guarantee at least +5.0% upside room before hitting KRX daily ceiling (+30%)
+    # Cap target profit at KRX ceiling (+30%) if close is already high, but don't reject unless already locked at ceiling
     limit_ceiling = prev_close * 1.295
-    target_tp_price = close_p * 1.05
-    target_sl_price = close_p * 0.975
-    if target_tp_price > limit_ceiling:
-        return None  # Rejects stocks already too close to +30% ceiling (cannot make +5% profit today)
+    if close_p >= limit_ceiling:
+        return None  # Rejects stocks already locked at upper limit (+30%)
 
-    room_to_limit = ((prev_close * 1.30 - close_p) / close_p) * 100.0
+    target_tp_price = min(close_p * 1.05, limit_ceiling)
+    target_sl_price = close_p * 0.975
+
+    room_to_limit = max(0.0, ((prev_close * 1.30 - close_p) / close_p) * 100.0)
 
     # 4. Volume explosion ratio vs yesterday
     vol_ratio_vs_prev = (vol_p / prev_vol) if prev_vol > 0 else 1.0
-    if vol_ratio_vs_prev < 0.60:
+    if vol_ratio_vs_prev < 0.50:
         return None
 
-    # 5. Bullish candle structure (Close near upper half of day range)
+    # 5. Bullish candle structure (Close above midpoint of day range, allowing healthy volatility)
     high_low_range = high_p - low_p
     support_ratio = (close_p - low_p) / high_low_range if high_low_range > 0 else 0.5
-    if support_ratio < 0.65:
+    if support_ratio < 0.50:
         return None
 
     tp_pct = 5.0

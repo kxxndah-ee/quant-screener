@@ -140,16 +140,25 @@ class ScreeningWorker:
                     )
                     wl_recs = cursor.fetchall()
                 sample_pool = pd.DataFrame([dict(r) for r in wl_recs]) if wl_recs else df_univ.head(100)
-            elif "300선" in sc_scope:
+            elif "300선" in sc_scope or "급등" in sc_scope or "주도주" in sc_scope:
+                top_surge_codes = []
                 top_lead_codes = []
                 try:
                     import FinanceDataReader as fdr
                     df_krx_lead = fdr.StockListing("KRX")
-                    if not df_krx_lead.empty and "Amount" in df_krx_lead.columns:
+                    if not df_krx_lead.empty:
                         if target_market in ("KOSPI", "KOSDAQ"):
                             df_krx_lead = df_krx_lead[df_krx_lead["Market"].str.upper() == target_market]
-                        top_lead_codes = df_krx_lead.sort_values("Amount", ascending=False)["Code"].astype(str).str.zfill(6).tolist()[:350]
+                        # 1. Stocks surging today (ChagesRatio >= 3.5%) sorted by Amount
+                        if "ChagesRatio" in df_krx_lead.columns:
+                            df_surging = df_krx_lead[df_krx_lead["ChagesRatio"] >= 3.5].sort_values("Amount", ascending=False)
+                            top_surge_codes = df_surging["Code"].astype(str).str.zfill(6).tolist()[:150]
+                        # 2. Top trading amount stocks today
+                        if "Amount" in df_krx_lead.columns:
+                            df_amount = df_krx_lead.sort_values("Amount", ascending=False)
+                            top_lead_codes = df_amount["Code"].astype(str).str.zfill(6).tolist()[:250]
                 except Exception:
+                    top_surge_codes = []
                     top_lead_codes = []
 
                 with get_db_connection() as conn:
@@ -157,9 +166,14 @@ class ScreeningWorker:
                     cursor.execute("SELECT code FROM watchlist")
                     wl_codes = [r["code"] for r in cursor.fetchall()]
 
-                major_lead_codes = list(dict.fromkeys(top_lead_codes + wl_codes))
-                df_top = df_univ[df_univ["code"].isin(major_lead_codes)]
-                df_rest = df_univ[~df_univ["code"].isin(major_lead_codes)]
+                # Combined unique codes: surging stocks first, then trading amount leaders, then watchlist!
+                combined_codes = list(dict.fromkeys(top_surge_codes + top_lead_codes + wl_codes))
+                df_top = df_univ[df_univ["code"].isin(combined_codes)].copy()
+                code_rank = {c: i for i, c in enumerate(combined_codes)}
+                df_top["_order"] = df_top["code"].map(code_rank).fillna(9999)
+                df_top = df_top.sort_values("_order").drop(columns=["_order"])
+
+                df_rest = df_univ[~df_univ["code"].isin(combined_codes)]
                 sample_pool = pd.concat([df_top, df_rest]).head(300).reset_index(drop=True)
             else:
                 sample_pool = df_univ
@@ -215,7 +229,8 @@ class ScreeningWorker:
 
                 try:
                     df_stock = fetch_ohlcv(code)
-                    if df_stock.empty or len(df_stock) < 30:
+                    min_bars = 1 if ("당일 단타" in sc_mode or "5% 급등" in sc_mode or "종가배팅" in sc_mode) else 20
+                    if df_stock.empty or len(df_stock) < min_bars:
                         continue
 
                     close_p = float(df_stock["Close"].iloc[-1])

@@ -444,44 +444,121 @@ st.markdown("""
         background-color: #475569 !important;
     }
 
-    /* Segmented pill radio buttons for crisp layout */
+    /* Universal Form Control & Box Text Contrast (Never invisible on mobile/desktop) */
+    div[data-testid="stSelectbox"] > label,
+    div[data-testid="stTextInput"] > label,
+    div[data-testid="stNumberInput"] > label,
+    div[data-testid="stSlider"] > label,
+    div[data-testid="stRadio"] > label {
+        color: #1E293B !important;
+        font-size: 0.82rem !important;
+        font-weight: 700 !important;
+    }
+    div[data-baseweb="select"] {
+        background-color: #FFFFFF !important;
+        border: 1px solid #CBD5E1 !important;
+        border-radius: 6px !important;
+    }
+    div[data-baseweb="select"] * {
+        color: #1E293B !important;
+        font-size: 0.83rem !important;
+    }
+    div[data-baseweb="input"],
+    div[data-baseweb="input"] * {
+        color: #1E293B !important;
+        background-color: #FFFFFF !important;
+    }
+    /* Dropdown popover list item contrast */
+    div[data-baseweb="popover"],
+    ul[role="listbox"],
+    li[role="option"] {
+        background-color: #FFFFFF !important;
+        color: #1E293B !important;
+    }
+    li[role="option"] * {
+        color: #1E293B !important;
+        font-size: 0.82rem !important;
+    }
+    li[role="option"]:hover,
+    li[role="option"][aria-selected="true"] {
+        background-color: #F1F5F9 !important;
+        color: #0F172A !important;
+    }
+
+    /* Segmented vertical radio buttons: 1 mode per line (전략 모드 한 줄에 하나씩 단독 정렬) */
     div[data-testid="stRadio"] > div[role="radiogroup"] {
         background: #F8FAFC !important;
-        padding: 4px !important;
-        border-radius: 6px !important;
+        padding: 6px !important;
+        border-radius: 8px !important;
         gap: 6px !important;
-        border: 1px solid #E2E8F0 !important;
+        border: 1px solid #CBD5E1 !important;
         display: flex !important;
-        flex-wrap: wrap !important;
-        align-items: center !important;
+        flex-direction: column !important;
+        width: 100% !important;
     }
     div[data-testid="stRadio"] > div[role="radiogroup"] > label {
         background: #FFFFFF !important;
-        padding: 4px 12px !important;
-        border-radius: 5px !important;
-        border: 1px solid #E2E8F0 !important;
+        padding: 8px 14px !important;
+        border-radius: 6px !important;
+        border: 1px solid #CBD5E1 !important;
         margin: 0 !important;
         cursor: pointer !important;
         transition: all 0.15s ease-in-out !important;
+        width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        box-sizing: border-box !important;
     }
     div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
         background: #F1F5F9 !important;
-        border-color: #CBD5E1 !important;
+        border-color: #94A3B8 !important;
     }
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label div[data-testid="stMarkdownContainer"] p {
-        font-size: 0.80rem !important;
+    /* Ensure high contrast readable text in unselected state */
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label * {
+        color: #1E293B !important;
+        font-size: 0.83rem !important;
         font-weight: 600 !important;
-        color: #475569 !important;
-        margin: 0 !important;
     }
+    /* Selected state: dark slate background with crisp white text */
     div[data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) {
         background: #334155 !important;
         border-color: #1E293B !important;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
     }
-    div[data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) div[data-testid="stMarkdownContainer"] p {
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label:has(input:checked) * {
         color: #FFFFFF !important;
         font-weight: 700 !important;
+    }
+
+    /* Mobile Responsive Optimizations */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 2.0rem !important;
+            padding-bottom: 0.8rem !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+        }
+        button[data-baseweb="tab"] {
+            font-size: 0.78rem !important;
+            padding: 3px 8px !important;
+        }
+        div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+            padding: 9px 12px !important;
+            font-size: 0.80rem !important;
+        }
+        div[data-testid="stMetric"] {
+            padding: 4px 6px !important;
+        }
+        div.stButton > button {
+            min-height: 2.3rem !important;
+            font-size: 0.82rem !important;
+        }
+        .stTable, div[data-testid="stTable"], div[data-testid="stDataFrame"] {
+            overflow-x: auto !important;
+            display: block !important;
+            width: 100% !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -738,17 +815,27 @@ with col_top_r:
     background: transparent;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }}
-  .clock-bar {{
+  .clock-wrapper {{
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: 8px;
+    width: 100%;
     height: 36px;
-    padding-right: 2px;
+  }}
+  .clock-bar {{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 10px;
+    background: #F1F5F9;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
     font-size: 13px;
-    color: #475569;
+    color: #1E293B;
     white-space: nowrap;
     user-select: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
   }}
   .clock-time {{
     color: #0F172A;
@@ -757,15 +844,47 @@ with col_top_r:
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     letter-spacing: -0.2px;
   }}
-  .sep {{ color: #CBD5E1; }}
-  .badge {{ font-size: 12px; }}
+  .sep {{ color: #94A3B8; font-weight: 600; }}
+  .badge {{ font-size: 12px; font-weight: 600; }}
+
+  @media (prefers-color-scheme: dark) {{
+    .clock-bar {{
+      background: #1E293B !important;
+      border-color: #475569 !important;
+      color: #F8FAFC !important;
+    }}
+    .clock-time {{
+      color: #FFFFFF !important;
+    }}
+    .sep {{ color: #64748B !important; }}
+  }}
+
+  @media (max-width: 768px) {{
+    .clock-wrapper {{
+      justify-content: flex-end;
+    }}
+    .clock-bar {{
+      height: 28px;
+      font-size: 11px;
+      padding: 0 6px;
+      gap: 5px;
+    }}
+    .clock-time {{
+      font-size: 11px;
+    }}
+    .badge {{
+      font-size: 10.5px;
+    }}
+  }}
 </style>
 </head>
 <body>
-<div class="clock-bar">
-  <span class="clock-time" id="kst-time-val">{time_str} KST</span>
-  <span class="sep">|</span>
-  <span class="badge" id="kst-market-badge">{market_badge}</span>
+<div class="clock-wrapper">
+  <div class="clock-bar">
+    <span class="clock-time" id="kst-time-val">{time_str} KST</span>
+    <span class="sep">|</span>
+    <span class="badge" id="kst-market-badge">{market_badge}</span>
+  </div>
 </div>
 <script>
 (function() {{
@@ -851,7 +970,7 @@ with tab1:
     
     
     sc_mode = st.radio(
-        "스크리닝 전략 모드 선택",
+        "스크리닝 전략 모드 선택 (아래 5개 중 1개 선택)",
         [
             "실시간 당일 단타 (5% 익절)",
             "스나이퍼 고확신 (눌림목 반등)",
@@ -859,7 +978,7 @@ with tab1:
             "주도주 종가배팅 (익일 시초 갭)",
             "일반 퀀트 스코어링"
         ],
-        horizontal=True,
+        horizontal=False,
         key="sc_mode_radio_sel"
     )
 
@@ -878,91 +997,232 @@ with tab1:
     else:
         m_tag = '<span style="color:#475569; font-weight:700;">[일반 퀀트]</span> Point-in-Time 복합 팩터 100점 만점 랭킹 시스템'
 
-    st.markdown(f'<div style="font-size:0.79rem; color:#475569; padding:2px 0 6px 2px;">{m_tag}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-size:0.78rem; color:#475569; padding:2px 0 6px 2px;">{m_tag}</div>', unsafe_allow_html=True)
 
-    # 시간대별 최적 거래대금 설정 가이드 및 실시간 자동 세팅 엔진
-    def get_auto_time_recommendation(dt=None):
+    # 전 전략 모드 공통: 시간대별 최적 권장 설정 자동화 엔진
+    def get_auto_time_recommendation_for_strategy(strategy_mode, dt=None):
         if dt is None:
             dt = get_now_kst()
         cur_hm = dt.hour * 100 + dt.minute
 
-        if 910 <= cur_hm < 940:
+        if "당일 단타" in strategy_mode:
+            if 910 <= cur_hm < 940:
+                return {
+                    "slot_name": "09:10 ~ 09:40 [장초반 수급 집중]",
+                    "slot_id": "dt_slot_0",
+                    "highlight_idx": 0,
+                    "val": 100,
+                    "gain": (2.5, 10.0),
+                    "vol": 0.5,
+                    "badge_desc": "거래대금 100억↑ · 시초대비 +2.5%~+10.0% · 전일대비 거래량 0.5배↑",
+                    "tip": "장초반 수급 폭발 주도주 빠른 포착 및 익절 공간 확보",
+                    "params": {"min_daytrade_val_b": 100, "intraday_gain_range": (2.5, 10.0), "min_daytrade_vol_ratio": 0.5}
+                }
+            elif 940 <= cur_hm < 1100:
+                return {
+                    "slot_name": "09:40 ~ 11:00 [골든타임 - 2차 돌파]",
+                    "slot_id": "dt_slot_1",
+                    "highlight_idx": 1,
+                    "val": 150,
+                    "gain": (3.0, 12.0),
+                    "vol": 0.6,
+                    "badge_desc": "거래대금 150억↑ · 시초대비 +3.0%~+12.0% · 거래량 0.6배↑",
+                    "tip": "당일 최고 승률 구간: 주도주 2차 파동 돌파 적중률 극대화",
+                    "params": {"min_daytrade_val_b": 150, "intraday_gain_range": (3.0, 12.0), "min_daytrade_vol_ratio": 0.6}
+                }
+            elif 1100 <= cur_hm < 1300:
+                return {
+                    "slot_name": "11:00 ~ 13:00 [점심 횡보장]",
+                    "slot_id": "dt_slot_2",
+                    "highlight_idx": 2,
+                    "val": 200,
+                    "gain": (4.0, 15.0),
+                    "vol": 0.7,
+                    "badge_desc": "거래대금 200억↑ · 시초대비 +4.0%~+15.0% · 거래량 0.7배↑",
+                    "tip": "점심 거래소강: 탄탄하게 지지받는 최상위 대장주만 선별",
+                    "params": {"min_daytrade_val_b": 200, "intraday_gain_range": (4.0, 15.0), "min_daytrade_vol_ratio": 0.7}
+                }
+            elif 1300 <= cur_hm < 1430:
+                return {
+                    "slot_name": "13:00 ~ 14:30 [오후 2차 수급]",
+                    "slot_id": "dt_slot_3",
+                    "highlight_idx": 3,
+                    "val": 200,
+                    "gain": (4.5, 18.0),
+                    "vol": 0.8,
+                    "badge_desc": "거래대금 200억↑ · 시초대비 +4.5%~+18.0% · 거래량 0.8배↑",
+                    "tip": "상한가/VI 직행 추진력을 갖춘 최상위 주도주 공략",
+                    "params": {"min_daytrade_val_b": 200, "intraday_gain_range": (4.5, 18.0), "min_daytrade_vol_ratio": 0.8}
+                }
+            elif 1430 <= cur_hm < 1535:
+                return {
+                    "slot_name": "14:30 ~ 15:35 [장마감 임박/청산]",
+                    "slot_id": "dt_slot_4",
+                    "highlight_idx": 4,
+                    "val": 200,
+                    "gain": (3.0, 15.0),
+                    "vol": 0.6,
+                    "badge_desc": "신규 진입 중단 권장 (보유분 15:15 전량 청산 집중)",
+                    "tip": "신규 매수는 마감 직전 '5% 급등 타겟' 또는 '종가배팅' 권장",
+                    "params": {"min_daytrade_val_b": 200, "intraday_gain_range": (3.0, 15.0), "min_daytrade_vol_ratio": 0.6}
+                }
+            else:
+                return {
+                    "slot_name": "장외/마감 정산 (내일 실전 준비)",
+                    "slot_id": "dt_slot_off",
+                    "highlight_idx": 1,
+                    "val": 100,
+                    "gain": (2.5, 15.0),
+                    "vol": 0.5,
+                    "badge_desc": "골든타임 권장값 (거래대금 100억↑ · 시초대비 +2.5%~+15.0%)",
+                    "tip": "마감 데이터 기준 최적 스크리닝 및 내일 장초반 준비",
+                    "params": {"min_daytrade_val_b": 100, "intraday_gain_range": (2.5, 15.0), "min_daytrade_vol_ratio": 0.5}
+                }
+        elif "스나이퍼" in strategy_mode:
+            if 830 <= cur_hm < 900:
+                return {
+                    "slot_name": "08:30 ~ 09:00 [장 시작 전 준비]",
+                    "slot_id": "snp_slot_0",
+                    "highlight_idx": 0,
+                    "val": 100,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "20일평균 대금 100억↑ · 이격도 103.5% · 하락장 필터 On",
+                    "tip": "전일 확정 데이터 기반 우량 눌림목 후보군 선별 확정",
+                    "params": {"min_val_krw_b": 100, "max_disparity_val": 103.5, "ignore_market_filter": False}
+                }
+            elif 900 <= cur_hm < 1000:
+                return {
+                    "slot_name": "09:00 ~ 10:00 [시초가 체결 확인]",
+                    "slot_id": "snp_slot_1",
+                    "highlight_idx": 1,
+                    "val": 100,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "20일평균 대금 100억↑ · 이격도 103.5% · 갭제한 -1.5%~+1.5% 엄수",
+                    "tip": "+1.5% 초과 갭상승 종목은 뇌동매매 진입 금지",
+                    "params": {"min_val_krw_b": 100, "max_disparity_val": 103.5, "ignore_market_filter": False}
+                }
+            elif 1000 <= cur_hm < 1520:
+                return {
+                    "slot_name": "10:00 ~ 15:20 [장중 감시 & 스탑로스]",
+                    "slot_id": "snp_slot_2",
+                    "highlight_idx": 2,
+                    "val": 100,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "20일평균 대금 100억↑ · 이격도 103.0% (보수적 눌림)",
+                    "tip": "익절 +1.2% / 손절 -2.0% 자동 스탑로스 대응",
+                    "params": {"min_val_krw_b": 100, "max_disparity_val": 103.0, "ignore_market_filter": False}
+                }
+            else:
+                return {
+                    "slot_name": "장외/마감 후 [익일 후보 사전 분석]",
+                    "slot_id": "snp_slot_off",
+                    "highlight_idx": 0,
+                    "val": 100,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "20일평균 대금 100억↑ · 이격도 103.5% · 지수 추세 확인",
+                    "tip": "내일 장초반 시초가 매수 후보군 사전 압축",
+                    "params": {"min_val_krw_b": 100, "max_disparity_val": 103.5, "ignore_market_filter": False}
+                }
+        elif "5% 급등" in strategy_mode:
+            if 900 <= cur_hm < 1430:
+                return {
+                    "slot_name": "09:00 ~ 14:30 [장중 급등 모멘텀 추적]",
+                    "slot_id": "s5_slot_0",
+                    "highlight_idx": 0,
+                    "val": 200,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "거래대금 200억↑ · 당일 주가상승률 +8.0%↑",
+                    "tip": "상한가/준상한가 도전 중인 시장 최상위 대장주 실시간 탐색",
+                    "params": {"min_surge_val_b": 200, "min_day_surge_pct": 8.0}
+                }
+            elif 1430 <= cur_hm < 1535:
+                return {
+                    "slot_name": "14:30 ~ 15:35 [마감 직전 진입 골든타임]",
+                    "slot_id": "s5_slot_1",
+                    "highlight_idx": 1,
+                    "val": 300,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "거래대금 300억↑ · 당일 주가상승률 +10.0%↑ (상한가 굳히기)",
+                    "tip": "15:20 동시호가 종가 매수 -> 1~2일 내 +5% 자동 익절",
+                    "params": {"min_surge_val_b": 300, "min_day_surge_pct": 10.0}
+                }
+            else:
+                return {
+                    "slot_name": "장외/마감 후 [익일 5% 돌파 타겟]",
+                    "slot_id": "s5_slot_off",
+                    "highlight_idx": 1,
+                    "val": 200,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "거래대금 200억↑ · 당일 주가상승률 +10.0%↑",
+                    "tip": "당일 상한가/마루보즈 마감 대장주 익일 대응 준비",
+                    "params": {"min_surge_val_b": 200, "min_day_surge_pct": 10.0}
+                }
+        elif "종가배팅" in strategy_mode:
+            if 900 <= cur_hm < 1430:
+                return {
+                    "slot_name": "09:00 ~ 14:30 [장중 주도 테마 관찰]",
+                    "slot_id": "cb_slot_0",
+                    "highlight_idx": 0,
+                    "val": 200,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "거래대금 200억↑ · 주가상승률 +3.0%↑",
+                    "tip": "오후장까지 고가를 유지하는지 추세 관찰",
+                    "params": {"min_today_val_b": 200, "min_day_ret_val": 3.0}
+                }
+            elif 1430 <= cur_hm < 1535:
+                return {
+                    "slot_name": "14:30 ~ 15:35 [동시호가 진입 골든타임]",
+                    "slot_id": "cb_slot_1",
+                    "highlight_idx": 1,
+                    "val": 200,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "거래대금 200억↑ · 주가상승률 +3.0%↑ (고가마감)",
+                    "tip": "15:20 동시호가 종가 매수 -> 익일 시초가 +1.5% 갭 익절",
+                    "params": {"min_today_val_b": 200, "min_day_ret_val": 3.0}
+                }
+            else:
+                return {
+                    "slot_name": "장외/마감 후 [익일 시초갭 공략 분석]",
+                    "slot_id": "cb_slot_off",
+                    "highlight_idx": 1,
+                    "val": 200,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "거래대금 200억↑ · 주가상승률 +3.0%↑",
+                    "tip": "당일 고가 마감 주도주의 익일 시초가 갭상승 가능성 점검",
+                    "params": {"min_today_val_b": 200, "min_day_ret_val": 3.0}
+                }
+        else:  # 일반 퀀트 스코어링
             return {
-                "slot_name": "09:10 ~ 09:40 [장초반 수급 집중]",
-                "val": 100,
-                "gain": (3.0, 6.5),
-                "vol": 0.6,
+                "slot_name": "상시 권장 (Point-in-Time 스코어링)",
+                "slot_id": "qt_slot_0",
                 "highlight_idx": 0,
-                "badge_title": "09:10 ~ 09:40 장초반 수급 집중 구간",
-                "badge_desc": "거래대금 100억↑, 시초대비 +3.0%~+6.5% (초입 돌파 포착)",
-                "tip": "장초반 윗꼬리 물림 방지 및 +5% 익절 공간 확보"
-            }
-        elif 940 <= cur_hm < 1100:
-            return {
-                "slot_name": "09:40 ~ 11:00 [골든타임]",
-                "val": 200,
-                "gain": (3.0, 8.5),
-                "vol": 0.6,
-                "highlight_idx": 1,
-                "badge_title": "09:40 ~ 11:00 [골든타임] 주도주 2차 돌파 구간",
-                "badge_desc": "거래대금 200억↑, 시초대비 +3.0%~+8.5% (최고 승률 권장값)",
-                "tip": "눌림목 지지 확인 후 2차 파동 돌파 적중률 극대화"
-            }
-        elif 1100 <= cur_hm < 1300:
-            return {
-                "slot_name": "11:00 ~ 13:00 [점심 횡보장]",
-                "val": 200,
-                "gain": (4.5, 9.0),
-                "vol": 0.8,
-                "highlight_idx": 2,
-                "badge_title": "11:00 ~ 13:00 점심 횡보장 대장주 압축 구간",
-                "badge_desc": "거래대금 200억↑, 시초대비 +4.5%~+9.0% (고가 지지력 확인)",
-                "tip": "점심 거래량 감소 구간, 탄력 유지 대장주만 선별"
-            }
-        elif 1300 <= cur_hm < 1430:
-            return {
-                "slot_name": "13:00 ~ 14:30 [오후 2차 수급]",
-                "val": 300,
-                "gain": (5.0, 10.0),
-                "vol": 1.0,
-                "highlight_idx": 3,
-                "badge_title": "13:00 ~ 14:30 오후 2차 수급 슈팅 구간",
-                "badge_desc": "거래대금 300억↑, 시초대비 +5.0%~+10.0% (오후 2차 돌파)",
-                "tip": "상한가/VI 직행 추진력을 갖춘 최상위 주도주 공략"
-            }
-        elif 1430 <= cur_hm < 1535:
-            return {
-                "slot_name": "14:30 ~ 15:35 [장마감 임박/동시호가]",
-                "val": 200,
-                "gain": (3.0, 8.5),
-                "vol": 0.6,
-                "highlight_idx": 4,
-                "badge_title": "14:30 ~ 15:35 장마감 임박 (당일단타 신규진입 OFF)",
-                "badge_desc": "신규 진입 중단 및 보유분 15:15 전량 청산 집중",
-                "tip": "신규 매수는 마감 직전 '5% 급등 타겟' 또는 '종가배팅' 모드 권장"
-            }
-        else:
-            return {
-                "slot_name": "장외/마감 정산 (내일 실전 준비)",
-                "val": 200,
-                "gain": (3.0, 8.5),
-                "vol": 0.6,
-                "highlight_idx": 1,
-                "badge_title": f"현재 {dt.strftime('%H:%M')} (장외/마감 시간)",
-                "badge_desc": "골든타임 표준 권장값 (거래대금 200억↑, 시초대비 +3.0%~+8.5%) 자동 세팅",
-                "tip": "마감 데이터 기준 최적 백테스트 및 내일 장초반 준비"
+                "val": 100,
+                "gain": (0, 0),
+                "vol": 1.5,
+                "badge_desc": "최소 스코어 65점↑ · 거래량 1.5배↑ · 이평 정배열 On",
+                "tip": "전체 상장 유니버스 종합 퀀트 점수 산출 및 순위화",
+                "params": {"min_screener_score": 65.0, "min_vol_surge": 1.5, "require_ma_align": True}
             }
 
-    rec_time = get_auto_time_recommendation()
+    rec_time = get_auto_time_recommendation_for_strategy(sc_mode)
     now_str = get_now_kst().strftime("%H:%M")
-    cur_slot_id = f"slot_{rec_time['highlight_idx']}"
+    cur_strat_slot_id = f"{sc_mode}_{rec_time['slot_id']}"
 
-    # Auto-sync session state when slot changes or sync is triggered
-    if "sc_last_applied_slot" not in st.session_state or st.session_state.get("sc_trigger_time_sync") or st.session_state.get("sc_last_applied_slot") != cur_slot_id:
-        st.session_state["sc_min_daytrade_val"] = rec_time["val"]
-        st.session_state["sc_intraday_gain_range"] = rec_time["gain"]
-        st.session_state["sc_min_daytrade_vol_ratio"] = rec_time["vol"]
-        st.session_state["sc_last_applied_slot"] = cur_slot_id
+    # Auto-sync session state when strategy mode or time slot changes or sync is triggered
+    if "sc_last_applied_strat_slot" not in st.session_state or st.session_state.get("sc_trigger_time_sync") or st.session_state.get("sc_last_applied_strat_slot") != cur_strat_slot_id:
+        for _k, _v in rec_time["params"].items():
+            st.session_state[f"sc_{_k}"] = _v
+        st.session_state["sc_last_applied_strat_slot"] = cur_strat_slot_id
         st.session_state["sc_trigger_time_sync"] = False
 
     # 1) 전략 원칙 & 시간대별 설정 가이드 통합 접이식(Expander)
@@ -977,75 +1237,95 @@ with tab1:
             if "당일 단타" in sc_mode:
                 bm_ohlcv = get_benchmark_ohlcv()
                 mkt_ok, mkt_msg, mkt_meta = evaluate_market_regime(bm_ohlcv)
-                if mkt_ok:
-                    st.success(f"**[시장 체제 확인]** KODEX 200 지수가 20일 이동평균선 상단에 위치하여 **당일 단타 모드 신규 매수가 적극 허용**됩니다. ({mkt_msg})")
-                else:
-                    st.warning(f"**[시장 체제 경고]** KODEX 200 지수가 20일선 아래(조정/하락장)에 위치합니다. 하락장에서는 보수적인 비중 조절 및 칼손절(-2.5%) 준수가 필수입니다! ({mkt_msg})")
-
+                mkt_color = "#059669" if mkt_ok else "#D97706"
+                mkt_bg = "#ECFDF5" if mkt_ok else "#FFFBEB"
+                mkt_border = "#A7F3D0" if mkt_ok else "#FDE68A"
+                mkt_txt = "당일 단타 모드 신규 매수가 적극 허용됩니다." if mkt_ok else "조정/하락장입니다. 보수적 비중 조절 및 칼손절(-2.5%) 준수 필수!"
+                st.markdown(
+                    f'<div style="font-size:0.78rem; line-height:1.45; color:{mkt_color}; background:{mkt_bg}; border:1px solid {mkt_border}; border-radius:5px; padding:6px 10px; margin-bottom:8px;">'
+                    f'<strong>[시장 체제 점검]</strong> KODEX 200 20일선 기준: {mkt_txt} ({mkt_msg})'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
                 st.markdown(
                     """
-### [실시간 당일 단타] 5% 돌파 모드 핵심 원칙 (당일 완결 / No Overnight)
-1. **진입 타이밍**: 장중 09:10 ~ 14:30 실시간 수급 폭발 종목 포착
-2. **수급 & 거래대금**: 당일 거래대금 200억↑ & 장중 이미 전일 거래량 60% 이상 돌파 (거래량 폭발 주도주)
-3. **시초가 돌파 모멘텀**: 시초가 대비 +3.0% ~ +8.5% 구간 돌파 (고점 뇌동매매 방지 및 상승 초입 포착)
-4. **탄탄한 양봉 지지**: 종가가 당일 진폭 상위 65% 이상 유지 (윗꼬리 긴 투매형 캔들 배제)
-5. **목표 및 당일 청산**: 진입 즉시 **+5.0% 익절 자동주문 걸어두기 / 손절 -2.5% 엄수 / 15:15 미도달 시 종가 전량 청산 (오버나잇 리스크 제로!)**
+<div style="font-size:0.78rem; line-height:1.45; color:#334155; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:10px 12px;">
+<div style="font-size:0.84rem; font-weight:700; color:#1E293B; margin-bottom:6px;">[실시간 당일 단타] 5% 돌파 모드 핵심 원칙 (당일 완결 / No Overnight)</div>
+1. <strong>진입 타이밍</strong>: 장중 09:10 ~ 14:30 실시간 수급 폭발 종목 포착<br>
+2. <strong>수급 & 거래대금</strong>: 당일 거래대금 100억~200억↑ & 장중 이미 전일 거래량 50% 이상 돌파<br>
+3. <strong>시초가 돌파 모멘텀</strong>: 시초가 대비 +2.5% ~ +15.0% 구간 돌파 (상승 초입 및 추가 슈팅 여력 포착)<br>
+4. <strong>탄탄한 양봉 지지</strong>: 종가가 당일 진폭 중심선(50% 이상) 상단 유지 (투매형 윗꼬리 배제)<br>
+5. <strong>목표 및 당일 청산</strong>: 진입 즉시 <strong>+5.0% 익절 자동주문 / 손절 -2.5% 엄수 / 15:15 미도달 시 종가 전량 청산</strong>
+</div>
                     """,
                     unsafe_allow_html=True
                 )
             elif "스나이퍼" in sc_mode:
                 bm_ohlcv = get_benchmark_ohlcv()
                 mkt_ok, mkt_msg, mkt_meta = evaluate_market_regime(bm_ohlcv)
-                if mkt_ok:
-                    st.success(f"**[시장 체제 확인]** KODEX 200 지수가 20일 이동평균선 상단에 위치하여 **스나이퍼 신규 매수가 허용**됩니다. ({mkt_msg})")
-                else:
-                    st.warning(f"**[시장 체제 경고]** KODEX 200 지수가 20일선 아래(조정/하락장)에 위치합니다. 스나이퍼 전략은 하락장에서 무리한 진입을 전면 차단합니다! ({mkt_msg})")
-
+                mkt_color = "#059669" if mkt_ok else "#D97706"
+                mkt_bg = "#ECFDF5" if mkt_ok else "#FFFBEB"
+                mkt_border = "#A7F3D0" if mkt_ok else "#FDE68A"
+                mkt_txt = "스나이퍼 신규 매수가 허용됩니다." if mkt_ok else "지수 하락장 위험 감지: 스나이퍼 전략은 하락장에서 무리한 진입을 전면 차단합니다."
+                st.markdown(
+                    f'<div style="font-size:0.78rem; line-height:1.45; color:{mkt_color}; background:{mkt_bg}; border:1px solid {mkt_border}; border-radius:5px; padding:6px 10px; margin-bottom:8px;">'
+                    f'<strong>[시장 체제 점검]</strong> KODEX 200 20일선 기준: {mkt_txt} ({mkt_msg})'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
                 st.markdown(
                     """
-### [스나이퍼 고확신 모드] 핵심 원칙 (80% 승률 타겟 - 20일선 눌림목 반등)
-- **시장 필터**: KODEX 200 > 20일선 상승 추세에서만 진입 (지수 급락 리스크 회피)
-- **우량 유동성**: 20일 평균 거래대금 최소 100억~200억 이상 (호가 왜곡 방지 및 풍부한 체결력)
-- **눌림목 이격도**: 20일선 대비 주가 이격도 **98% ~ 103.5%** (상승 5일선 골든 후 20일선 첫 지지 반등)
-- **핵심 체결 룰 (시초가 갭 제한)**: 익일 시초가가 전일종가 대비 **-1.5% ~ +1.5%** 이내일 때만 진입 (+1.5% 초과 갭상승 시 뇌동매매 진입 금지!)
-- **비대칭 목표**: 익절 +1.2% / 손절 -2.0%
+<div style="font-size:0.78rem; line-height:1.45; color:#334155; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:10px 12px;">
+<div style="font-size:0.84rem; font-weight:700; color:#1E293B; margin-bottom:6px;">[스나이퍼 고확신 모드] 핵심 원칙 (80% 승률 타겟 - 20일선 눌림목 반등)</div>
+• <strong>시장 필터</strong>: KODEX 200 > 20일선 상승 추세에서만 진입 (지수 급락 리스크 사전 차단)<br>
+• <strong>우량 유동성</strong>: 20일 평균 거래대금 최소 100억 원 이상 (호가 왜곡 방지 및 풍부한 체결력)<br>
+• <strong>눌림목 이격도</strong>: 20일선 대비 주가 이격도 <strong>98.0% ~ 103.5%</strong> (20일선 첫 지지 반등)<br>
+• <strong>핵심 체결 룰 (시초가 갭 제한)</strong>: 익일 시초가가 전일종가 대비 <strong>-1.5% ~ +1.5%</strong> 이내 체결 (+1.5% 초과 갭상승 시 진입 금지)<br>
+• <strong>비대칭 목표</strong>: 익절 +1.2% / 손절 -2.0%
+</div>
                     """,
                     unsafe_allow_html=True
                 )
             elif "종가배팅" in sc_mode:
                 st.markdown(
                     """
-### [주도주 종가배팅 모드] 핵심 원칙 (Overnight Close-to-Open)
-- **탐색 시점**: 매일 15:20 ~ 15:30 (장 마감 직전 동시호가 전후)
-- **거래대금 폭발**: 당일 거래대금 최소 200억~300억 이상 (당일 시장 주도 테마 대장주)
-- **장대양봉 고가마감**: 당일 주가 +3.0% 이상 장대양봉 & 일중 고가 부근 마감 (윗꼬리 18% 이하로 종가 고가마감)
-- **청산 룰**: 당일 15:20 종가 매수 -> 익일 09:00 시초가 갭상승(+1.5%↑) 시 즉시 시초가 익절 또는 장초반 +1.5% 슈팅 익절 (손절 -2.0%)
+<div style="font-size:0.78rem; line-height:1.45; color:#334155; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:10px 12px;">
+<div style="font-size:0.84rem; font-weight:700; color:#1E293B; margin-bottom:6px;">[주도주 종가배팅 모드] 핵심 원칙 (Overnight Close-to-Open)</div>
+• <strong>탐색 시점</strong>: 매일 15:20 ~ 15:30 (장 마감 직전 동시호가 전후)<br>
+• <strong>거래대금 폭발</strong>: 당일 거래대금 최소 200억 원 이상 (당일 시장 주도 테마 대장주)<br>
+• <strong>장대양봉 고가마감</strong>: 당일 주가 +3.0% 이상 장대양봉 & 일중 고가 부근 마감 (고점 대비 70% 이상 지지)<br>
+• <strong>청산 룰</strong>: 당일 15:20 종가 매수 -> 익일 09:00 시초가 갭상승(+1.5%↑) 시 즉시 익절 (손절 -2.0%)
+</div>
                     """,
                     unsafe_allow_html=True
                 )
             elif "5% 급등" in sc_mode or "5% 돌파" in sc_mode:
                 st.markdown(
                     """
-### [5% 급등 타겟 모드] 핵심 원칙 (마감 직전 15:20 진입: 1~2일 5% 급등 수확)
-- **빅데이터 검증**: 일반 종목의 익일 5% 도달률은 12%에 불과하지만, **[거래대금 500억↑ + 신고가 첫 상한가/준상한가(+15%~+29.8%) + 윗꼬리 8% 이하 고가마감]** 주도주는 익일 +5% 도달률 **68.8%**, **1~2일 스윙 보유 시 +5% 도달률이 79.2% ~ 81.2% (승률 80%대 달성)**에 달합니다.
-- **탐색 & 진입 시점**: 매일 마감 직전 15:20 (상한가 굳히기 or 초대형 거래대금 돌파봉 종가 매수)
-- **목표 및 손절**: 장중 **+5.0%** 도달 즉시 전량 자동 익절 (1일차 미도달 시 2일차까지 홀딩, 손절선 **-4.0%** 엄수)
+<div style="font-size:0.78rem; line-height:1.45; color:#334155; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:10px 12px;">
+<div style="font-size:0.84rem; font-weight:700; color:#1E293B; margin-bottom:6px;">[5% 급등 타겟 모드] 핵심 원칙 (1~2일 스윙 5% 급등 수확)</div>
+• <strong>빅데이터 검증</strong>: [거래대금 200억~500억↑ + 신고가 첫 상한가/준상한가(+8%~+29.8%) + 고점 지지 마감] 주도주는 익일~2일차 +5% 도달률 80%대에 달합니다.<br>
+• <strong>탐색 & 진입 시점</strong>: 장중 급등 추세 확인 또는 마감 직전 15:20 동시호가 종가 매수<br>
+• <strong>목표 및 손절</strong>: 장중 <strong>+5.0%</strong> 도달 즉시 전량 자동 익절 (1일차 미도달 시 2일차 홀딩, 손절선 -4.0% 엄수)
+</div>
                     """,
                     unsafe_allow_html=True
                 )
             else:
                 st.markdown(
                     """
-### [일반 퀀트 스코어링 모드] 가이드 (기본 종합 점수제)
-- **특징**: Point-in-Time 스코어링 엔진으로 수급, 모멘텀, 거래대금, 변동성, 재무 건전성을 복합 평가하여 100점 만점으로 순위를 산출합니다.
-- **권장 거래대금**: 최소 50억~100억 원 이상 (유동성 부족으로 인한 슬리피지 방지).
+<div style="font-size:0.78rem; line-height:1.45; color:#334155; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:10px 12px;">
+<div style="font-size:0.84rem; font-weight:700; color:#1E293B; margin-bottom:6px;">[일반 퀀트 스코어링 모드] 핵심 원칙 (기본 종합 점수제)</div>
+• <strong>특징</strong>: Point-in-Time 스코어링 엔진으로 수급, 모멘텀, 거래대금, 변동성, 재무 건전성을 복합 평가하여 100점 만점으로 순위를 산출합니다.<br>
+• <strong>권장 거래대금</strong>: 최소 50억~100억 원 이상 (유동성 부족으로 인한 슬리피지 방지)
+</div>
                     """,
                     unsafe_allow_html=True
                 )
 
         else:
+            active_tag = ' <span style="color:#0F172A; font-weight:700; font-size:0.68rem; background:#E2E8F0; padding:1px 5px; border-radius:4px; border:1px solid #94A3B8;">▶ 현재 자동 세팅됨</span>'
             if "당일 단타" in sc_mode:
-                active_tag = ' <span style="color:#0F172A; font-weight:700; font-size:0.68rem; background:#E2E8F0; padding:1px 5px; border-radius:4px; border:1px solid #94A3B8;">▶ 현재 자동 세팅됨</span>'
                 r0_t = active_tag if rec_time["highlight_idx"] == 0 else ""
                 r1_t = active_tag if rec_time["highlight_idx"] == 1 else ""
                 r2_t = active_tag if rec_time["highlight_idx"] == 2 else ""
@@ -1054,76 +1334,79 @@ with tab1:
 
                 st.markdown(
                     f"""
-| 시간대 | 장세 특성 | 권장 누적 거래대금 | 권장 시초가대비 상승률 구간 | 매매 행동 요령 & 슬라이더 설정 팁 |
+| 시간대 | 장세 특성 | 권장 누적 거래대금 | 권장 시초가대비 상승률 | 매매 행동 요령 & 슬라이더 설정 팁 |
 | :--- | :--- | :--- | :--- | :--- |
-| **09:10 ~ 09:40**{r0_t} | **장초반 거래 집중**<br>(변동성/거래량 극대화) | **50억 ~ 100억 원 이상** | **+3.0% ~ +6.5%**<br>*(상승 초입 포착)* | 장초반 고점 윗꼬리(설거지) 물림을 방지하기 위해 슬라이더 상한을 +6.5%로 낮춰 잡습니다. 시초가를 막 뚫고 올라서는 초입을 잡아야 +5% 익절 공간이 확보됩니다. |
-| **09:40 ~ 11:00**<br>**[골든타임]**{r1_t} | **주도주 압축 & 2차 돌파**<br>(당일 단타 승률 최고 구간) | **150억 ~ 200억 원 이상**<br>*(가장 추천: 200억)* | **+3.0% ~ +8.5%**<br>*(최고 승률 기본 권장값)* | 장초반 1차 슈팅 후 눌림목을 거쳐 재차 치고 나가는 2차 파동 구간입니다. 거래대금 200억 이상 유입 + 슬라이더 기본 권장값(+3.0% ~ +8.5%)에서 적중률이 극대화됩니다. |
-| **11:00 ~ 13:00**{r2_t} | **점심 횡보장**<br>(거래량 급감, 소강상태) | **200억 ~ 300억 원 이상** | **+4.5% ~ +9.0%**<br>*(고가 지지력 확인)* | 거래량이 마르는 점심 시간대에는 애매한 +2~3%대 종목은 흘러내립니다. 이미 +4.5% 이상 상승 탄력을 유지하며 당일 중심선을 지키는 대장주만 진입합니다. |
-| **13:00 ~ 14:30**{r3_t} | **오후 2차 수급 유입**<br>(마감 전 주도 섹터 랠리) | **300억 원 이상** | **+5.0% ~ +10.0%**<br>*(오후 2차 슈팅)* | 오후장 돌파 매매는 상한가(VI)로 직행하는 강한 추진력이 필요합니다. 시초가 대비 최소 +5% 이상 올라서서 전고점을 재돌파하는 주도주를 선별합니다. |
-| **14:30 이후**{r4_t} | **장마감 임박**<br>(당일 청산 준비 구간) | **신규 매수 진입 금지 (OFF)** | **신규 진입 금지 (OFF)** | 당일 15:15 전량 청산 원칙이므로 신규 진입 시 5% 익절할 시간적 여유가 부족합니다. 보유분 익절/손절 청산에만 집중하세요. |
+| **09:10 ~ 09:40**{r0_t} | **장초반 거래 집중**<br>(변동성/거래량 극대화) | **100억 원 이상** | **+2.5% ~ +10.0%** | 장초반 고점 윗꼬리 물림 방지 및 +5% 익절 공간 확보 |
+| **09:40 ~ 11:00**<br>**[골든타임]**{r1_t} | **주도주 2차 돌파**<br>(당일 단타 최고 승률) | **150억 ~ 200억 원 이상** | **+3.0% ~ +12.0%** | 눌림목 지지 확인 후 재차 치고 나가는 2차 파동 구간 |
+| **11:00 ~ 13:00**{r2_t} | **점심 횡보장**<br>(거래량 급감, 소강상태) | **200억 원 이상** | **+4.0% ~ +15.0%** | 거래량 마르는 시간대: 탄탄하게 지지받는 최상위 대장주만 진입 |
+| **13:00 ~ 14:30**{r3_t} | **오후 2차 수급 유입**<br>(마감 전 주도 섹터 랠리) | **200억 원 이상** | **+4.5% ~ +18.0%** | 오후장 돌파 매매는 상한가/VI 직행 추진력 갖춘 주도주 선별 |
+| **14:30 이후**{r4_t} | **장마감 임박**<br>(당일 청산 집중) | **신규 매수 OFF** | **신규 진입 OFF** | 15:15 전량 청산 원칙이므로 신규 진입 중단 및 보유분 정리 집중 |
                     """,
                     unsafe_allow_html=True
                 )
             elif "스나이퍼" in sc_mode:
+                s0_t = active_tag if rec_time["highlight_idx"] == 0 else ""
+                s1_t = active_tag if rec_time["highlight_idx"] == 1 else ""
+                s2_t = active_tag if rec_time["highlight_idx"] == 2 else ""
                 st.markdown(
-                    """
+                    f"""
 | 분석/실행 시점 | 데이터 기준 | 권장 설정값 (20일 평균 거래대금) | 매매 행동 요령 & 주의사항 |
 | :--- | :--- | :--- | :--- |
-| **08:30 ~ 08:50**<br>(장 시작 전 분석) | **전일까지의 확정 20일 평균 거래대금** | **100억 ~ 200억 원 이상**<br>*(기본 100억 권장)* | **핵심**: 장 시작 전에는 당일 거래대금이 0원이므로, 반드시 **'20일 평균 거래대금'** 기준으로 필터링해야 정상 검색됩니다. 유동성이 풍부한 우량주 위주로 후보군을 확정합니다. |
-| **09:00 ~ 09:05**<br>(시초가 체결 확인) | **시초가 갭 검증** | **체결 갭: 전일종가 대비 -1.5% ~ +1.5%** | 후보 종목의 시초가가 **+1.5%를 초과하여 갭상승하면 절대 매수 금지** (갭 메우기 급락 위험). 갭 범위 내 체결 시 시초가 매수 진입. |
-| **09:05 ~ 15:20**<br>(장중 자동 청산) | **장중 시세 감시** | **익절 +1.2% / 손절 -2.0%** | 주문 체결 즉시 MTS/HTS에 자동 감시 매도(스탑로스)를 걸어두고, 장 마감까지 미도달 시 종가에 정리합니다. |
+| **08:30 ~ 09:00**{s0_t}<br>(장 시작 전 분석) | **전일까지의 확정 20일 평균 거래대금** | **100억 원 이상** | 유동성 풍부한 우량주 위주로 20일선 눌림목 후보군 확정 |
+| **09:00 ~ 10:00**{s1_t}<br>(시초가 체결 확인) | **시초가 갭 검증** | **체결 갭: -1.5% ~ +1.5%** | +1.5% 초과 갭상승 시 뇌동매매 진입 금지. 갭 범위 내 시초가 매수 |
+| **10:00 ~ 15:20**{s2_t}<br>(장중 자동 청산) | **장중 시세 감시** | **익절 +1.2% / 손절 -2.0%** | 주문 체결 즉시 MTS/HTS 자동 감시 매도(스탑로스) 설정 |
                     """,
                     unsafe_allow_html=True
                 )
             elif "종가배팅" in sc_mode:
+                c0_t = active_tag if rec_time["highlight_idx"] == 0 else ""
+                c1_t = active_tag if rec_time["highlight_idx"] == 1 else ""
                 st.markdown(
-                    """
+                    f"""
 | 분석/실행 시점 | 데이터 기준 | 권장 설정값 (당일 최종 거래대금) | 매매 행동 요령 & 주의사항 |
 | :--- | :--- | :--- | :--- |
-| **15:15 ~ 15:25**<br>(마감 직전 탐색) | **당일 마감 누적 거래대금** | **200억 ~ 300억 원 이상** | 장 마감 무렵 당일 거래대금이 200억~300억 이상 터진 종목을 스크리닝하여 테마 1등주를 확정합니다. |
-| **15:20 ~ 15:30**<br>(동시호가 종가 체결) | **종가 고가마감 확인** | **당일 주가 +3.0% 이상 & 윗꼬리 18% 이하** | 윗꼬리가 길지 않고 일봉상 고가 부근에서 마감할 때 15:20 동시호가에 매수합니다. |
-| **익일 09:00 ~ 09:15**<br>(시초가 갭 청산) | **익일 시초가 및 장초반** | **+1.5% 갭상승 시 즉시 청산** | 오버나잇 후 익일 09:00 시초가에 갭상승(+1.5% 이상) 출발 시 즉시 전량 익절하고 현금화합니다. |
+| **09:00 ~ 14:30**{c0_t}<br>(장중 탐색) | **당일 실시간 누적 거래대금** | **200억 원 이상** | 장중 거래대금이 터지며 추세를 유지하는 주도 테마 1등주 관찰 |
+| **14:30 ~ 15:35**{c1_t}<br>(동시호가 종가 체결) | **종가 고가마감 확인** | **주가 +3.0%↑ & 고점 지지율 70%↑** | 윗꼬리가 길지 않고 일봉상 고가 부근 마감 시 15:20 동시호가 매수 |
+| **익일 09:00 ~ 09:15**<br>(시초가 갭 청산) | **익일 시초가 및 장초반** | **+1.5% 갭상승 시 즉시 청산** | 익일 09:00 시초가 갭상승(+1.5% 이상) 출발 시 전량 즉시 익절 |
                     """,
                     unsafe_allow_html=True
                 )
             elif "5% 급등" in sc_mode or "5% 돌파" in sc_mode:
+                g0_t = active_tag if rec_time["highlight_idx"] == 0 else ""
+                g1_t = active_tag if rec_time["highlight_idx"] == 1 else ""
                 st.markdown(
-                    """
-| 분석/실행 시점 | 데이터 기준 | 권장 설정값 (당일 최종 거래대금) | 매매 행동 요령 & 주의사항 |
+                    f"""
+| 분석/실행 시점 | 데이터 기준 | 권장 설정값 (당일 거래대금) | 매매 행동 요령 & 주의사항 |
 | :--- | :--- | :--- | :--- |
-| **15:15 ~ 15:25**<br>(마감 직전 탐색) | **당일 마감 누적 거래대금** | **500억 원 이상**<br>*(중소형주는 최소 300억↑)* | 시장의 모든 유동성이 쏠린 최상위 대장주만 진입합니다. 500억 이상 집중된 신고가 돌파봉은 익일 강한 후속 매수세를 유발합니다. |
-| **15:20 ~ 15:30**<br>(동시호가 종가 체결) | **종가 고가마감 확인** | **당일 상승률 +15%↑ & 윗꼬리 8% 이하** | 당일 최고가 부근(상한가 또는 준상한가)에서 탄탄하게 마감하는 종목을 15:20 동시호가에 종가 매수합니다. |
-| **익일 ~ 2일차**<br>(스윙 자동 익절) | **장중 시세 감시** | **장중 +5.0% 도달 시 전량 자동 익절** | 매수 다음 날 장중 +5% 급등 시 즉시 익절합니다. 1일차에 +5%에 못 미치더라도 추세가 살아있으면 2일차까지 홀딩하며, 손절 기준(-4.0%) 이탈 시 칼손절합니다. |
+| **09:00 ~ 14:30**{g0_t}<br>(장중 실시간 급등주) | **실시간 누적 거래대금** | **200억 원 이상** (상승률 +8%↑) | 상한가/준상한가로 직행하는 주도 대장주 실시간 탐색 |
+| **14:30 ~ 15:35**{g1_t}<br>(마감 직전 진입) | **당일 마감 누적 거래대금** | **300억 원 이상** (상승률 +10%↑) | 최상위 대장주 종가 매수 -> 1~2일 내 장중 +5% 자동 익절 |
+| **익일 ~ 2일차**<br>(스윙 자동 익절) | **장중 시세 감시** | **장중 +5.0% 도달 시 즉시 익절** | 매수 다음 날 장중 +5% 급등 시 즉시 익절 (손절선 -4.0% 엄수) |
                     """,
                     unsafe_allow_html=True
                 )
             else:
-                st.caption("Point-in-Time 스코어링 엔진으로 전체 상장 유니버스를 일괄 스크리닝하고 테마 집중 위험을 감지합니다. (권장 거래대금: 최소 50억~100억 원 이상)")
+                st.caption("Point-in-Time 스코어링 엔진으로 전체 상장 유니버스를 일괄 스크리닝하고 테마 집중 위험을 감지합니다. (권장: 최소 스코어 65점↑, 거래량 급증 1.5배↑)")
 
-    # 2) 스크리너 필터 파라미터 툴바
-    if "당일 단타" in sc_mode:
-        f_hdr_c1, f_hdr_c2 = st.columns([4.2, 1.3])
-        with f_hdr_c1:
-            st.markdown(
-                f'<div style="display:flex; align-items:center; gap:8px; padding-top:4px;">'
-                f'<span class="office-subheading" style="margin:0 !important;">스크리너 필터 설정</span>'
-                f'<span style="background:#F1F5F9; color:#1E293B; font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;">{now_str} {rec_time["slot_name"]}</span>'
-                f'<span style="color:#64748B; font-size:0.75rem;">(권장: 거래대금 {rec_time["val"]}억↑ · 시초대비 +{rec_time["gain"][0]}%~+{rec_time["gain"][1]}% 자동 세팅됨)</span>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-        with f_hdr_c2:
-            if st.button("현재시간 권장값 재적용", key="btn_reapply_auto_time", use_container_width=True):
-                st.session_state["sc_min_daytrade_val"] = rec_time["val"]
-                st.session_state["sc_intraday_gain_range"] = rec_time["gain"]
-                st.session_state["sc_min_daytrade_vol_ratio"] = rec_time["vol"]
-                st.session_state["sc_trigger_time_sync"] = True
-                st.toast(f"현재 시각({now_str}) 권장 설정이 자동 적용되었습니다.")
-                st.rerun()
-    else:
-        st.markdown('<div class="office-subheading" style="margin-bottom:4px !important;">스크리너 필터 설정</div>', unsafe_allow_html=True)
+    # 2) 전 전략 모드 공통 스크리너 필터 파라미터 툴바
+    f_hdr_c1, f_hdr_c2 = st.columns([4.2, 1.3])
+    with f_hdr_c1:
+        st.markdown(
+            f'<div style="display:flex; align-items:center; gap:8px; padding-top:4px;">'
+            f'<span class="office-subheading" style="margin:0 !important;">스크리너 필터 설정</span>'
+            f'<span style="background:#F1F5F9; color:#1E293B; font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;">{now_str} {rec_time["slot_name"]}</span>'
+            f'<span style="color:#64748B; font-size:0.75rem;">({rec_time["badge_desc"]} 자동 세팅됨)</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+    with f_hdr_c2:
+        if st.button("현재시간 권장값 재적용", key="btn_reapply_auto_time", use_container_width=True):
+            for _k, _v in rec_time["params"].items():
+                st.session_state[f"sc_{_k}"] = _v
+            st.session_state["sc_trigger_time_sync"] = True
+            st.toast(f"현재 시각({now_str}) {sc_mode} 권장 설정이 자동 적용되었습니다.")
+            st.rerun()
 
-    sc_c1, sc_c2, sc_c3, sc_c4, sc_c5 = st.columns([1.1, 1.3, 1.2, 1.3, 1.1])
+    sc_c1, sc_c2, sc_c3, sc_c4, sc_c5 = st.columns([1.1, 1.4, 1.2, 1.2, 1.1])
 
     with sc_c1:
         target_market = st.selectbox(
@@ -1136,8 +1419,8 @@ with tab1:
         sc_scope = st.selectbox(
             "탐색 대상 범위",
             [
-                "내 관심종목 138선 (초고속/추천)",
-                "주도주/우량주 300선 (권장)",
+                "실시간 급등·주도주 300선 (상승률+거래대금 상위 / 강력 권장)",
+                "내 관심종목 138선 (초고속)",
                 "전 상장사 전수조사 (약 2,700개)"
             ],
             index=0,
@@ -1146,66 +1429,87 @@ with tab1:
 
     if "당일 단타" in sc_mode:
         with sc_c3:
-            val_options = [50, 100, 200, 300]
-            if "sc_min_daytrade_val" not in st.session_state or st.session_state["sc_min_daytrade_val"] not in val_options:
-                st.session_state["sc_min_daytrade_val"] = rec_time["val"]
+            val_options = [50, 100, 150, 200, 300]
+            cur_val = st.session_state.get("sc_min_daytrade_val", rec_time.get("val", 100))
+            if cur_val not in val_options:
+                cur_val = 100
             min_daytrade_val_b = st.selectbox(
                 "당일 최소 거래대금",
                 val_options,
+                index=val_options.index(cur_val),
                 format_func=lambda x: f"{x}억 원 이상",
                 key="sc_min_daytrade_val"
             )
         with sc_c4:
-            if "sc_intraday_gain_range" not in st.session_state:
-                st.session_state["sc_intraday_gain_range"] = rec_time["gain"]
+            cur_gain = st.session_state.get("sc_intraday_gain_range", rec_time.get("gain", (2.5, 12.0)))
             intraday_gain_range = st.slider(
                 "시초가 대비 상승률 구간 (%)",
-                2.0, 12.0,
+                1.0, 25.0,
+                value=cur_gain,
                 step=0.5,
-                help="권장 설정: 골든타임(09:40~11:00) 3.0%~8.5% | 장초반(09:10~09:40) 3.0%~6.5% | 점심 4.5%~9.0%",
+                help="권장 설정: 골든타임(09:40~11:00) 3.0%~12.0% | 장초반 2.5%~10.0% | 급등주 최대 25.0%",
                 key="sc_intraday_gain_range"
             )
         with sc_c5:
-            if "sc_min_daytrade_vol_ratio" not in st.session_state:
-                st.session_state["sc_min_daytrade_vol_ratio"] = rec_time["vol"]
+            cur_vol = st.session_state.get("sc_min_daytrade_vol_ratio", rec_time.get("vol", 0.5))
             min_daytrade_vol_ratio = st.slider(
                 "전일대비 거래량 비율",
-                0.4, 1.5,
+                0.3, 1.5,
+                value=cur_vol,
                 step=0.1,
                 format="%.1f배 이상",
-                help="권장 설정: 최소 0.6배(60%) 이상 | 거래량 폭발 대장주 1.0배 이상",
+                help="권장 설정: 최소 0.5배(50%) 이상 | 거래량 폭발 대장주 0.8배 이상",
                 key="sc_min_daytrade_vol_ratio"
             )
     elif "스나이퍼" in sc_mode:
         with sc_c3:
-            min_val_krw_b = st.selectbox("최소 20일 평균 거래대금", [50, 100, 200, 300], index=1, format_func=lambda x: f"{x}억 원 이상", key="sc_min_val_krw")
+            cur_snp_val = st.session_state.get("sc_min_val_krw_b", 100)
+            snp_options = [50, 100, 150, 200, 300]
+            if cur_snp_val not in snp_options:
+                cur_snp_val = 100
+            min_val_krw_b = st.selectbox("최소 20일 평균 거래대금", snp_options, index=snp_options.index(cur_snp_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_val_krw_b")
         with sc_c4:
-            max_disparity_val = st.slider("20일선 최대 이격도 (%)", 101.0, 105.0, 103.5, step=0.5, key="sc_max_disparity")
+            cur_disp = st.session_state.get("sc_max_disparity_val", 103.5)
+            max_disparity_val = st.slider("20일선 최대 이격도 (%)", 100.0, 105.0, value=cur_disp, step=0.5, key="sc_max_disparity_val")
         with sc_c5:
-            ignore_market_filter = st.checkbox("시장 하락장 무시", value=False, key="sc_ignore_mkt_filter")
+            cur_ign = st.session_state.get("sc_ignore_market_filter", False)
+            ignore_market_filter = st.checkbox("시장 하락장 무시", value=cur_ign, key="sc_ignore_market_filter")
     elif "종가배팅" in sc_mode:
         with sc_c3:
-            min_today_val_b = st.selectbox("당일 최소 거래대금", [200, 300, 500], index=0, format_func=lambda x: f"{x}억 원 이상", key="sc_cb_min_today_val")
+            cb_options = [100, 200, 300, 500]
+            cur_cb_val = st.session_state.get("sc_min_today_val_b", 200)
+            if cur_cb_val not in cb_options:
+                cur_cb_val = 200
+            min_today_val_b = st.selectbox("당일 최소 거래대금", cb_options, index=cb_options.index(cur_cb_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_today_val_b")
         with sc_c4:
-            min_day_ret_val = st.slider("당일 최소 주가 상승률 (%)", 2.0, 5.0, 3.0, step=0.5, key="sc_cb_min_day_ret")
+            cur_cb_ret = st.session_state.get("sc_min_day_ret_val", 3.0)
+            min_day_ret_val = st.slider("당일 최소 주가 상승률 (%)", 2.0, 6.0, value=cur_cb_ret, step=0.5, key="sc_min_day_ret_val")
         with sc_c5:
             st.markdown("<br>", unsafe_allow_html=True)
             st.caption("15:20~15:30 권장")
     elif "5% 급등" in sc_mode or "5% 돌파" in sc_mode:
         with sc_c3:
-            min_surge_val_b = st.selectbox("당일 최소 거래대금", [200, 300, 500, 800], index=1, format_func=lambda x: f"{x}억 원 이상", key="sc_surge_min_val")
+            surge_options = [100, 200, 300, 500]
+            cur_s_val = st.session_state.get("sc_min_surge_val_b", 200)
+            if cur_s_val not in surge_options:
+                cur_s_val = 200
+            min_surge_val_b = st.selectbox("당일 최소 거래대금", surge_options, index=surge_options.index(cur_s_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_surge_val_b")
         with sc_c4:
-            min_day_surge_pct = st.slider("당일 최소 주가 상승률 (%)", 8.0, 25.0, 10.0, step=1.0, key="sc_surge_day_pct")
+            cur_s_pct = st.session_state.get("sc_min_day_surge_pct", 8.0)
+            min_day_surge_pct = st.slider("당일 최소 주가 상승률 (%)", 5.0, 25.0, value=cur_s_pct, step=1.0, key="sc_min_day_surge_pct")
         with sc_c5:
             st.markdown("<br>", unsafe_allow_html=True)
-            st.caption("마감 직전 15:20 진입 -> TP +5%")
+            st.caption("장중 급등·마감 직전 진입 -> TP +5%")
     else:
         with sc_c3:
-            min_screener_score = st.slider("최소 스코어 기준", 60.0, 90.0, 70.0, step=5.0, key="sc_min_score")
+            cur_score = st.session_state.get("sc_min_screener_score", 65.0)
+            min_screener_score = st.slider("최소 스코어 기준", 50.0, 90.0, value=cur_score, step=5.0, key="sc_min_screener_score")
         with sc_c4:
-            min_vol_surge = st.slider("거래량 급증 비율 (20일선 대비)", 1.0, 3.0, 1.5, step=0.2, key="sc_min_vol_surge")
+            cur_vol_s = st.session_state.get("sc_min_vol_surge", 1.5)
+            min_vol_surge = st.slider("거래량 급증 비율 (20일선 대비)", 1.0, 3.0, value=cur_vol_s, step=0.2, key="sc_min_vol_surge")
         with sc_c5:
-            require_ma_align = st.checkbox("이평 정배열/골든 필수", value=True, key="sc_require_ma")
+            cur_ma = st.session_state.get("sc_require_ma_align", True)
+            require_ma_align = st.checkbox("이평 정배열/골든 필수", value=cur_ma, key="sc_require_ma_align")
 
     worker_st = sc_worker.get_status()
     is_worker_running = sc_worker.is_running()
@@ -1269,17 +1573,17 @@ with tab1:
                 "sc_mode": sc_mode,
                 "target_market": target_market,
                 "sc_scope": sc_scope,
-                "min_daytrade_val_b": min_daytrade_val_b if "당일 단타" in sc_mode else 200,
-                "intraday_gain_range": intraday_gain_range if "당일 단타" in sc_mode else (3.0, 8.5),
-                "min_daytrade_vol_ratio": min_daytrade_vol_ratio if "당일 단타" in sc_mode else 0.6,
+                "min_daytrade_val_b": min_daytrade_val_b if "당일 단타" in sc_mode else 100,
+                "intraday_gain_range": intraday_gain_range if "당일 단타" in sc_mode else (2.5, 12.0),
+                "min_daytrade_vol_ratio": min_daytrade_vol_ratio if "당일 단타" in sc_mode else 0.5,
                 "min_val_krw_b": min_val_krw_b if "스나이퍼" in sc_mode else 100,
                 "max_disparity_val": max_disparity_val if "스나이퍼" in sc_mode else 103.5,
                 "ignore_market_filter": ignore_market_filter if "스나이퍼" in sc_mode else False,
                 "min_today_val_b": min_today_val_b if "종가배팅" in sc_mode else 200,
                 "min_day_ret_val": min_day_ret_val if "종가배팅" in sc_mode else 3.0,
-                "min_surge_val_b": min_surge_val_b if ("5% 급등" in sc_mode or "5% 돌파" in sc_mode) else 300,
-                "min_day_surge_pct": min_day_surge_pct if ("5% 급등" in sc_mode or "5% 돌파" in sc_mode) else 10.0,
-                "min_screener_score": min_screener_score if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else 70.0,
+                "min_surge_val_b": min_surge_val_b if ("5% 급등" in sc_mode or "5% 돌파" in sc_mode) else 200,
+                "min_day_surge_pct": min_day_surge_pct if ("5% 급등" in sc_mode or "5% 돌파" in sc_mode) else 8.0,
+                "min_screener_score": min_screener_score if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else 65.0,
                 "min_vol_surge": min_vol_surge if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else 1.5,
                 "require_ma_align": require_ma_align if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else True,
             }
@@ -2455,13 +2759,15 @@ with tab5:
 
         st.table(meta_opt["comparative_table"])
 
-        b_c1, b_c2, b_c3, b_c4 = st.columns([2.0, 1.0, 1.0, 1.0])
-        with b_c1:
-            if st.button(f"AI 최고 수익률 진단 결과 즉시 적용 ({meta_opt['best_horizon_key'].upper()})", type="primary", use_container_width=True, key="btn_apply_best_meta_tune"):
-                st.session_state["pending_tuning_updates"] = best_props
-                st.session_state["tuning_applied_notification"] = True
-                st.toast(f"AI 최고 추천 주기({best_horizon_lbl})의 최적 파라미터가 스크리너(탭 1)에 자동 적용되었습니다!")
-                st.rerun()
+        # 1) Full-width primary CTA button for prominent visibility on both mobile & PC
+        if st.button(f"AI 최고 수익률 진단 결과 즉시 적용 ({best_horizon_lbl} 권장)", type="primary", use_container_width=True, key="btn_apply_best_meta_tune"):
+            st.session_state["pending_tuning_updates"] = best_props
+            st.session_state["tuning_applied_notification"] = True
+            st.toast(f"AI 최고 추천 주기({best_horizon_lbl})의 최적 파라미터가 스크리너(탭 1)에 자동 적용되었습니다!")
+            st.rerun()
+
+        # 2) Individual horizon manual tuning buttons in 3 columns
+        b_c2, b_c3, b_c4 = st.columns(3)
         with b_c2:
             if st.button("전일 진단 적용", use_container_width=True, key="btn_apply_daily_tune"):
                 st.session_state["pending_tuning_updates"] = meta_opt["horizon_details"]["daily"]["proposals"]
