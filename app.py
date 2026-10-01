@@ -1076,20 +1076,18 @@ with col_top_r:
 main_tab_names = [
     "1. 시장 전체 익일 상승 후보 & 고확신 스크리너",
     "2. 관심종목 실시간 스코어보드",
-    "3. 워크포워드 검증 & 벤치마크 리포트",
-    "4. 예측 다이어리 & 라이브 추적",
-    "5. 성과 사후검증 & AI 전략 최적화 (자가진단)",
+    "3. 통합 성과 검증 & AI 자가최적화 센터",
 ]
 
 if "main_active_tab_nav" in st.session_state:
     _cur_nav = str(st.session_state["main_active_tab_nav"])
     if _cur_nav not in main_tab_names:
-        if _cur_nav.startswith("5") or "검증" in _cur_nav or "최적화" in _cur_nav:
-            st.session_state["main_active_tab_nav"] = main_tab_names[4]
+        if any(w in _cur_nav for w in ["3", "4", "5", "검증", "최적화", "다이어리", "워크포워드"]):
+            st.session_state["main_active_tab_nav"] = main_tab_names[2]
         else:
             st.session_state["main_active_tab_nav"] = main_tab_names[0]
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(main_tab_names, key="main_active_tab_nav")
+tab1, tab2, tab3 = st.tabs(main_tab_names, key="main_active_tab_nav")
 
 
 # =========================================================
@@ -1994,7 +1992,10 @@ with tab1:
                     st.markdown("<br>", unsafe_allow_html=True)
                     if st.button(f"{sel_sc['name']} 7년 백테스트 실행", type="primary", key=f"bt_sc_btn_{sel_sc['code']}", use_container_width=True):
                         st.session_state["target_backtest_code"] = sel_sc["code"]
-                        st.toast(f"탭 3(워크포워드 검증)로 이동하여 {sel_sc['name']} 백테스트를 확인하세요!")
+                        st.session_state["verif_pipeline_mode_sel"] = "과거 5년 워크포워드 & KODEX 200 벤치마크 검증 (종목별 95% 신뢰구간 시뮬레이션)"
+                        st.session_state["main_active_tab_nav"] = main_tab_names[2]
+                        st.toast(f"{sel_sc['name']} 백테스트 설정 완료! 3번 통합 검증 탭을 확인하세요.")
+                        st.rerun()
                 with insp_btn2:
                     st.markdown("<br>", unsafe_allow_html=True)
                     if st.button("관심종목 추가", key=f"add_sc_insp_{sel_sc['code']}", use_container_width=True):
@@ -2053,7 +2054,10 @@ with tab1:
                         with c_b2:
                             if st.button("백테스트", key=f"card_bt_sc_{srow['code']}_{i}", use_container_width=True):
                                 st.session_state["target_backtest_code"] = srow["code"]
-                                st.toast(f"{srow['name']} 백테스트 설정 완료! 탭 3을 확인하세요.")
+                                st.session_state["verif_pipeline_mode_sel"] = "과거 5년 워크포워드 & KODEX 200 벤치마크 검증 (종목별 95% 신뢰구간 시뮬레이션)"
+                                st.session_state["main_active_tab_nav"] = main_tab_names[2]
+                                st.toast(f"{srow['name']} 백테스트 설정 완료! 3번 통합 검증 탭을 확인하세요.")
+                                st.rerun()
 
 # =========================================================
 # TAB 2: 관심종목 실시간 스코어보드 & 관리
@@ -2463,7 +2467,10 @@ with tab2:
                     st.markdown("<br>", unsafe_allow_html=True)
                     if st.button(f"{sel_row['name']} 7년 백테스트 실행", type="primary", key=f"bt_wl_btn_{sel_row['code']}", use_container_width=True):
                         st.session_state["target_backtest_code"] = sel_row["code"]
-                        st.toast(f"탭 3(워크포워드 검증)로 이동하여 {sel_row['name']} 백테스트를 확인하세요!")
+                        st.session_state["verif_pipeline_mode_sel"] = "과거 5년 워크포워드 & KODEX 200 벤치마크 검증 (종목별 95% 신뢰구간 시뮬레이션)"
+                        st.session_state["main_active_tab_nav"] = main_tab_names[2]
+                        st.toast(f"{sel_row['name']} 백테스트 설정 완료! 3번 통합 검증 탭을 확인하세요.")
+                        st.rerun()
                 with insp_btn2:
                     st.markdown("<br>", unsafe_allow_html=True)
                     if st.button("삭제", key=f"del_sel_{sel_row['code']}", use_container_width=True):
@@ -2531,7 +2538,10 @@ with tab2:
                         with btn_c1:
                             if st.button("백테스트", key=f"bt_card_{item['code']}", use_container_width=True):
                                 st.session_state["target_backtest_code"] = item["code"]
-                                st.toast(f"{item['name']} 백테스트 설정됨! 탭 3을 확인하세요.")
+                                st.session_state["verif_pipeline_mode_sel"] = "과거 5년 워크포워드 & KODEX 200 벤치마크 검증 (종목별 95% 신뢰구간 시뮬레이션)"
+                                st.session_state["main_active_tab_nav"] = main_tab_names[2]
+                                st.toast(f"{item['name']} 백테스트 설정됨! 3번 통합 검증 탭을 확인하세요.")
+                                st.rerun()
                         with btn_c2:
                             if st.button("삭제", key=f"del_card_{item['code']}", use_container_width=True):
                                 with get_db_connection() as conn:
@@ -2544,9 +2554,10 @@ with tab2:
 
 
 # =========================================================
-# TAB 3: 워크포워드 검증 & 벤치마크 리포트 (95% CI 부트스트랩)
+# SUB-MODULE A: 워크포워드 검증 & 벤치마크 리포트 (95% CI 부트스트랩)
 # =========================================================
-with tab3:
+def render_walk_forward_section():
+    st.markdown('<div class="office-subheading">과거 5년 워크포워드 백테스트 & KODEX 200 벤치마크 검증 리포트</div>', unsafe_allow_html=True)
     st.caption("250거래일 In-Sample 학습 구간 롤링 후 20거래일 Out-of-Sample 순차 테스트 (과최적화 방지 & 부트스트랩 1,000회 95% 신뢰구간 산출)")
 
     bt_c1, bt_c2, bt_c3, bt_c4, bt_c5 = st.columns([2.5, 2.2, 1.8, 1.5, 1.5])
@@ -2742,9 +2753,10 @@ with tab3:
 
 
 # =========================================================
-# TAB 4: 예측 다이어리 & 라이브 추적 (Forward Testing Log)
+# SUB-MODULE B: 실거래 예측 다이어리 & 라이브 추적 (Forward Testing Log)
 # =========================================================
-with tab4:
+def render_prediction_diary_section():
+    st.markdown('<div class="office-subheading">실거래 예측 다이어리 전체 장부 & 라이브 포워드 추적</div>', unsafe_allow_html=True)
     st.caption("매일 15:40 마감 후 생성된 예측 건과 익일 실제 체결 시세(시/고/저/종)를 일대일 대조하여 모델 열화(Model Decay)를 실시간 감지합니다.")
 
     # 1. Model Decay Status Card
@@ -2829,17 +2841,35 @@ with tab4:
 
 
 # =========================================================
-# TAB 5: 전일 성과 자가검증 & AI 전략 최적화 (Self-Tuning)
+# SUB-MODULE C: 실거래 성과 사후검증 & AI 전략 최적화 (Self-Tuning)
 # =========================================================
-with tab5:
+def render_live_forward_and_tuning_section():
+    st.markdown('<div class="office-subheading">실거래 성과 사후검증 & AI 전략 자가최적화 (Point-in-Time)</div>', unsafe_allow_html=True)
     st.caption("실제 체결 데이터 기반으로 전일(1일), 최근 주간(5일), 1개월(25일) 성과를 입체적으로 분석하고, 실패 원인을 AI가 스스로 진단하여 최적 파라미터를 도출합니다.")
 
+    # 1. Model Decay Status Card (실시간 모델 수명 및 실전 승률 감시)
+    decay_info = evaluate_model_decay(expected_ci_lower=50.0)
+    col_dec1, col_dec2 = st.columns([1.2, 3])
+    with col_dec1:
+        if decay_info["status"] == "DECAY_WARNING":
+            st.error("모델 열화(Model Decay) 감지")
+        elif decay_info["status"] == "HEALTHY":
+            st.success("모델 성능 정상 (Healthy)")
+        else:
+            st.info("표본 축적 진행 중")
+    with col_dec2:
+        st.markdown(f"**실거래 모델 수명 진단**: {decay_info['message']}")
+        st.caption(f"누적 정산: {decay_info['total_settled']}건 | 적중: {decay_info.get('hits', 0)}건 | 실현 승률: {decay_info['live_win_rate']:.1f}%")
+
+    st.markdown("---")
+
     t5_period_view = st.radio(
-        "성과 분석 대상 기간 선택",
+        "성과 분석 대상 기간 및 상세 장부 선택",
         [
             "전일 성과 정밀 분석 & AI 자가진단 (1일)",
             "최근 주간 성과 종합 (5거래일)",
-            "1개월 누적 성과 & AI 최적화 (25거래일)"
+            "1개월 누적 성과 & AI 최적화 (25거래일)",
+            "실거래 예측 다이어리 전체 장부 & 라이브 승률 추이 (Forward Log)"
         ],
         horizontal=False,
         key="t5_period_radio_sel"
@@ -2920,7 +2950,7 @@ with tab5:
             for p in (valid_pairs[::-1] if valid_pairs else [("2026-09-22", "2026-09-23")])
         ]
 
-        v_c1, v_c2, v_c3 = st.columns([2.0, 1.6, 1.0])
+        v_c1, v_c2, v_c3, v_c4 = st.columns([1.8, 1.5, 1.2, 1.2])
         with v_c1:
             sel_date_raw = st.selectbox(
                 "검증 기준일 (T-1 추천 발굴일 -> 당일 실제 체결 검증)",
@@ -2945,6 +2975,13 @@ with tab5:
         with v_c3:
             st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
             run_verif_btn = st.button("전일 성과 검증 실행", type="primary", use_container_width=True, key="btn_run_daily_verif")
+        with v_c4:
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("전일 예측 즉시 정산", use_container_width=True, key="btn_run_daily_settle"):
+                with st.spinner("미정산 예측 건 시세 조회 및 정산 처리 중..."):
+                    settled = settle_pending_predictions()
+                    st.toast(f"{len(settled)}건의 예측이 정산되었습니다.")
+                    st.rerun()
 
         cache_key = f"{sel_verif_date}_{sel_verif_strat}"
         cached_key = st.session_state.get("daily_verif_cache_key")
@@ -3271,7 +3308,7 @@ with tab5:
     # -----------------------------------------------------
     # SUB-VIEW 3: 최근 1개월(25거래일) 누적 성과 & AI 최적화
     # -----------------------------------------------------
-    else:
+    elif "1개월" in t5_period_view:
         st.markdown('<div class="office-subheading">최근 1개월(25거래일) 누적 성과 종합 & AI 전략 최적화 히스토리</div>', unsafe_allow_html=True)
         st.caption("1개월간 매일 08:30 아침에 자동 실행된 125건의 전수 검증 기록을 기반으로 전략별 장기 안정성과 파라미터 보정 이력을 제공합니다.")
 
@@ -3402,3 +3439,32 @@ with tab5:
                         - **조정장 / 지수 급락 국면**: 스나이퍼 고확신 (20일선 첫 눌림목 지지 반등 엄수, 현금 비중 50% 권장)
                         """
                     )
+
+    # -----------------------------------------------------
+    # SUB-VIEW 4: 실거래 예측 다이어리 전체 장부 & 라이브 승률 추이
+    # -----------------------------------------------------
+    else:
+        render_prediction_diary_section()
+
+
+# =========================================================
+# TAB 3: 통합 성과 검증 & AI 자가최적화 센터 (All-in-One)
+# =========================================================
+with tab3:
+    st.caption("실거래 체결 정산부터 AI 실패 원인 진단, 스크리너 원클릭 최적화, 과거 5년 벤치마크 검증까지 하나의 파이프라인으로 일원화된 올인원 검증 센터입니다.")
+
+    verif_pipeline_mode = st.radio(
+        "통합 검증 & 개선 파이프라인 단계 선택",
+        [
+            "실거래 성과 사후검증 & AI 자가최적화 (실전 정산 · 실패 원인 진단 · 스크리너 즉시 개선)",
+            "과거 5년 워크포워드 & KODEX 200 벤치마크 검증 (종목별 95% 신뢰구간 시뮬레이션)"
+        ],
+        horizontal=False,
+        key="verif_pipeline_mode_sel"
+    )
+
+    if "과거 5년" in verif_pipeline_mode:
+        render_walk_forward_section()
+    else:
+        render_live_forward_and_tuning_section()
+
