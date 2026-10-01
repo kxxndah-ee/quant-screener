@@ -699,8 +699,8 @@ else:
 
 time_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
-col_top_l, col_top_r = st.columns([2.0, 3.0])
-with col_top_l:
+col_top_title, col_top_clock, col_top_btn, col_top_spacer = st.columns([2.4, 3.9, 0.6, 3.1])
+with col_top_title:
     st.markdown(
         '<div style="display:flex; align-items:center; gap:8px; padding:2px 0 6px 0;">'
         '<span style="font-size:0.95rem; font-weight:700; color:#1E293B; letter-spacing:-0.3px;">📊 AlphaQuant Analytics</span>'
@@ -708,10 +708,8 @@ with col_top_l:
         '</div>',
         unsafe_allow_html=True
     )
-with col_top_r:
-    top_c1, top_c2 = st.columns([4.2, 0.8])
-    with top_c1:
-        live_clock_html = f"""<!DOCTYPE html>
+with col_top_clock:
+    live_clock_html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -728,11 +726,11 @@ with col_top_r:
   }}
   .clock-bar {{
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
     align-items: center;
     gap: 8px;
     height: 36px;
-    padding-right: 4px;
+    padding-left: 0px;
     font-size: 13px;
     color: #475569;
     white-space: nowrap;
@@ -751,7 +749,6 @@ with col_top_r:
 </head>
 <body>
 <div class="clock-bar">
-  <span>🕒</span>
   <span class="clock-time" id="kst-time-val">{time_str} KST</span>
   <span class="sep">|</span>
   <span class="badge" id="kst-market-badge">{market_badge}</span>
@@ -808,10 +805,10 @@ with col_top_r:
 </script>
 </body>
 </html>"""
-        components.html(live_clock_html, height=36, scrolling=False)
-    with top_c2:
-        if st.button("🔄", help="현재시각 및 시장상태 최신화", key="btn_top_time_sync"):
-            st.rerun()
+    components.html(live_clock_html, height=36, scrolling=False)
+with col_top_btn:
+    if st.button("🔄", help="현재시각 및 시장상태 최신화", key="btn_top_time_sync"):
+        st.rerun()
 
 main_tab_names = [
     "1. 시장 전체 익일 상승 후보 & 고확신 스크리너",
