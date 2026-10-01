@@ -73,6 +73,7 @@ from src.database.diary_manager import (
     get_diary_history,
     evaluate_model_decay
 )
+from src.core.screening_worker import get_screening_worker
 try:
     from src.automation.scheduler import (
         run_post_market_job,
@@ -684,6 +685,11 @@ def load_all_watchlist_metrics(codes_tuple):
 # ---------------------------------------------------------
 # Top Navigation & Status Bar (Office Stealth Mode)
 # ---------------------------------------------------------
+if "session_uid" not in st.session_state:
+    import uuid
+    st.session_state["session_uid"] = str(uuid.uuid4())
+sc_worker = get_screening_worker(st.session_state["session_uid"])
+
 now_dt = get_now_kst()
 is_weekday = now_dt.weekday() < 5
 cur_hm = now_dt.hour * 100 + now_dt.minute
@@ -701,10 +707,17 @@ time_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
 col_top_l, col_top_r = st.columns([1.8, 3.2])
 with col_top_l:
+    task_badge = ""
+    if sc_worker.is_running():
+        _w_st = sc_worker.get_status()
+        _pct = int(_w_st["progress"] * 100)
+        task_badge = f'<span style="font-size:0.72rem; color:#1D4ED8; background:#EFF6FF; border:1px solid #93C5FD; padding:1px 6px; border-radius:4px; font-weight:700;">⚡ 스크리닝 진행중 ({_pct}%)</span>'
+
     st.markdown(
         '<div style="display:flex; align-items:center; gap:8px; padding:2px 0 6px 0;">'
         '<span style="font-size:0.95rem; font-weight:700; color:#1E293B; letter-spacing:-0.3px;">📊 AlphaQuant Analytics</span>'
         '<span style="font-size:0.72rem; color:#64748B; background:#F1F5F9; border:1px solid #CBD5E1; padding:1px 6px; border-radius:4px; font-weight:600;">PRO STEALTH</span>'
+        f'{task_badge}'
         '</div>',
         unsafe_allow_html=True
     )
@@ -1195,383 +1208,110 @@ with tab1:
         with sc_c5:
             require_ma_align = st.checkbox("이평 정배열/골든 필수", value=True, key="sc_require_ma")
 
-    if st.button("후보 스크리닝 실행", type="primary", use_container_width=True):
-        with st.spinner("상장 유니버스 데이터를 로드하고 전략별 필터링 중입니다..."):
-            mkt_param = None if target_market == "전체" else target_market
-            df_univ = get_universe(market=mkt_param, active_only=True)
+    worker_st = sc_worker.get_status()
+    is_worker_running = sc_worker.is_running()
 
-            if df_univ.empty:
-                st.warning("유니버스 데이터가 없습니다. 사이드바의 'KRX 유니버스 최신 동기화'를 먼저 실행해주세요.")
-            else:
-                if "관심종목" in sc_scope:
-                    with get_db_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT w.code, w.name, w.market, COALESCE(u.sector, '기타') as sector FROM watchlist w LEFT JOIN universe u ON w.code = u.code")
-                        wl_recs = cursor.fetchall()
-                    sample_pool = pd.DataFrame([dict(r) for r in wl_recs]) if wl_recs else df_univ.head(100)
-                elif "300선" in sc_scope:
-                    top_lead_codes = []
-                    try:
-                        import FinanceDataReader as fdr
-                        df_krx_lead = fdr.StockListing("KRX")
-                        if not df_krx_lead.empty and "Amount" in df_krx_lead.columns:
-                            if target_market in ("KOSPI", "KOSDAQ"):
-                                df_krx_lead = df_krx_lead[df_krx_lead["Market"].str.upper() == target_market]
-                            top_lead_codes = df_krx_lead.sort_values("Amount", ascending=False)["Code"].astype(str).str.zfill(6).tolist()[:350]
-                    except Exception:
-                        top_lead_codes = []
+    # If worker just completed, transfer results into session_state!
+    if worker_st["status"] == "COMPLETED":
+        df_worker_res = worker_st.get("results_df")
+        if df_worker_res is not None:
+            st.session_state["screened_results_df"] = df_worker_res
+            st.session_state["screened_mode_label"] = worker_st["mode_label"]
+            st.session_state.setdefault("screened_cache_by_mode", {})[worker_st["mode_label"]] = df_worker_res
+            st.session_state["screened_is_empty_result"] = df_worker_res.empty
+            sc_worker.reset_status()
+            if not df_worker_res.empty:
+                st.toast(f"스크리닝 완료! 총 {len(df_worker_res):,}개 종목 발굴", icon="🎉")
+            st.rerun()
 
-                    with get_db_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT code FROM watchlist")
-                        wl_codes = [r["code"] for r in cursor.fetchall()]
+    # If worker was cancelled, notify and reset
+    if worker_st["status"] == "CANCELLED":
+        st.warning("사용자 요청에 의해 스크리닝이 중단되었습니다.")
+        sc_worker.reset_status()
 
-                    # Combine true top trading value leaders + watchlist
-                    major_lead_codes = list(dict.fromkeys(top_lead_codes + wl_codes))
-                    df_top = df_univ[df_univ["code"].isin(major_lead_codes)]
-                    df_rest = df_univ[~df_univ["code"].isin(major_lead_codes)]
-                    sample_pool = pd.concat([df_top, df_rest]).head(300).reset_index(drop=True)
-                else:
-                    sample_pool = df_univ
+    # If worker failed, notify and reset
+    if worker_st["status"] == "FAILED":
+        st.error(f"스크리닝 중 오류가 발생했습니다: {worker_st.get('error_message', '알 수 없는 오류')}")
+        sc_worker.reset_status()
 
-                screened_results = []
-                bm_ohlcv = get_benchmark_ohlcv() if ("스나이퍼" in sc_mode or "당일 단타" in sc_mode) else None
-                prog_bar = st.progress(0, text=f"총 {len(sample_pool)}개 종목 시세 로드 및 전략 필터링 중...")
-                total_pool_cnt = len(sample_pool)
+    # Execution Toolbar / Progress Area
+    if is_worker_running:
+        col_btn_run, col_btn_cancel = st.columns([3.8, 1.2])
+        with col_btn_run:
+            st.button("⏳ 백그라운드 스크리닝 진행 중 (다른 탭 이동 가능)...", disabled=True, use_container_width=True)
+        with col_btn_cancel:
+            if st.button("⏹ 작업 중단", type="secondary", use_container_width=True, key="btn_cancel_screening"):
+                sc_worker.cancel()
+                st.toast("스크리닝 중단 요청을 전송했습니다.")
+                st.rerun()
 
-                for idx, (_, row) in enumerate(sample_pool.iterrows()):
-                    if idx % 25 == 0 or idx == total_pool_cnt - 1:
-                        prog_bar.progress((idx + 1) / total_pool_cnt, text=f"전수 탐색 중 ({idx+1}/{total_pool_cnt}): {row['name']}")
-                    code = row["code"]
-                    name = row["name"]
-                    sector = row.get("sector", "기타")
-                    market = row["market"]
+        @st.fragment(run_every="1s")
+        def render_screening_live_progress():
+            cur_st = sc_worker.get_status()
+            if cur_st["status"] == "RUNNING":
+                curr = cur_st["current_index"]
+                tot = cur_st["total_count"]
+                prog = cur_st["progress"]
+                stock = cur_st["current_name"]
+                st.progress(prog, text=f"전수 탐색 중 ({curr}/{tot}): {stock} (진행률 {prog*100:.1f}%)")
+                st.info(
+                    f"⚡ **[{cur_st['mode_label']}] 백그라운드 스크리닝이 안전하게 진행 중입니다.**\n\n"
+                    f"👉 **다른 탭(2. 관심종목, 3. 워크포워드 등)이나 다른 메뉴로 이동하셔도 작업이 절대 중단되지 않고 계속 진행됩니다.**",
+                    icon="ℹ️"
+                )
+            elif cur_st["status"] in ("COMPLETED", "CANCELLED", "FAILED"):
+                st.rerun()
 
-                    try:
-                        df_stock = fetch_ohlcv(code)
-                        if df_stock.empty or len(df_stock) < 30:
-                            continue
+        render_screening_live_progress()
 
-                        close_p = float(df_stock["Close"].iloc[-1])
-                        prev_p = float(df_stock["Close"].iloc[-2]) if len(df_stock) >= 2 else close_p
-                        chg_pct = ((close_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
-                        vol_p = int(df_stock["Volume"].iloc[-1])
+    else:
+        if st.button("후보 스크리닝 실행", type="primary", use_container_width=True, key="btn_run_screener"):
+            st.session_state["screened_is_empty_result"] = False
+            params = {
+                "sc_mode": sc_mode,
+                "target_market": target_market,
+                "sc_scope": sc_scope,
+                "min_daytrade_val_b": min_daytrade_val_b if "당일 단타" in sc_mode else 200,
+                "intraday_gain_range": intraday_gain_range if "당일 단타" in sc_mode else (3.0, 8.5),
+                "min_daytrade_vol_ratio": min_daytrade_vol_ratio if "당일 단타" in sc_mode else 0.6,
+                "min_val_krw_b": min_val_krw_b if "스나이퍼" in sc_mode else 100,
+                "max_disparity_val": max_disparity_val if "스나이퍼" in sc_mode else 103.5,
+                "ignore_market_filter": ignore_market_filter if "스나이퍼" in sc_mode else False,
+                "min_today_val_b": min_today_val_b if "종가배팅" in sc_mode else 200,
+                "min_day_ret_val": min_day_ret_val if "종가배팅" in sc_mode else 3.0,
+                "min_surge_val_b": min_surge_val_b if ("5% 급등" in sc_mode or "5% 돌파" in sc_mode) else 300,
+                "min_day_surge_pct": min_day_surge_pct if ("5% 급등" in sc_mode or "5% 돌파" in sc_mode) else 10.0,
+                "min_screener_score": min_screener_score if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else 70.0,
+                "min_vol_surge": min_vol_surge if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else 1.5,
+                "require_ma_align": require_ma_align if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else True,
+            }
+            sc_worker.start_screening(params)
+            st.rerun()
 
-                        # Detect intraday session (before 15:30 on trading day)
-                        now_dt = get_now_kst()
-                        last_bar_dt = df_stock.index[-1]
-                        is_today_intraday = (last_bar_dt.strftime("%Y-%m-%d") == now_dt.strftime("%Y-%m-%d") and now_dt.hour < 15)
-
-                        # For Sniper (09:00 market open entry):
-                        # Always evaluate on the completed daily bar (Day T-1) so volume & 20MA pullback are exact
-                        df_snp_eval = df_stock.iloc[:-1] if is_today_intraday and len(df_stock) >= 31 else df_stock
-
-                        if "당일 단타" in sc_mode:
-                            bm_for_eval = bm_ohlcv
-                            dtrade = evaluate_intraday_daytrade_candidate(
-                                df_stock,
-                                df_benchmark=bm_for_eval,
-                                min_today_val_krw=min_daytrade_val_b * 100_000_000,
-                                min_intraday_gain=intraday_gain_range[0],
-                                max_intraday_gain=intraday_gain_range[1]
-                            )
-                            if not dtrade:
-                                continue
-
-                            m_dt = dtrade["metrics"]
-                            if m_dt.get("vol_ratio_vs_prev", 0) < min_daytrade_vol_ratio:
-                                continue
-
-                            today_val_b_val = m_dt.get('today_trading_val_억', 0)
-                            gain_from_open_val = m_dt.get('gain_from_open', 0)
-                            supp_ratio_val = m_dt.get('support_ratio', 0)
-                            vol_ratio_prev_val = m_dt.get('vol_ratio_vs_prev', 1.0)
-                            room_limit_val = m_dt.get('room_to_limit_pct', 0)
-
-                            reason_summary = f"대금 {today_val_b_val:,.0f}억 유입 | 시초대비 {gain_from_open_val:+.1f}% 돌파 | 양봉지지 {supp_ratio_val:.0f}%"
-                            reason_core = "장중 대규모 수급(거래대금)이 유입되며 시초가를 강력하게 상향 돌파하였고, 윗꼬리가 짧은 견고한 양봉 지지력을 유지하여 당일 장중 +5% 추가 슈팅 확률이 매우 높은 당일단타 주도주입니다."
-                            reason_criteria = [
-                                f"당일 거래대금 {today_val_b_val:,.0f}억 원 유입 (최소 기준 {min_daytrade_val_b}억 원 충족)",
-                                f"시초가 대비 {gain_from_open_val:+.1f}% 돌파 (유효 돌파 구간 +{intraday_gain_range[0]}% ~ +{intraday_gain_range[1]}% 충족)",
-                                f"장중 전일 거래량 대비 {vol_ratio_prev_val*100:.0f}% 돌파 (수급 집중 기준 {min_daytrade_vol_ratio*100:.0f}% 충족)",
-                                f"당일 진폭 중 고점 지지율 {supp_ratio_val:.1f}% (윗꼬리 짧은 탄탄한 양봉 지지, 65% 이상 충족)",
-                                f"상한가(+30%)까지 잔여 상승폭 +{room_limit_val:.1f}% 확보 (목표 +5% 익절 공간 여유)"
-                            ]
-
-                            screened_results.append({
-                                "code": code,
-                                "name": name,
-                                "market": market,
-                                "sector": sector,
-                                "close": close_p,
-                                "change_pct": chg_pct,
-                                "volume": vol_p,
-                                "timing_label": "장중 실시간 (09:10~14:30)",
-                                "strategy_mode": "DAY_TRADE_5PCT",
-                                "strategy_tag": "당일단타 (당일 +5%)",
-                                "score": dtrade["score"],
-                                "label": dtrade["label"],
-                                "tp_pct": dtrade["tp_pct"],
-                                "sl_pct": dtrade["sl_pct"],
-                                "vol_ratio": vol_ratio_prev_val,
-                                "rsi": 65.0,
-                                "ma_status": "장중 수급폭발 돌파",
-                                "rule_note": dtrade["rule_note"],
-                                "reason_summary": reason_summary,
-                                "reason_core": reason_core,
-                                "reason_criteria": reason_criteria,
-                                "breakdown": {
-                                    "rsi_val": 65.0,
-                                    "ma_status": f"시초대비 {gain_from_open_val:+.1f}% 돌파봉",
-                                    "vol_ratio": vol_ratio_prev_val,
-                                    "bb_pct": supp_ratio_val / 100.0
-                                }
-                            })
-                        elif "스나이퍼" in sc_mode:
-                            bm_for_eval = None if ignore_market_filter else bm_ohlcv
-                            snp = evaluate_sniper_candidate(df_snp_eval, df_benchmark=bm_for_eval, min_daily_val_krw=min_val_krw_b * 100_000_000)
-                            if not snp:
-                                continue
-                            if snp["metrics"]["disparity"] > max_disparity_val:
-                                continue
-
-                            m_snp = snp["metrics"]
-                            disp_val = m_snp.get("disparity", 100.0)
-                            avg_val_b = m_snp.get("avg_trading_val_억", 0)
-                            rsi_val = m_snp.get("rsi", 50.0)
-                            vol_r_val = m_snp.get("vol_ratio", 1.0)
-
-                            reason_summary = f"20일선 이격도 {disp_val:.1f}% 눌림목 | 20일평균 대금 {avg_val_b:,.0f}억 | RSI {rsi_val:.1f}"
-                            reason_core = "KODEX 200 지수 상승장 확인 후, 일평균 거래대금이 풍부한 우량주가 20일 이동평균선 눌림목에서 첫 반등을 시작하여 시초가 갭 기준 부합 시 승률 80%를 타겟하는 고확신 스나이퍼 종목입니다."
-                            reason_criteria = [
-                                "KODEX 200 지수 20일 이동평균선 상회 (지수 하락장 시스템 위험 사전 차단 필터 통과)" if not ignore_market_filter else "시장 필터 미적용 (개별 종목 기술적 지표 단독 검증)",
-                                f"20일 일평균 거래대금 {avg_val_b:,.0f}억 원 (기준 {min_val_krw_b}억 원 이상 풍부한 유동성)",
-                                f"20일선 이격도 {disp_val:.1f}% (설정 기준 98.0% ~ {max_disparity_val:.1f}% 내 20일선 첫 지지 반등)",
-                                "5일선 > 20일선 상단 위치 (단기 상승 모멘텀 유지)",
-                                f"RSI(14) {rsi_val:.1f} (과열 없는 건전한 에너지 응축 구간, 45~68 충족)",
-                                f"20일 평균 대비 거래량 {vol_r_val:.2f}배 반등 유입 (1.2배 이상 기준 충족)"
-                            ]
-
-                            screened_results.append({
-                                "code": code,
-                                "name": name,
-                                "market": market,
-                                "sector": sector,
-                                "close": close_p,
-                                "change_pct": chg_pct,
-                                "volume": vol_p,
-                                "timing_label": "장초 (09:00 시초가)",
-                                "strategy_mode": "SNIPER",
-                                "strategy_tag": "스나이퍼 (오전 9시)",
-                                "score": snp["score"],
-                                "label": snp["label"],
-                                "tp_pct": snp["tp_pct"],
-                                "sl_pct": snp["sl_pct"],
-                                "vol_ratio": vol_r_val,
-                                "rsi": rsi_val,
-                                "ma_status": m_snp.get("ma_status", "20일선 지지"),
-                                "rule_note": "익일 시초가 갭 -1.5%~+1.5% 이내 시에만 체결 (+1.5% 초과 갭상승 시 진입금지)",
-                                "reason_summary": reason_summary,
-                                "reason_core": reason_core,
-                                "reason_criteria": reason_criteria,
-                                "breakdown": {
-                                    "rsi_val": rsi_val,
-                                    "ma_status": "20일선 지지 첫반등",
-                                    "vol_ratio": vol_r_val,
-                                    "bb_pct": 0.5
-                                }
-                            })
-                        elif "종가배팅" in sc_mode:
-                            cbet = evaluate_closing_bet_candidate(df_stock, min_today_val_krw=min_today_val_b * 100_000_000)
-                            if not cbet:
-                                continue
-                            if cbet["metrics"]["day_return"] < min_day_ret_val:
-                                continue
-
-                            m_cb = cbet["metrics"]
-                            cb_val_b = m_cb.get("today_trading_val_억", 0)
-                            cb_ret = m_cb.get("day_return", 0)
-                            cb_hc = m_cb.get("high_close_ratio", 0)
-
-                            reason_summary = f"당일대금 {cb_val_b:,.0f}억 폭발 | 당일 +{cb_ret:.1f}% | 고가마감 {cb_hc:.1f}%"
-                            reason_core = "장마감 시점(15:20) 대규모 주도 거래대금과 함께 종가를 최고가 부근으로 마감하여, 익일 09:00 시초가 갭상승 및 장초반 슈팅(+1.5% 이상) 청산 확률이 극대화된 종가배팅 후보입니다."
-                            reason_criteria = [
-                                f"당일 거래대금 {cb_val_b:,.0f}억 원 폭발 (기준 {min_today_val_b}억 원 이상 시장 주도 수급)",
-                                f"당일 주가 +{cb_ret:.1f}% 장대양봉 마감 (기준 +{min_day_ret_val:.1f}% 이상 충족)",
-                                f"당일 고점 대비 종가 지지율 {cb_hc:.1f}% (기준 82% 이상, 장마감까지 차익실현 없는 탄탄한 종가)",
-                                "5일선 및 20일선 상단 돌파 (단기 이평선 정배열 확인)"
-                            ]
-
-                            screened_results.append({
-                                "code": code,
-                                "name": name,
-                                "market": market,
-                                "sector": sector,
-                                "close": close_p,
-                                "change_pct": chg_pct,
-                                "volume": vol_p,
-                                "timing_label": "마감 직전 (15:20 종가)",
-                                "strategy_mode": "CLOSING_BET",
-                                "strategy_tag": "종가배팅 (마감 직전)",
-                                "score": cbet["score"],
-                                "label": cbet["label"],
-                                "tp_pct": cbet["tp_pct"],
-                                "sl_pct": cbet["sl_pct"],
-                                "vol_ratio": 2.0,
-                                "rsi": 65.0,
-                                "ma_status": "5·20일선 상단 고가마감",
-                                "rule_note": "15:20 종가 진입 -> 익일 09:00 시초가 갭익절(+1.5%↑) 또는 장초반 +1.5% 슈팅 청산",
-                                "reason_summary": reason_summary,
-                                "reason_core": reason_core,
-                                "reason_criteria": reason_criteria,
-                                "breakdown": {
-                                    "rsi_val": 65.0,
-                                    "ma_status": "주도주 고가마감",
-                                    "vol_ratio": 2.5,
-                                    "bb_pct": 0.8
-                                }
-                            })
-                        elif "5% 급등" in sc_mode or "5% 돌파" in sc_mode:
-                            s5 = evaluate_5pct_surge_candidate(
-                                df_stock,
-                                min_today_val_krw=min_surge_val_b * 100_000_000,
-                                min_day_return_pct=min_day_surge_pct
-                            )
-                            if not s5 and is_today_intraday and len(df_stock) >= 31:
-                                s5 = evaluate_5pct_surge_candidate(
-                                    df_stock.iloc[:-1],
-                                    min_today_val_krw=min_surge_val_b * 100_000_000,
-                                    min_day_return_pct=min_day_surge_pct
-                                )
-                            if not s5:
-                                continue
-
-                            m_s5 = s5["metrics"]
-                            s5_val_b = m_s5.get("today_trading_val_억", 0)
-                            s5_ret = m_s5.get("day_return", 0)
-                            s5_hc = m_s5.get("high_close_ratio", 0)
-
-                            reason_summary = f"초대형 대금 {s5_val_b:,.0f}억 | 당일 +{s5_ret:.1f}% 급등 | 종가마감 {s5_hc:.1f}%"
-                            reason_core = "시장의 주도 자금이 집중된 초대형 거래대금과 함께 장대양봉(상한가/준상한가 마루보즈)으로 최고가권 마감하여, 1~2일 내 장중 +5.0% 연속 돌파 슈팅 가능성이 검증된 초강세 대장주입니다."
-                            reason_criteria = [
-                                f"당일 거래대금 {s5_val_b:,.0f}억 원 집중 (기준 {min_surge_val_b}억 원 이상 최상위 주도주 수급)",
-                                f"당일 주가 +{s5_ret:.1f}% 급등 마감 (기준 +{min_day_surge_pct:.1f}% 이상 강력한 모멘텀)",
-                                f"당일 고점 대비 종가 유지율 {s5_hc:.1f}% (기준 88% 이상, 윗꼬리 극소화 마루보즈봉)",
-                                "매매 원칙: 15:20 종가 매수 -> 1~2일 내 장중 +5.0% 터치 시 즉시 전량 자동 익절"
-                            ]
-
-                            screened_results.append({
-                                "code": code,
-                                "name": name,
-                                "market": market,
-                                "sector": sector,
-                                "close": close_p,
-                                "change_pct": chg_pct,
-                                "volume": vol_p,
-                                "timing_label": "마감 직전 (15:20 종가)",
-                                "strategy_mode": "SURGE_5PCT",
-                                "strategy_tag": "5%타겟 (마감 직전)",
-                                "score": s5["score"],
-                                "label": s5["label"],
-                                "tp_pct": s5["tp_pct"],
-                                "sl_pct": s5["sl_pct"],
-                                "vol_ratio": m_s5.get("vol_ratio", 3.0),
-                                "rsi": 70.0,
-                                "ma_status": "신고가/상한가 돌파",
-                                "rule_note": "전일 15:20 종가 매수 -> 1~2일 내 장중 +5.0% 돌파 시 즉시 전량 익절 (손절 -4.0%)",
-                                "reason_summary": reason_summary,
-                                "reason_core": reason_core,
-                                "reason_criteria": reason_criteria,
-                                "breakdown": {
-                                    "rsi_val": 70.0,
-                                    "ma_status": "주도주 상한가/급등돌파",
-                                    "vol_ratio": m_s5.get("vol_ratio", 3.0),
-                                    "bb_pct": 0.95
-                                }
-                            })
-                        else:
-                            score_res = evaluate_stock_latest(df_stock)
-                            if not score_res:
-                                continue
-                            score = score_res["score"]
-                            vol_ratio = score_res["breakdown"]["vol_ratio"]
-                            ma_status = score_res["breakdown"]["ma_status"]
-
-                            if score < min_screener_score:
-                                continue
-                            if vol_ratio < min_vol_surge:
-                                continue
-                            if require_ma_align and ("정배열" not in ma_status and "골든" not in ma_status):
-                                continue
-
-                            reason_summary = f"종합 스코어 {score:.1f}점 | 거래량 {vol_ratio:.1f}배 급증 | {ma_status}"
-                            reason_core = "이동평균선 추세, 거래량 급증, RSI 모멘텀, 볼린저 밴드 지표의 다중 팩터 가중치 종합 퀀트 분석 결과 상위권에 랭크된 기술적 우량 후보입니다."
-                            reason_criteria = [
-                                f"종합 퀀트 스코어 {score:.1f}점 달성 (기준 {min_screener_score}점 이상 {score_res['label']} 등급)",
-                                f"20일 평균 대비 거래량 {vol_ratio:.1f}배 급증 (기준 {min_vol_surge}배 이상 수급 유입)",
-                                f"이평선 배열: {ma_status} (추세 상승 국면 확인)",
-                                f"RSI(14) {score_res['breakdown']['rsi_val']:.1f} (과열 없는 안정적 상승 탄력)"
-                            ]
-
-                            screened_results.append({
-                                "code": code,
-                                "name": name,
-                                "market": market,
-                                "sector": sector,
-                                "close": close_p,
-                                "change_pct": chg_pct,
-                                "volume": vol_p,
-                                "timing_label": "장초 (09:00 시초가)",
-                                "strategy_mode": "NORMAL",
-                                "strategy_tag": "일반퀀트",
-                                "score": score,
-                                "label": score_res["label"],
-                                "tp_pct": score_res["tp_pct"],
-                                "sl_pct": score_res["sl_pct"],
-                                "vol_ratio": vol_ratio,
-                                "rsi": score_res["breakdown"]["rsi_val"],
-                                "ma_status": ma_status,
-                                "rule_note": "익일 시초가 진입 -> 점수 연동 동적 익절선(+1.5%~+3.0%)",
-                                "reason_summary": reason_summary,
-                                "reason_core": reason_core,
-                                "reason_criteria": reason_criteria,
-                                "breakdown": score_res["breakdown"]
-                            })
-                    except Exception:
-                        continue
-
-                prog_bar.empty()
-
-                if not screened_results:
-                    st.session_state["screened_results_df"] = pd.DataFrame()
-                    with st.container(border=True):
-                        st.markdown(
-                            f"<div style='font-size:0.92rem; font-weight:700; color:#1e293b; margin-bottom:6px;'>"
-                            f"조건 만족 후보 종목이 없습니다 (0건)"
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
-                        st.markdown(
-                            f"<div style='font-size:0.83rem; line-height:1.5; color:#475569; margin-bottom:8px;'>"
-                            f"선택하신 <strong>{sc_mode}</strong>의 필터 조건이 엄격하여, 현재 탐색 대상 범위(<strong>{sc_scope}</strong>, 시장: <strong>{target_market}</strong>) 내에 오늘 기준 충족 종목이 없습니다.<br>"
-                            f"시스템 오류가 아니며, 시장의 자금 쏠림이나 탐색 범위에 따른 정상적인 퀀트 필터링 결과입니다."
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
-                        st.markdown(
-                            f"<div style='font-size:0.80rem; line-height:1.5; color:#334155; background-color:#f8fafc; padding:8px 12px; border-radius:4px; border-left:3px solid #64748b;'>"
-                            f"<strong>해결 방법 가이드</strong>:<br>"
-                            f"• <strong>탐색 대상 범위 변경</strong>: '내 관심종목 138선'에 오늘 급등주가 없다면, 탐색 대상을 <strong>'주도주/우량주 300선 (권장)'</strong> 또는 <strong>'전 상장사 전수조사'</strong>로 변경 후 재실행해보세요.<br>"
-                            f"• <strong>스크리닝 시장</strong>: 코스닥 테마 급등주를 함께 탐색하려면 <strong>'스크리닝 시장: 전체'</strong>로 설정하세요.<br>"
-                            f"• <strong>필터 기준 완화</strong>: 당일 최소 거래대금을 <strong>200억~300억 원</strong>, 최소 상승률을 <strong>10%</strong> 수준으로 1단계 완화해보세요."
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
-                else:
-                    df_screened = pd.DataFrame(screened_results).sort_values("score", ascending=False).reset_index(drop=True)
-                    st.session_state["screened_results_df"] = df_screened
-                    st.session_state["screened_mode_label"] = sc_mode
-                    st.session_state.setdefault("screened_cache_by_mode", {})[sc_mode] = df_screened
+    if st.session_state.get("screened_is_empty_result"):
+        with st.container(border=True):
+            st.markdown(
+                f"<div style='font-size:0.92rem; font-weight:700; color:#1e293b; margin-bottom:6px;'>"
+                f"조건 만족 후보 종목이 없습니다 (0건)"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+            st.markdown(
+                f"<div style='font-size:0.83rem; line-height:1.5; color:#475569; margin-bottom:8px;'>"
+                f"선택하신 <strong>{sc_mode}</strong>의 필터 조건이 엄격하여, 현재 탐색 대상 범위(<strong>{sc_scope}</strong>, 시장: <strong>{target_market}</strong>) 내에 오늘 기준 충족 종목이 없습니다.<br>"
+                f"시스템 오류가 아니며, 시장의 자금 쏠림이나 탐색 범위에 따른 정상적인 퀀트 필터링 결과입니다."
+                f"</div>",
+                unsafe_allow_html=True
+            )
+            st.markdown(
+                f"<div style='font-size:0.80rem; line-height:1.5; color:#334155; background-color:#f8fafc; padding:8px 12px; border-radius:4px; border-left:3px solid #64748b;'>"
+                f"<strong>해결 방법 가이드</strong>:<br>"
+                f"• <strong>탐색 대상 범위 변경</strong>: '내 관심종목 138선'에 오늘 급등주가 없다면, 탐색 대상을 <strong>'주도주/우량주 300선 (권장)'</strong> 또는 <strong>'전 상장사 전수조사'</strong>로 변경 후 재실행해보세요.<br>"
+                f"• <strong>스크리닝 시장</strong>: 코스닥 테마 급등주를 함께 탐색하려면 <strong>'스크리닝 시장: 전체'</strong>로 설정하세요.<br>"
+                f"• <strong>필터 기준 완화</strong>: 당일 최소 거래대금을 <strong>200억~300억 원</strong>, 최소 상승률을 <strong>10%</strong> 수준으로 1단계 완화해보세요."
+                f"</div>",
+                unsafe_allow_html=True
+            )
 
     # Display Persistent Screened Results like Watchlist
     if "screened_results_df" in st.session_state and st.session_state["screened_results_df"] is not None and not st.session_state["screened_results_df"].empty:
