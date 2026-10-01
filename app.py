@@ -580,7 +580,7 @@ def load_all_watchlist_metrics(codes_tuple):
             bk = score_info["breakdown"]
             intraday_info = score_info.get("intraday_outlook", {})
             nextday_info = score_info.get("nextday_outlook", {})
-            intraday_tag = intraday_info.get("tag", "⏸️ 거래소강")
+            intraday_tag = intraday_info.get("tag", "[거래소강]")
             intraday_desc = intraday_info.get("desc", "장중 시세 데이터 대기")
             intraday_open_pct = intraday_info.get("open_gain_pct", 0.0)
             nextday_tag = nextday_info.get("tag", f"{label} ({score:.1f}점)")
@@ -600,7 +600,7 @@ def load_all_watchlist_metrics(codes_tuple):
                 "vol_score": 0.0,
                 "bb_score": 0.0
             }
-            intraday_tag = "⏸️ 거래소강"
+            intraday_tag = "[거래소강]"
             intraday_desc = "시세 분석 대기"
             intraday_open_pct = 0.0
             nextday_tag = "중립 (50.0점)"
