@@ -731,7 +731,7 @@ with col_top_r:
     justify-content: flex-end;
     align-items: center;
     gap: 8px;
-    height: 35px;
+    height: 36px;
     padding-right: 4px;
     font-size: 13px;
     color: #475569;
@@ -742,6 +742,8 @@ with col_top_r:
     color: #0F172A;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    letter-spacing: -0.2px;
   }}
   .sep {{ color: #CBD5E1; }}
   .badge {{ font-size: 12px; }}
@@ -759,6 +761,7 @@ with col_top_r:
   function updateClock() {{
     try {{
       var nowMs = Date.now();
+      // UTC + 9 hours for KST
       var kst = new Date(nowMs + 9 * 3600 * 1000);
       var y = kst.getUTCFullYear();
       var m = String(kst.getUTCMonth() + 1).padStart(2, '0');
@@ -796,12 +799,16 @@ with col_top_r:
     }}
   }}
   updateClock();
-  setInterval(updateClock, 1000);
+  // 250ms interval ensures the second boundary is caught immediately without delay
+  setInterval(updateClock, 250);
+  document.addEventListener('visibilitychange', function() {{
+    if (!document.hidden) updateClock();
+  }});
 }})();
 </script>
 </body>
 </html>"""
-        components.html(live_clock_html, height=35, scrolling=False)
+        components.html(live_clock_html, height=36, scrolling=False)
     with top_c2:
         if st.button("🔄", help="현재시각 및 시장상태 최신화", key="btn_top_time_sync"):
             st.rerun()
