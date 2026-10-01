@@ -698,7 +698,7 @@ else:
 
 time_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
-col_top_l, col_top_r = st.columns([3.0, 2.0])
+col_top_l, col_top_r = st.columns([2.2, 2.8])
 with col_top_l:
     st.markdown(
         '<div style="display:flex; align-items:center; gap:8px; padding:2px 0 6px 0;">'
@@ -708,13 +708,61 @@ with col_top_l:
         unsafe_allow_html=True
     )
 with col_top_r:
-    top_c1, top_c2 = st.columns([4.2, 0.8])
+    top_c1, top_c2 = st.columns([4.3, 0.7])
     with top_c1:
-        st.markdown(
-            f'<div style="text-align:right; font-size:0.80rem; color:#475569; padding:4px 0 4px 0;">'
-            f'🕒 <strong style="color:#0F172A;">{time_str} KST</strong> &nbsp;|&nbsp; {market_badge}'
-            f'</div>',
-            unsafe_allow_html=True
+        st.html(
+            f'''<div style="text-align:right; font-size:0.80rem; color:#475569; padding:4px 0 4px 0; white-space:nowrap;">
+                🕒 <strong id="kst-clock-val" style="color:#0F172A; font-variant-numeric:tabular-nums;">{time_str} KST</strong> &nbsp;|&nbsp; 
+                <span id="kst-market-badge">{market_badge}</span>
+            </div>
+            <script>
+            (function() {{
+                function updateKstClock() {{
+                    try {{
+                        var nowMs = Date.now();
+                        var kst = new Date(nowMs + 9 * 3600 * 1000);
+                        var y = kst.getUTCFullYear();
+                        var m = String(kst.getUTCMonth() + 1).padStart(2, '0');
+                        var d = String(kst.getUTCDate()).padStart(2, '0');
+                        var hh = String(kst.getUTCHours()).padStart(2, '0');
+                        var mm = String(kst.getUTCMinutes()).padStart(2, '0');
+                        var ss = String(kst.getUTCSeconds()).padStart(2, '0');
+                        var day = kst.getUTCDay();
+                        
+                        var clockEl = document.getElementById('kst-clock-val');
+                        if (clockEl) {{
+                            clockEl.textContent = y + '-' + m + '-' + d + ' ' + hh + ':' + mm + ':' + ss + ' KST';
+                        }}
+                        
+                        var isWeekday = (day >= 1 && day <= 5);
+                        var curHm = kst.getUTCHours() * 100 + kst.getUTCMinutes();
+                        var badgeHtml = '';
+                        if (isWeekday && curHm >= 900 && curHm < 1530) {{
+                            badgeHtml = '<span style="color:#059669; font-weight:700;">● 정규장 운영중</span>';
+                        }} else if (isWeekday && curHm >= 830 && curHm < 900) {{
+                            badgeHtml = '<span style="color:#D97706; font-weight:700;">○ 장전 동시호가 (08:30~09:00)</span>';
+                        }} else if (isWeekday && curHm >= 1530 && curHm < 1800) {{
+                            badgeHtml = '<span style="color:#0284C7; font-weight:700;">○ 시간외 단일가 (15:30~18:00)</span>';
+                        }} else {{
+                            badgeHtml = '<span style="color:#64748B; font-weight:600;">○ 장마감 (휴장)</span>';
+                        }}
+                        
+                        var badgeEl = document.getElementById('kst-market-badge');
+                        if (badgeEl && badgeEl.innerHTML !== badgeHtml) {{
+                            badgeEl.innerHTML = badgeHtml;
+                        }}
+                    }} catch (e) {{
+                        console.error(e);
+                    }}
+                }}
+                updateKstClock();
+                if (window._kstClockInterval) {{
+                    clearInterval(window._kstClockInterval);
+                }}
+                window._kstClockInterval = setInterval(updateKstClock, 1000);
+            }})();
+            </script>''',
+            unsafe_allow_javascript=True
         )
     with top_c2:
         if st.button("🔄", help="현재시각 및 시장상태 최신화", key="btn_top_time_sync"):
