@@ -70,7 +70,7 @@ class TestHighWinRateStrategies(unittest.TestCase):
         cand = evaluate_sniper_candidate(df, self.bm_bullish, min_daily_val_krw=10_000_000_000)
         if cand is not None:
             self.assertEqual(cand["strategy"], "SNIPER")
-            self.assertEqual(cand["tp_pct"], 1.2)
+            self.assertEqual(cand["tp_pct"], 3.0)
             self.assertEqual(cand["sl_pct"], 2.0)
 
     def test_closing_bet_candidate(self):
@@ -95,8 +95,8 @@ class TestHighWinRateStrategies(unittest.TestCase):
         cand = evaluate_closing_bet_candidate(df, min_today_val_krw=30_000_000_000)
         self.assertIsNotNone(cand)
         self.assertEqual(cand["strategy"], "CLOSING_BET")
-        self.assertEqual(cand["tp_pct"], 1.5)
-        self.assertEqual(cand["sl_pct"], 2.0)
+        self.assertEqual(cand["tp_pct"], 3.0)
+        self.assertEqual(cand["sl_pct"], 1.8)
         self.assertGreaterEqual(cand["metrics"]["day_return"], 3.0)
 
     def test_closing_bet_rejection_on_weak_candle(self):

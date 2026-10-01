@@ -117,8 +117,8 @@ def evaluate_sniper_candidate(
     if vol_ratio < 1.2:
         return None
 
-    # Asymmetric targets for 80% win rate
-    tp_pct = 1.2
+    # Asymmetric optimal target for 70%+ win rate & robust return
+    tp_pct = 3.0
     sl_pct = 2.0
 
     return {
@@ -191,8 +191,8 @@ def evaluate_closing_bet_candidate(
         if not (close_p > ma5 and close_p > ma20):
             return None
 
-    tp_pct = 1.5
-    sl_pct = 2.0
+    tp_pct = 3.0
+    sl_pct = 1.8
 
     return {
         "strategy": "CLOSING_BET",

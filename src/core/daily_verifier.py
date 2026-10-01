@@ -487,7 +487,7 @@ def run_daily_point_in_time_verification(
             if "당일 단타" in strategy_mode:
                 strat_label = "당일 단타 (5% 타겟)"
                 target_tp = 5.0
-                target_sl = 2.5
+                target_sl = 2.0
                 try:
                     c_cand = evaluate_intraday_daytrade_candidate(
                         df_pit, bm,
@@ -512,7 +512,7 @@ def run_daily_point_in_time_verification(
             elif "5% 급등" in strategy_mode:
                 strat_label = "5% 급등 타겟"
                 target_tp = 5.0
-                target_sl = 3.5
+                target_sl = 2.5
                 try:
                     s5_cand = evaluate_5pct_surge_candidate(df_pit, bm, min_today_val_krw=min_val_krw, min_day_return=5.0)
                     if s5_cand:
@@ -521,8 +521,8 @@ def run_daily_point_in_time_verification(
                     pass
             elif "종가배팅" in strategy_mode:
                 strat_label = "주도주 종가배팅"
-                target_tp = 3.5
-                target_sl = 2.0
+                target_tp = 3.0
+                target_sl = 1.8
                 try:
                     cb_cand = evaluate_closing_bet_candidate(df_pit, min_today_val_krw=min_val_krw)
                     if cb_cand:
@@ -534,7 +534,7 @@ def run_daily_point_in_time_verification(
                 if score_res["score"] >= score_cutoff and t1_val >= 5_000_000_000:
                     is_matched = True
                     strat_label = f"퀀트 {score_res['score']:.0f}점"
-                    target_tp = score_res.get("tp_pct", 3.5)
+                    target_tp = score_res.get("tp_pct", 4.0)
                     target_sl = score_res.get("sl_pct", 2.0)
 
             score_res = calculate_score_for_row(t1_row)

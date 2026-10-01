@@ -485,7 +485,7 @@ st.markdown("""
         color: #0F172A !important;
     }
 
-    /* Segmented vertical radio buttons: 1 mode per line (전략 모드 한 줄에 하나씩 단독 정렬) */
+    /* Segmented radio buttons: High-contrast state styling & zero indentation margin */
     div[data-testid="stRadio"] > div[role="radiogroup"] {
         background: #F8FAFC !important;
         padding: 6px !important;
@@ -493,21 +493,26 @@ st.markdown("""
         gap: 6px !important;
         border: 1px solid #CBD5E1 !important;
         display: flex !important;
-        flex-direction: column !important;
         width: 100% !important;
     }
     div[data-testid="stRadio"] > div[role="radiogroup"] > label {
         background: #FFFFFF !important;
-        padding: 8px 14px !important;
+        padding: 8px 12px !important;
         border-radius: 6px !important;
         border: 1px solid #CBD5E1 !important;
         margin: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
         cursor: pointer !important;
         transition: all 0.15s ease-in-out !important;
-        width: 100% !important;
         display: flex !important;
         align-items: center !important;
         box-sizing: border-box !important;
+    }
+    div[data-testid="stRadio"] > div[role="radiogroup"] > label:not(:first-child),
+    div[data-testid="stRadio"] label + label,
+    div[data-testid="stRadio"] div[role="radiogroup"] label {
+        margin-left: 0 !important;
     }
     div[data-testid="stRadio"] > div[role="radiogroup"] > label:hover {
         background: #F1F5F9 !important;
@@ -530,6 +535,60 @@ st.markdown("""
         font-weight: 700 !important;
     }
 
+    /* PC / Desktop View: Horizontal layout for Strategy Mode Selection */
+    @media (min-width: 769px) {
+        div[data-testid="stRadio"] > div[role="radiogroup"] {
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 8px !important;
+        }
+        div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+            flex: 1 1 auto !important;
+            min-width: 175px !important;
+            width: auto !important;
+            justify-content: center !important;
+            text-align: center !important;
+            margin: 0 !important;
+            margin-left: 0 !important;
+        }
+        /* Desktop table styling */
+        div[data-testid="stTable"],
+        .stTable {
+            width: 100% !important;
+            overflow-x: auto !important;
+            margin-bottom: 8px !important;
+            border-radius: 6px !important;
+            border: 1px solid #E2E8F0 !important;
+        }
+        div[data-testid="stTable"] table,
+        .stTable table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 0.78rem !important;
+        }
+        div[data-testid="stTable"] th,
+        .stTable th {
+            background-color: #F8FAFC !important;
+            color: #334155 !important;
+            font-weight: 700 !important;
+            font-size: 0.78rem !important;
+            padding: 7px 10px !important;
+            border-bottom: 2px solid #CBD5E1 !important;
+            text-align: left !important;
+        }
+        div[data-testid="stTable"] td,
+        .stTable td {
+            padding: 7px 10px !important;
+            font-size: 0.78rem !important;
+            color: #1E293B !important;
+            border-bottom: 1px solid #E2E8F0 !important;
+        }
+        div[data-testid="stTable"] tr:nth-child(even),
+        .stTable tr:nth-child(even) {
+            background-color: #F8FAFC !important;
+        }
+    }
+
     /* Mobile Responsive Optimizations */
     @media (max-width: 768px) {
         .block-container {
@@ -542,22 +601,93 @@ st.markdown("""
             font-size: 0.78rem !important;
             padding: 3px 8px !important;
         }
-        div[data-testid="stRadio"] > div[role="radiogroup"] > label {
+        /* Mobile: Strictly 1 mode per line vertically stacked, zero indentation */
+        div[data-testid="stRadio"] > div[role="radiogroup"] {
+            flex-direction: column !important;
+            width: 100% !important;
+            gap: 6px !important;
+        }
+        div[data-testid="stRadio"] > div[role="radiogroup"] > label,
+        div[data-testid="stRadio"] > div[role="radiogroup"] label,
+        div[data-testid="stRadio"] label {
+            width: 100% !important;
             padding: 9px 12px !important;
             font-size: 0.80rem !important;
+            margin: 0 !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+        }
+        div[data-testid="stRadio"] > div[role="radiogroup"] > label:not(:first-child),
+        div[data-testid="stRadio"] label + label,
+        div[data-testid="stRadio"] > div[role="radiogroup"] label:not(:first-child) {
+            margin-left: 0 !important;
         }
         div[data-testid="stMetric"] {
             padding: 4px 6px !important;
+            margin-bottom: 4px !important;
+        }
+        div[data-testid="stMetricValue"] {
+            font-size: 0.88rem !important;
         }
         div.stButton > button {
             min-height: 2.3rem !important;
             font-size: 0.82rem !important;
         }
-        .stTable, div[data-testid="stTable"], div[data-testid="stDataFrame"] {
-            overflow-x: auto !important;
+        /* Tab 5 & Global Tables Mobile Optimization (Scrollable container, crisp font, no squishing) */
+        div[data-testid="stTable"],
+        .stTable {
             display: block !important;
             width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
             -webkit-overflow-scrolling: touch !important;
+            margin-bottom: 8px !important;
+            border-radius: 6px !important;
+            border: 1px solid #CBD5E1 !important;
+            background: #FFFFFF !important;
+        }
+        div[data-testid="stTable"] table,
+        .stTable table {
+            display: table !important;
+            width: 100% !important;
+            min-width: 480px !important;
+            border-collapse: collapse !important;
+            font-size: 0.72rem !important;
+        }
+        div[data-testid="stTable"] th,
+        .stTable th {
+            background-color: #F1F5F9 !important;
+            color: #334155 !important;
+            font-weight: 700 !important;
+            font-size: 0.71rem !important;
+            padding: 6px 8px !important;
+            white-space: nowrap !important;
+            border-bottom: 2px solid #CBD5E1 !important;
+            text-align: left !important;
+        }
+        div[data-testid="stTable"] td,
+        .stTable td {
+            padding: 6px 8px !important;
+            font-size: 0.72rem !important;
+            color: #1E293B !important;
+            white-space: nowrap !important;
+            border-bottom: 1px solid #E2E8F0 !important;
+            line-height: 1.35 !important;
+        }
+        div[data-testid="stTable"] tr:nth-child(even),
+        .stTable tr:nth-child(even) {
+            background-color: #F8FAFC !important;
+        }
+        div[data-testid="stDataFrame"] {
+            width: 100% !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            font-size: 0.72rem !important;
+            border-radius: 6px !important;
+        }
+        .stExpander {
+            border-radius: 6px !important;
+            margin-bottom: 6px !important;
         }
     }
 </style>
@@ -966,9 +1096,6 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(main_tab_names, key="main_active_tab_nav"
 # TAB 1: 시장 전체 익일 상승 후보 & 고확신 스크리너
 # =========================================================
 with tab1:
-    st.markdown('<div class="office-heading">1. 시장 전체 익일 상승 후보 & 고확신 스크리너</div>', unsafe_allow_html=True)
-    
-    
     sc_mode = st.radio(
         "스크리닝 전략 모드 선택 (아래 5개 중 1개 선택)",
         [
@@ -1932,9 +2059,6 @@ with tab1:
 # TAB 2: 관심종목 실시간 스코어보드 & 관리
 # =========================================================
 with tab2:
-    st.markdown('<div class="office-heading">2. 관심종목 실시간 스코어보드</div>', unsafe_allow_html=True)
-    
-
     # 1. Load Watchlist from DB & Render Summary KPIs Row (상단 KPI 카드)
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -2423,7 +2547,6 @@ with tab2:
 # TAB 3: 워크포워드 검증 & 벤치마크 리포트 (95% CI 부트스트랩)
 # =========================================================
 with tab3:
-    st.markdown('<div class="office-heading">3. 워크포워드 백테스트 & KODEX 200 벤치마크 검증 리포트</div>', unsafe_allow_html=True)
     st.caption("250거래일 In-Sample 학습 구간 롤링 후 20거래일 Out-of-Sample 순차 테스트 (과최적화 방지 & 부트스트랩 1,000회 95% 신뢰구간 산출)")
 
     bt_c1, bt_c2, bt_c3, bt_c4, bt_c5 = st.columns([2.5, 2.2, 1.8, 1.5, 1.5])
@@ -2622,7 +2745,6 @@ with tab3:
 # TAB 4: 예측 다이어리 & 라이브 추적 (Forward Testing Log)
 # =========================================================
 with tab4:
-    st.markdown('<div class="office-heading">4. 실거래 예측 다이어리 & 라이브 포워드 테스팅</div>', unsafe_allow_html=True)
     st.caption("매일 15:40 마감 후 생성된 예측 건과 익일 실제 체결 시세(시/고/저/종)를 일대일 대조하여 모델 열화(Model Decay)를 실시간 감지합니다.")
 
     # 1. Model Decay Status Card
@@ -2710,7 +2832,6 @@ with tab4:
 # TAB 5: 전일 성과 자가검증 & AI 전략 최적화 (Self-Tuning)
 # =========================================================
 with tab5:
-    st.markdown('<div class="office-heading">5. 성과 사후 검증 & AI 전략 자가최적화 (Point-in-Time)</div>', unsafe_allow_html=True)
     st.caption("실제 체결 데이터 기반으로 전일(1일), 최근 주간(5일), 1개월(25일) 성과를 입체적으로 분석하고, 실패 원인을 AI가 스스로 진단하여 최적 파라미터를 도출합니다.")
 
     t5_period_view = st.radio(
@@ -2720,7 +2841,7 @@ with tab5:
             "최근 주간 성과 종합 (5거래일)",
             "1개월 누적 성과 & AI 최적화 (25거래일)"
         ],
-        horizontal=True,
+        horizontal=False,
         key="t5_period_radio_sel"
     )
 
@@ -2741,7 +2862,7 @@ with tab5:
         st.markdown(
             f"""
             <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:6px; padding:10px 14px; margin-bottom:10px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
                     <span style="font-size:0.92rem; font-weight:700; color:#0F172A;">
                         AI 수익률 극대화 최적 추천 주기: <span style="color:#0284C7;">{best_horizon_lbl}</span>
                     </span>
