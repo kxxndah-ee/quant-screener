@@ -1,13 +1,13 @@
 """
 High-Win-Rate Quant Strategies Engine (80% Win-Rate Target).
 Implements 2 proven institutional high-win-rate models:
-1. 🎯 [스나이퍼 고확신 모드 (Sniper High-Conviction Mode)]:
+1. [스나이퍼 고확신 모드 (Sniper High-Conviction Mode)]:
    - Market regime filter (KODEX 200 > 20MA)
    - Heavy liquidity filter (20d avg trading value >= 200억~300억 KRW)
    - 20MA pullback disparity (98% ~ 103.5%)
    - Strict open gap filter (-1.5% ~ +1.5%)
    - Asymmetric target: TP +1.2%, SL -2.0%
-2. 🌙 [주도주 종가배팅 모드 (Leader Close-to-Open Overnight Mode)]:
+2. [주도주 종가배팅 모드 (Leader Close-to-Open Overnight Mode)]:
    - Scan at 15:20~15:30 close
    - Massive trading value (>= 500억~1000억 KRW)
    - Strong bullish marubozu (Day return >= +3.0%, close in top 15% of day range)
@@ -123,7 +123,7 @@ def evaluate_sniper_candidate(
 
     return {
         "strategy": "SNIPER",
-        "name_tag": "🎯 스나이퍼 고확신 (80% 승률 타겟)",
+        "name_tag": "스나이퍼 고확신 (80% 승률 타겟)",
         "score": 92.0,
         "label": "강세(스나이퍼)",
         "tp_pct": tp_pct,
@@ -195,7 +195,7 @@ def evaluate_closing_bet_candidate(
 
     return {
         "strategy": "CLOSING_BET",
-        "name_tag": "🌙 주도주 종가배팅 (익일 갭수익 공략)",
+        "name_tag": "주도주 종가배팅 (익일 갭수익 공략)",
         "score": 95.0,
         "label": "강세(종가배팅)",
         "tp_pct": tp_pct,
@@ -328,7 +328,7 @@ def evaluate_5pct_surge_candidate(
 
     return {
         "strategy": "SURGE_5PCT",
-        "name_tag": "🚀 익일 5% 급등 타겟 (전일 매수 고확신)",
+        "name_tag": "익일 5% 급등 타겟 (전일 매수 고확신)",
         "score": 96.0,
         "label": "초강세(5%타겟)",
         "tp_pct": tp_pct,
@@ -481,7 +481,7 @@ def evaluate_intraday_daytrade_candidate(
 
     return {
         "strategy": "DAY_TRADE_5PCT",
-        "name_tag": "⚡ 실시간 당일단타 (당일 +5% 돌파)",
+        "name_tag": "실시간 당일단타 (당일 +5% 돌파)",
         "score": 95.0,
         "label": "강세(당일단타)",
         "tp_pct": tp_pct,

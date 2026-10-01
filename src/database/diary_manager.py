@@ -212,13 +212,13 @@ def evaluate_model_decay(expected_ci_lower: float = 50.0) -> Dict[str, Any]:
     decay_detected = (total_settled >= 10) and (live_win_rate < expected_ci_lower)
 
     if decay_detected:
-        msg = f"⚠️ [모델 열화 경고] 실전 승률({live_win_rate:.1f}%)이 백테스트 95% 신뢰구간 하한({expected_ci_lower:.1f}%)을 밑돌고 있습니다. 시장 국면 전환 또는 파라미터 재조정이 권장됩니다."
+        msg = f"[모델 열화 경고] 실전 승률({live_win_rate:.1f}%)이 백테스트 95% 신뢰구간 하한({expected_ci_lower:.1f}%)을 밑돌고 있습니다. 시장 국면 전환 또는 파라미터 재조정이 권장됩니다."
         status = "DECAY_WARNING"
     elif total_settled < 10:
-        msg = f"ℹ️ 현재 누적 정산 {total_settled}건, 실현 승률 {live_win_rate:.1f}% (최소 10건 이상 누적 시 통계적 열화 판정 가능)"
+        msg = f"[현황 안내] 현재 누적 정산 {total_settled}건, 실현 승률 {live_win_rate:.1f}% (최소 10건 이상 누적 시 통계적 열화 판정 가능)"
         status = "NORMAL"
     else:
-        msg = f"✅ 실전 승률({live_win_rate:.1f}%)이 백테스트 신뢰구간 하한을 안정적으로 상회하고 있습니다."
+        msg = f"[정상 운영] 실전 승률({live_win_rate:.1f}%)이 백테스트 신뢰구간 하한을 안정적으로 상회하고 있습니다."
         status = "HEALTHY"
 
     return {

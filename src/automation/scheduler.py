@@ -77,12 +77,12 @@ def run_post_market_job() -> Dict[str, Any]:
             sl = score_res["sl_pct"]
 
             if s5:
-                label = "🚀 5% 급등 타겟 (1~2일 스윙)"
+                label = "5% 급등 타겟 (1~2일 스윙)"
                 tp = 5.0
                 sl = 4.0
                 score = max(score, 96.0)
             elif snp:
-                label = "🎯 스나이퍼 고확신 (시초갭 제한)"
+                label = "스나이퍼 고확신 (시초갭 제한)"
                 tp = 1.2
                 sl = 2.0
                 score = max(score, 95.0)

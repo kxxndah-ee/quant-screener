@@ -49,7 +49,7 @@ def run_point_in_time_verification():
     if bm_today is not None:
         bm_intraday_ret = ((bm_today["Close"] - bm_today["Open"]) / bm_today["Open"]) * 100.0
         bm_day_ret = float(bm_today["Change"]) * 100.0 if "Change" in bm_today else 0.0
-        print(f"📌 시장 벤치마크 (KODEX 200) 금일 성과: 시가 대비 종가 {bm_intraday_ret:+.2f}%, 전일대비 {bm_day_ret:+.2f}%")
+        print(f"[시장 벤치마크 (KODEX 200)] 금일 성과: 시가 대비 종가 {bm_intraday_ret:+.2f}%, 전일대비 {bm_day_ret:+.2f}%")
     else:
         bm_intraday_ret = -2.0
         print("Warning: KODEX 200 today bar not found.")
@@ -194,7 +194,7 @@ def run_point_in_time_verification():
         close_exits = sum(grp["exit_code"] == "CLOSE")
 
         print(f"\n=======================================================")
-        print(f"📊 [{name}] 그룹 성과 분석 (총 {total}종목)")
+        print(f"[{name}] 그룹 성과 분석 (총 {total}종목)")
         print(f"=======================================================")
         print(f"  • 실현 정확도(승률): {win_rate:.1f}% ({hits}/{total} 적중)")
         print(f"  • 목표 익절(+{grp['target_tp'].iloc[0]}%↑) 달성: {tp_hits}건 ({(tp_hits/total)*100:.1f}%)")
@@ -204,13 +204,13 @@ def run_point_in_time_verification():
         print(f"  • KODEX 200 대비 초과수익률(알파): {avg_excess_ret:+.2f}%")
         print(f"  • 장중 최대 상승폭 평균: {avg_max_gain:+.2f}%")
 
-    summarize_group(high_conviction, "🔥 고확신 상승 후보 (스코어 70점 이상 / 강세)")
-    summarize_group(mid_conviction, "⚖️ 중립 후보 (스코어 50~69점)")
-    summarize_group(low_conviction, "❄️ 비추천/약세 (스코어 50점 미만)")
+    summarize_group(high_conviction, "[고확신] 상승 후보 (스코어 70점 이상 / 강세)")
+    summarize_group(mid_conviction, "[중립] 후보 (스코어 50~69점)")
+    summarize_group(low_conviction, "[비추천/약세] (스코어 50점 미만)")
 
     # Print Top High Conviction screening table
     if not high_conviction.empty:
-        print("\n[🔥 어제 스크리닝 발굴된 강세 후보 종목별 금일 실제 성적표]")
+        print("\n[[어제 스크리닝 발굴된 강세 후보 종목별 금일 실제 성적표]]")
         cols_to_print = ["name", "code", "yesterday_score", "max_potential_gain", "net_return_pct", "exit_reason", "excess_return"]
         print(high_conviction[cols_to_print].sort_values("yesterday_score", ascending=False).to_string(index=False))
 

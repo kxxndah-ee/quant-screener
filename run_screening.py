@@ -293,7 +293,7 @@ def plot_pbr_roe_matrix(df, target_date, chart_filename="pbr_roe_matrix.png"):
     x_min, x_max = ax.get_xlim()
     y_min, y_max = ax.get_ylim()
     ax.text(x_min + (mean_pbr - x_min)*0.05, y_max - (y_max - mean_roe)*0.08,
-            "★ 저평가 고효율 매력 구간\n(상대적 고ROE & 극저PBR)", 
+            "[저평가 고효율 매력 구간]\n(상대적 고ROE & 극저PBR)", 
             fontsize=10, fontweight='bold', color='#27ae60', fontfamily=font_family,
             bbox=dict(boxstyle="round,pad=0.4", facecolor="#eafaf1", edgecolor="#2ecc71", alpha=0.85))
 

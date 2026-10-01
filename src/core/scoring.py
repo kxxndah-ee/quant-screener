@@ -220,11 +220,11 @@ def evaluate_intraday_outlook(row_today: pd.Series, prev_close: float = 0.0) -> 
     """
     Evaluates real-time intraday trading momentum and structure for day T.
     Categorizes into:
-    - 🚀 수급돌파 (Strong intraday breakout, candidate for day trading)
-    - ⚡ 눌림지지 (Consolidating near Open with support, holding floor)
-    - ⚠️ 윗꼬리경계 (Pullback from day high, upper shadow profit-taking)
-    - 📉 시초하회 (Below Open, intraday selling pressure)
-    - ⏸️ 거래소강 (Low volume sideways)
+    - [수급돌파] (Strong intraday breakout, candidate for day trading)
+    - [눌림지지] (Consolidating near Open with support, holding floor)
+    - [윗꼬리경계] (Pullback from day high, upper shadow profit-taking)
+    - [시초하회] (Below Open, intraday selling pressure)
+    - [거래소강] (Low volume sideways)
     """
     open_p = float(row_today.get("Open", 0.0))
     high_p = float(row_today.get("High", 0.0))
@@ -234,7 +234,7 @@ def evaluate_intraday_outlook(row_today: pd.Series, prev_close: float = 0.0) -> 
 
     if open_p <= 0:
         return {
-            "tag": "⏸️ 거래소강",
+            "tag": "[거래소강]",
             "desc": "장중 시세 데이터 대기 중",
             "open_gain_pct": 0.0,
             "candle_support_ratio": 0.5,
@@ -250,23 +250,23 @@ def evaluate_intraday_outlook(row_today: pd.Series, prev_close: float = 0.0) -> 
 
     # 1. Bearish drop below open (when below open significantly)
     if open_gain_pct <= -1.2 or (open_gain_pct < 0 and candle_support_ratio < 0.35):
-        tag = "📉 시초하회"
+        tag = "[시초하회]"
         desc = f"시초가 대비 {open_gain_pct:.1f}% 하회 음봉 진행 (당일 매수 자제)"
     # 2. Upper shadow warning (profit taking / dump above body)
     elif upper_shadow_pct >= 2.5 and candle_support_ratio < 0.50:
-        tag = "⚠️ 윗꼬리경계"
+        tag = "[윗꼬리경계]"
         desc = f"고점 대비 +{upper_shadow_pct:.1f}% 윗꼬리 매물 출회 (차익실현 경계)"
     # 3. Bullish breakout (high candle support, above open by >= 2.0%, decent volume)
     elif open_gain_pct >= 2.0 and candle_support_ratio >= 0.60:
-        tag = "🚀 수급돌파"
+        tag = "[수급돌파]"
         desc = f"시초가 대비 +{open_gain_pct:.1f}% 돌파 & 양봉 지지율 {candle_support_ratio*100:.0f}% (단타 강세)"
     # 4. Pullback support (near open -1.0% ~ +2.0%, solid floor)
     elif -1.0 <= open_gain_pct <= 2.0 and candle_support_ratio >= 0.35 and day_change_pct >= -2.0:
-        tag = "⚡ 눌림지지"
+        tag = "[눌림지지]"
         desc = f"시초가 부근 지지력 유지 ({open_gain_pct:+.1f}%) & 반등 수급 대기"
     # 5. Low volume / sideways
     else:
-        tag = "⏸️ 거래소강"
+        tag = "[거래소강]"
         desc = f"장중 거래량 둔화 및 횡보 흐름 (관망 권장)"
 
     return {

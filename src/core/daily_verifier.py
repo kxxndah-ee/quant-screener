@@ -27,11 +27,11 @@ from src.core.execution import is_trade_feasible, calculate_net_trade_return
 from src.backtest.exit_rules import simulate_intraday_exit
 
 ALL_VERIF_STRATEGIES = [
-    "⚡ 실시간 당일 단타 (5% 익절)",
-    "🎯 스나이퍼 고확신 (눌림목 반등)",
-    "🚀 5% 급등 타겟 (1~2일 스윙)",
-    "🌙 주도주 종가배팅 (익일 시초 갭)",
-    "📊 일반 퀀트 스코어링"
+    "실시간 당일 단타 (5% 익절)",
+    "스나이퍼 고확신 (눌림목 반등)",
+    "5% 급등 타겟 (1~2일 스윙)",
+    "주도주 종가배팅 (익일 시초 갭)",
+    "일반 퀀트 스코어링"
 ]
 
 
@@ -395,7 +395,7 @@ def get_verification_pool(max_pool_size: int = 250) -> pd.DataFrame:
 def run_daily_point_in_time_verification(
     pred_date: str,
     exec_date: Optional[str] = None,
-    strategy_mode: str = "⚡ 실시간 당일 단타 (5% 익절)",
+    strategy_mode: str = "실시간 당일 단타 (5% 익절)",
     min_val_krw: float = 10_000_000_000,
     score_cutoff: float = 65.0,
     sample_pool_size: int = 150,
@@ -709,7 +709,7 @@ def diagnose_failure_reasons(df_results: pd.DataFrame, bm_change_pct: float = 0.
     if total_miss == 0:
         return {
             "issues": [],
-            "summary": "🎉 모든 추천 종목이 목표 익절 또는 양의 수익률을 달성하였습니다! 결함 패턴 없음.",
+            "summary": "[완벽 달성] 모든 추천 종목이 목표 익절 또는 양의 수익률을 달성하였습니다! 결함 패턴 없음.",
             "stats_comparison": {}
         }
 
@@ -938,7 +938,7 @@ def evaluate_multi_horizon_tuning_impact() -> Dict[str, Any]:
     """
     Evaluates and compares diagnostic outcomes across 3 time horizons:
     1. 전일 (1일): 초단기 장세 피드백 (어제 체결 결함 즉각 보정)
-    2. 주간 (최근 5거래일): 주간 주도 섹터 쏠림 및 실전 변동성에 최적화된 균형 최적화 (★ AI 최고 추천)
+    2. 주간 (최근 5거래일): 주간 주도 섹터 쏠림 및 실전 변동성에 최적화된 균형 최적화 ([AI 최고 추천])
     3. 1개월 (25거래일): 125건의 누적 표본에 기반한 통계적 계좌 안정성 최적화
 
     Simulates expected win rate and net return (>= +3.0%) for each horizon,
@@ -964,7 +964,7 @@ def evaluate_multi_horizon_tuning_impact() -> Dict[str, Any]:
     d_desc = "시초갭 상한 +2.5% 이하 · 거래대금 100억↑ · 스코어 70점"
     d_eval = "직전 거래일의 즉각적인 수급 변화를 빠르게 반영하지만, 1일 단기 노이즈에 과민 반응할 수 있습니다."
 
-    # 2. Horizon 2: 주간 (최근 5거래일) - ★ RECOMMENDED (BEST BALANCE & HIGHEST RETURN)
+    # 2. Horizon 2: 주간 (최근 5거래일) - [RECOMMENDED] (BEST BALANCE & HIGHEST RETURN)
     w_expected_win = 76.4
     w_expected_ret = 3.85
     w_confidence = 94
@@ -999,7 +999,7 @@ def evaluate_multi_horizon_tuning_impact() -> Dict[str, Any]:
     # Comparative DataFrame table
     comparative_rows = [
         {
-            "분석 주기": "⚡ 전일 정밀 진단 (1일)",
+            "분석 주기": "전일 정밀 진단 (1일)",
             "최적 추천 파라미터": d_desc,
             "예상 승률": f"{d_expected_win:.1f}%",
             "예상 순수익률": f"+{d_expected_ret:.2f}%",
@@ -1007,15 +1007,15 @@ def evaluate_multi_horizon_tuning_impact() -> Dict[str, Any]:
             "종합 판정": "단기 대응 우수"
         },
         {
-            "분석 주기": "📅 최근 주간 진단 (5거래일)",
+            "분석 주기": "최근 주간 진단 (5거래일)",
             "최적 추천 파라미터": w_desc,
             "예상 승률": f"{w_expected_win:.1f}%",
             "예상 순수익률": f"+{w_expected_ret:.2f}%",
-            "AI 적합도 / 신뢰도": f"{w_confidence}% (★ 최고 수익률 추천)",
-            "종합 판정": "👑 최우수 (강력 권장)"
+            "AI 적합도 / 신뢰도": f"{w_confidence}% (최고 수익률 추천)",
+            "종합 판정": "[최우수] 강력 권장"
         },
         {
-            "분석 주기": "📈 1개월 장기 진단 (25거래일)",
+            "분석 주기": "1개월 장기 진단 (25거래일)",
             "최적 추천 파라미터": m_desc,
             "예상 승률": f"{m_expected_win:.1f}%",
             "예상 순수익률": f"+{m_expected_ret:.2f}%",
@@ -1027,14 +1027,14 @@ def evaluate_multi_horizon_tuning_impact() -> Dict[str, Any]:
     return {
         "comparative_table": pd.DataFrame(comparative_rows),
         "best_horizon_key": "weekly",
-        "best_horizon_label": "📅 최근 주간 진단 (5거래일)",
+        "best_horizon_label": "최근 주간 진단 (5거래일)",
         "best_expected_return": w_expected_ret,
         "best_expected_win_rate": w_expected_win,
         "best_proposals": w_proposals,
         "best_rationale": "최근 5거래일간 형성된 시장 주도 테마의 수급 집중력(거래대금 200억 이상)과 최적의 시초갭(+2.2% 이하) 필터를 결합하여 예상 순수익률 +3.85%, 승률 76.4%로 3개 주기 중 가장 높은 수익 성과를 기대할 수 있습니다.",
         "horizon_details": {
             "daily": {
-                "label": "⚡ 전일 진단 (1일)",
+                "label": "전일 진단 (1일)",
                 "expected_return": d_expected_ret,
                 "expected_win_rate": d_expected_win,
                 "proposals": d_proposals,
@@ -1042,7 +1042,7 @@ def evaluate_multi_horizon_tuning_impact() -> Dict[str, Any]:
                 "evaluation": d_eval
             },
             "weekly": {
-                "label": "📅 주간 진단 (5거래일)",
+                "label": "최근 주간 진단 (5거래일)",
                 "expected_return": w_expected_ret,
                 "expected_win_rate": w_expected_win,
                 "proposals": w_proposals,
@@ -1050,7 +1050,7 @@ def evaluate_multi_horizon_tuning_impact() -> Dict[str, Any]:
                 "evaluation": w_eval
             },
             "monthly": {
-                "label": "📈 1개월 진단 (25거래일)",
+                "label": "1개월 진단 (25거래일)",
                 "expected_return": m_expected_ret,
                 "expected_win_rate": m_expected_win,
                 "proposals": m_proposals,

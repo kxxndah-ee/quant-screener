@@ -92,7 +92,7 @@ class TestDailyVerifier(unittest.TestCase):
         all_hits = self.sample_results[self.sample_results["is_hit"]].copy()
         diag = diagnose_failure_reasons(all_hits, bm_change_pct=0.5)
         self.assertEqual(len(diag["issues"]), 0)
-        self.assertIn("🎉", diag["summary"])
+        self.assertIn("결함 패턴 없음", diag["summary"])
 
     def test_diagnose_failure_reasons_detection(self):
         diag = diagnose_failure_reasons(self.sample_results, bm_change_pct=-1.5)
