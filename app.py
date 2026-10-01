@@ -73,6 +73,7 @@ from src.database.diary_manager import (
     evaluate_model_decay
 )
 from src.core.screening_worker import get_screening_worker
+from src.core.quant_analyst import generate_quant_expert_answer
 try:
     from src.automation.scheduler import (
         run_post_market_job,
@@ -1740,6 +1741,84 @@ with tab1:
                 unsafe_allow_html=True
             )
 
+    def render_quant_analyst_qa_box(stock_row, key_suffix=""):
+        stock_dict = stock_row.to_dict() if hasattr(stock_row, "to_dict") else dict(stock_row)
+        code = str(stock_dict.get("code", "000000"))
+        name = str(stock_dict.get("name", "종목"))
+        chat_key = f"quant_qa_history_{code}"
+
+        if chat_key not in st.session_state or not st.session_state[chat_key]:
+            intro = generate_quant_expert_answer(stock_dict, "종목 종합 브리핑 및 상승 원인 요약")
+            st.session_state[chat_key] = [
+                {"role": "assistant", "content": intro}
+            ]
+
+        with st.container(border=True):
+            hdr_c1, hdr_c2 = st.columns([3.5, 1.5])
+            with hdr_c1:
+                st.markdown(f"**{name} ({code})** 수석 애널리스트 팩트시트 & Q&A 콘솔")
+                st.caption(f"전략: {stock_dict.get('strategy_tag', '')} | 스코어: {stock_dict.get('score', 0):.1f}점 | 전일비 거래량: {stock_dict.get('vol_ratio', 1.0):.1f}배 | RSI: {stock_dict.get('rsi', 50):.1f}")
+            with hdr_c2:
+                if st.button("대화 초기화", key=f"reset_chat_{code}_{key_suffix}", use_container_width=True):
+                    st.session_state[chat_key] = []
+                    st.rerun()
+
+            # Quick Question Buttons (Pills)
+            st.markdown("<div style='font-size:0.82rem; font-weight:600; color:#475569; margin-bottom:4px;'>빠른 퀀트 질의 칩 (원클릭 질문):</div>", unsafe_allow_html=True)
+            q_row1_c1, q_row1_c2, q_row1_c3 = st.columns(3)
+            q_row2_c1, q_row2_c2 = st.columns(2)
+
+            selected_quick_q = None
+            with q_row1_c1:
+                if st.button("🔥 왜 급등하나요?", key=f"btn_quick_why_{code}_{key_suffix}", use_container_width=True):
+                    selected_quick_q = "이 종목이 오늘 왜 급등하고 거래량이 폭발하는지 핵심 원인을 분석해줘."
+            with q_row1_c2:
+                if st.button("⚡ 지금 사도 되나요?", key=f"btn_quick_buy_{code}_{key_suffix}", use_container_width=True):
+                    selected_quick_q = "지금 신규 매수 진입해도 안전한지, 추격매수 위험도와 손익비를 진단해줘."
+            with q_row1_c3:
+                if st.button("🎯 목표가 & 손절가", key=f"btn_quick_tp_{code}_{key_suffix}", use_container_width=True):
+                    selected_quick_q = "알고리즘 권장 1차 목표 익절가와 원칙 손절 기준가, 트레일링 스탑 가격을 알려줘."
+            with q_row2_c1:
+                if st.button("⚠️ 리스크 팩트체크", key=f"btn_quick_risk_{code}_{key_suffix}", use_container_width=True):
+                    selected_quick_q = "이 종목 진입 시 조심해야 할 고점 윗꼬리나 테마 급락 등 핵심 리스크를 알려줘."
+            with q_row2_c2:
+                if st.button("📊 차트 & 지표 진단", key=f"btn_quick_chart_{code}_{key_suffix}", use_container_width=True):
+                    selected_quick_q = "이평선 정배열 상태, RSI 과열 여부, 거래량 수급 지표를 종합 분석해줘."
+
+            if selected_quick_q:
+                st.session_state[chat_key].append({"role": "user", "content": selected_quick_q})
+                with st.spinner("AI 퀀트 수석 애널리스트가 수급 및 팩트를 정밀 분석 중입니다..."):
+                    ans = generate_quant_expert_answer(stock_dict, selected_quick_q)
+                    st.session_state[chat_key].append({"role": "assistant", "content": ans})
+                st.rerun()
+
+            # Render Chat History
+            chat_box = st.container(height=360)
+            with chat_box:
+                for msg in st.session_state[chat_key]:
+                    with st.chat_message(msg["role"]):
+                        st.markdown(msg["content"])
+
+            # Custom Question Form
+            with st.form(key=f"custom_q_form_{code}_{key_suffix}", clear_on_submit=True):
+                f_c1, f_c2 = st.columns([4, 1])
+                with f_c1:
+                    user_custom_input = st.text_input(
+                        "질문 입력",
+                        placeholder=f"{name}에 대해 궁금한 점을 직접 질문하세요 (예: 내일 시초가에 어떻게 대응해야 하나요?)",
+                        label_visibility="collapsed",
+                        key=f"input_q_text_{code}_{key_suffix}"
+                    )
+                with f_c2:
+                    submitted = st.form_submit_button("질문 전송", type="primary", use_container_width=True)
+
+                if submitted and user_custom_input.strip():
+                    st.session_state[chat_key].append({"role": "user", "content": user_custom_input.strip()})
+                    with st.spinner("퀀트 전문가 답변 생성 중..."):
+                        ans = generate_quant_expert_answer(stock_dict, user_custom_input.strip())
+                        st.session_state[chat_key].append({"role": "assistant", "content": ans})
+                    st.rerun()
+
     # Display Persistent Screened Results like Watchlist
     if "screened_results_df" in st.session_state and st.session_state["screened_results_df"] is not None and not st.session_state["screened_results_df"].empty:
         df_screened = st.session_state["screened_results_df"]
@@ -1929,6 +2008,7 @@ with tab1:
                 else:
                     sel_sc = df_sc_disp.iloc[sel_sc_rows[0]]
 
+                st.session_state["qa_selected_stock_code"] = sel_sc["code"]
                 st.markdown(f"### 선택 후보 종목 정밀 진단: **{sel_sc['name']}** (`{sel_sc['code']}`)")
 
                 # 1. Detailed Selection Reason & Fact Check Box
@@ -2012,6 +2092,10 @@ with tab1:
                 b3.info(f"**거래량 급증비**: {sel_sc.get('vol_ratio', 1.0):.2f}배")
                 b4.info(f"**체결 원칙**: {sel_sc.get('rule_note', '-')}")
 
+                st.markdown("---")
+                st.markdown(f"#### 💬 **{sel_sc['name']}** AI 퀀트 수석 애널리스트 실시간 Q&A")
+                render_quant_analyst_qa_box(sel_sc, key_suffix="insp")
+
         # -------------------------------------------------
         # Screener View B: Paginated Cards View
         # -------------------------------------------------
@@ -2044,7 +2128,7 @@ with tab1:
                             for crit in srow.get('reason_criteria', []):
                                 st.markdown(f"<div style='font-size:0.77rem; line-height:1.35; color:#475569;'>• {crit}</div>", unsafe_allow_html=True)
 
-                        c_b1, c_b2 = st.columns(2)
+                        c_b1, c_b2, c_b3 = st.columns(3)
                         with c_b1:
                             if st.button("관심추가", key=f"card_add_sc_{srow['code']}_{i}", use_container_width=True):
                                 batch_add_to_watchlist([srow['code']])
@@ -2058,6 +2142,42 @@ with tab1:
                                 st.session_state["main_active_tab_nav"] = main_tab_names[2]
                                 st.toast(f"{srow['name']} 백테스트 설정 완료! 3번 통합 검증 탭을 확인하세요.")
                                 st.rerun()
+                        with c_b3:
+                            if st.button("퀀트 Q&A", key=f"card_qa_sc_{srow['code']}_{i}", use_container_width=True):
+                                st.session_state["qa_selected_stock_code"] = srow["code"]
+                                st.toast(f"{srow['name']} Q&A 활성화! 하단 퀀트 애널리스트 허브를 확인하세요.")
+                                st.rerun()
+
+        # -------------------------------------------------
+        # Screener Section C: AI Quant Analyst Q&A Hub
+        # -------------------------------------------------
+        st.markdown("---")
+        st.markdown("### 💬 AI 퀀트 수석 애널리스트 실시간 질의응답 (Q&A 허브)")
+        st.caption("스크리닝된 상승 유력 종목 중 궁금한 종목을 선택하여 왜 급등하는지, 지금 사도 되는지, 목표가/손절가 시나리오를 퀀트 전문가에게 실시간 질의하세요.")
+
+        qa_target_options = [f"{r['name']} ({r['code']}) - {r.get('strategy_tag', '')}" for _, r in df_sc_disp.iterrows()]
+        default_qa_idx = 0
+        if "qa_selected_stock_code" in st.session_state:
+            for idx, opt in enumerate(qa_target_options):
+                if f"({st.session_state['qa_selected_stock_code']})" in opt:
+                    default_qa_idx = idx
+                    break
+
+        col_qa_sel, col_qa_opt = st.columns([3.5, 1.5])
+        with col_qa_sel:
+            qa_chosen_opt = st.selectbox(
+                "분석 및 질의응답할 스크리닝 종목 선택",
+                qa_target_options,
+                index=default_qa_idx,
+                key="qa_hub_stock_selectbox"
+            )
+        with col_qa_opt:
+            st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+            st.caption("💡 상단 테이블 클릭 또는 카드 버튼 클릭 시 자동 연동")
+
+        qa_chosen_code = qa_chosen_opt.split("(")[-1].split(")")[0].strip()
+        qa_stock_row = df_sc_disp[df_sc_disp["code"] == qa_chosen_code].iloc[0]
+        render_quant_analyst_qa_box(qa_stock_row, key_suffix="hub")
 
 # =========================================================
 # TAB 2: 관심종목 실시간 스코어보드 & 관리
