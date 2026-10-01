@@ -36,33 +36,46 @@ def generate_quant_expert_answer(
     return _built_in_quant_reasoning(stock_info, question)
 
 
+def _safe_to_float(v, default=0.0):
+    try:
+        if v is None:
+            return default
+        f = float(v)
+        import math
+        return default if math.isnan(f) else f
+    except Exception:
+        return default
+
+
 def _call_gemini_quant_expert(stock_info: Dict[str, Any], question: str, api_key: str) -> str:
     """Calls Gemini API via REST with quant persona and strict financial data grounding."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     
     # Extract rich features
-    name = stock_info.get("name", "해당 종목")
-    code = stock_info.get("code", "")
-    market = stock_info.get("market", "")
-    sector = stock_info.get("sector", "기타")
-    close = stock_info.get("close", 0)
-    change_pct = stock_info.get("change_pct", 0.0)
-    score = stock_info.get("score", 0.0)
-    label = stock_info.get("label", "")
-    strategy = stock_info.get("strategy_tag", stock_info.get("strategy", "일반 퀀트"))
-    tp_pct = stock_info.get("tp_pct", 5.0)
-    sl_pct = stock_info.get("sl_pct", 2.0)
+    name = str(stock_info.get("name") or "해당 종목")
+    code = str(stock_info.get("code") or "")
+    market = str(stock_info.get("market") or "")
+    sector = str(stock_info.get("sector") or "기타")
+    close = _safe_to_float(stock_info.get("close"), 0.0)
+    change_pct = _safe_to_float(stock_info.get("change_pct"), 0.0)
+    score = _safe_to_float(stock_info.get("score"), 0.0)
+    label = str(stock_info.get("label") or "")
+    strategy = str(stock_info.get("strategy_tag") or stock_info.get("strategy") or "일반 퀀트")
+    tp_pct = _safe_to_float(stock_info.get("tp_pct"), 5.0)
+    sl_pct = _safe_to_float(stock_info.get("sl_pct"), 2.0)
     
     tp_price = close * (1.0 + tp_pct / 100.0)
     sl_price = close * (1.0 - sl_pct / 100.0)
     
-    breakdown = stock_info.get("breakdown", {})
-    rsi = breakdown.get("rsi_val", stock_info.get("rsi", 50.0))
-    vol_ratio = breakdown.get("vol_ratio", stock_info.get("vol_ratio", 1.0))
-    ma_status = breakdown.get("ma_status", stock_info.get("ma_status", "보통"))
-    rule_note = stock_info.get("rule_note", "")
-    reason_core = stock_info.get("reason_core", "")
+    breakdown = stock_info.get("breakdown") or {}
+    if not isinstance(breakdown, dict):
+        breakdown = {}
+    rsi = _safe_to_float(breakdown.get("rsi_val", stock_info.get("rsi")), 50.0)
+    vol_ratio = _safe_to_float(breakdown.get("vol_ratio", stock_info.get("vol_ratio")), 1.0)
+    ma_status = str(breakdown.get("ma_status") or stock_info.get("ma_status") or "보통")
+    rule_note = str(stock_info.get("rule_note") or "")
+    reason_core = str(stock_info.get("reason_core") or "")
     
     system_instruction = (
         "당신은 대한민국 주식 시장에 특화된 최고 수준의 '수석 퀀트 트레이더 및 기술적 분석가(Chief Quant Analyst)'입니다.\n"
@@ -124,25 +137,29 @@ def _built_in_quant_reasoning(
     Works 100% offline with zero external dependencies, providing
     in-depth, tailored analysis based on mathematical signals.
     """
-    name = stock_info.get("name", "해당 종목")
-    code = stock_info.get("code", "")
-    market = stock_info.get("market", "KRX")
-    sector = stock_info.get("sector", "시장 주도 섹터")
-    close = float(stock_info.get("close", 0))
-    change_pct = float(stock_info.get("change_pct", 0.0))
-    score = float(stock_info.get("score", 70.0))
-    strategy = str(stock_info.get("strategy_tag", stock_info.get("strategy", "퀀트 발굴")))
-    tp_pct = float(stock_info.get("tp_pct", 5.0))
-    sl_pct = float(stock_info.get("sl_pct", 2.0))
+    name = str(stock_info.get("name") or "해당 종목")
+    code = str(stock_info.get("code") or "")
+    market = str(stock_info.get("market") or "KRX")
+    sector = str(stock_info.get("sector") or "시장 주도 섹터")
+    close = _safe_to_float(stock_info.get("close"), 0.0)
+    change_pct = _safe_to_float(stock_info.get("change_pct"), 0.0)
+    score = _safe_to_float(stock_info.get("score"), 70.0)
+    strategy = str(stock_info.get("strategy_tag") or stock_info.get("strategy") or "퀀트 발굴")
+    tp_pct = _safe_to_float(stock_info.get("tp_pct"), 5.0)
+    sl_pct = _safe_to_float(stock_info.get("sl_pct"), 2.0)
+    if sl_pct <= 0:
+        sl_pct = 2.0
     
     tp_price = close * (1.0 + tp_pct / 100.0) if close > 0 else 0
     sl_price = close * (1.0 - sl_pct / 100.0) if close > 0 else 0
     
-    breakdown = stock_info.get("breakdown", {})
-    rsi = float(breakdown.get("rsi_val", stock_info.get("rsi", 55.0)))
-    vol_ratio = float(breakdown.get("vol_ratio", stock_info.get("vol_ratio", 1.0)))
-    ma_status = str(breakdown.get("ma_status", stock_info.get("ma_status", "이평 정배열")))
-    reason_core = str(stock_info.get("reason_core", "전략 기준 충족"))
+    breakdown = stock_info.get("breakdown") or {}
+    if not isinstance(breakdown, dict):
+        breakdown = {}
+    rsi = _safe_to_float(breakdown.get("rsi_val", stock_info.get("rsi")), 55.0)
+    vol_ratio = _safe_to_float(breakdown.get("vol_ratio", stock_info.get("vol_ratio")), 1.0)
+    ma_status = str(breakdown.get("ma_status") or stock_info.get("ma_status") or "이평 정배열")
+    reason_core = str(stock_info.get("reason_core") or "전략 기준 충족")
     
     q_lower = question.lower()
     
@@ -188,7 +205,7 @@ def _built_in_quant_reasoning(
 - **손익비 분석**: 
   - 기대 이익폭: **+{tp_pct:.1f}%** ({tp_price:,.0f}원)
   - 최대 허용 손실폭: **-{sl_pct:.1f}%** ({sl_price:,.0f}원)
-  - 목표 손익비: **{(tp_pct/sl_pct):.2f} : 1** (기대수익이 위험 대비 2배 이상 우위)
+  - 목표 손익비: **{(tp_pct / max(0.1, sl_pct)):.2f} : 1** (기대수익이 위험 대비 2배 이상 우위)
 """
 
     # 3. 목표가 / 손절가 / 가격 전략

@@ -239,8 +239,11 @@ class ScreeningWorker:
                     vol_p = int(df_stock["Volume"].iloc[-1])
 
                     now_dt = get_now_kst()
-                    last_bar_dt = df_stock.index[-1]
-                    is_today_intraday = (last_bar_dt.strftime("%Y-%m-%d") == now_dt.strftime("%Y-%m-%d") and now_dt.hour < 15)
+                    try:
+                        last_bar_str = last_bar_dt.strftime("%Y-%m-%d") if hasattr(last_bar_dt, "strftime") else str(last_bar_dt)[:10]
+                        is_today_intraday = (last_bar_str == now_dt.strftime("%Y-%m-%d") and now_dt.hour < 15)
+                    except Exception:
+                        is_today_intraday = False
                     df_snp_eval = df_stock.iloc[:-1] if is_today_intraday and len(df_stock) >= 31 else df_stock
 
                     if "당일 단타" in sc_mode:

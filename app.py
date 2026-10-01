@@ -1743,12 +1743,15 @@ with tab1:
 
     def render_quant_analyst_qa_box(stock_row, key_suffix=""):
         stock_dict = stock_row.to_dict() if hasattr(stock_row, "to_dict") else dict(stock_row)
-        code = str(stock_dict.get("code", "000000"))
-        name = str(stock_dict.get("name", "종목"))
+        code = str(stock_dict.get("code") or "000000")
+        name = str(stock_dict.get("name") or "종목")
         chat_key = f"quant_qa_history_{code}"
 
         if chat_key not in st.session_state or not st.session_state[chat_key]:
-            intro = generate_quant_expert_answer(stock_dict, "종목 종합 브리핑 및 상승 원인 요약")
+            try:
+                intro = generate_quant_expert_answer(stock_dict, "종목 종합 브리핑 및 상승 원인 요약")
+            except Exception as _e:
+                intro = f"브리핑 생성 중 일시적인 오류가 발생했습니다: {_e}"
             st.session_state[chat_key] = [
                 {"role": "assistant", "content": intro}
             ]
@@ -1757,7 +1760,10 @@ with tab1:
             hdr_c1, hdr_c2 = st.columns([3.5, 1.5])
             with hdr_c1:
                 st.markdown(f"**{name} ({code})** 수석 애널리스트 팩트시트 & Q&A 콘솔")
-                st.caption(f"전략: {stock_dict.get('strategy_tag', '')} | 스코어: {stock_dict.get('score', 0):.1f}점 | 전일비 거래량: {stock_dict.get('vol_ratio', 1.0):.1f}배 | RSI: {stock_dict.get('rsi', 50):.1f}")
+                score_v = float(stock_dict.get('score') or 0.0)
+                vol_v = float(stock_dict.get('vol_ratio') or 1.0)
+                rsi_v = float(stock_dict.get('rsi') or 50.0)
+                st.caption(f"전략: {stock_dict.get('strategy_tag', '')} | 스코어: {score_v:.1f}점 | 전일비 거래량: {vol_v:.1f}배 | RSI: {rsi_v:.1f}")
             with hdr_c2:
                 if st.button("대화 초기화", key=f"reset_chat_{code}_{key_suffix}", use_container_width=True):
                     st.session_state[chat_key] = []
@@ -1788,7 +1794,10 @@ with tab1:
             if selected_quick_q:
                 st.session_state[chat_key].append({"role": "user", "content": selected_quick_q})
                 with st.spinner("AI 퀀트 수석 애널리스트가 수급 및 팩트를 정밀 분석 중입니다..."):
-                    ans = generate_quant_expert_answer(stock_dict, selected_quick_q)
+                    try:
+                        ans = generate_quant_expert_answer(stock_dict, selected_quick_q)
+                    except Exception as _e:
+                        ans = f"분석 답변 생성 중 일시적인 오류가 발생했습니다: {_e}"
                     st.session_state[chat_key].append({"role": "assistant", "content": ans})
                 st.rerun()
 
@@ -1815,7 +1824,10 @@ with tab1:
                 if submitted and user_custom_input.strip():
                     st.session_state[chat_key].append({"role": "user", "content": user_custom_input.strip()})
                     with st.spinner("퀀트 전문가 답변 생성 중..."):
-                        ans = generate_quant_expert_answer(stock_dict, user_custom_input.strip())
+                        try:
+                            ans = generate_quant_expert_answer(stock_dict, user_custom_input.strip())
+                        except Exception as _e:
+                            ans = f"분석 답변 생성 중 일시적인 오류가 발생했습니다: {_e}"
                         st.session_state[chat_key].append({"role": "assistant", "content": ans})
                     st.rerun()
 
@@ -1917,15 +1929,19 @@ with tab1:
         sc_row_limit = int(sc_display_rows)
         sc_table_height = min(38 + sc_row_limit * 35, 38 + total_sc_items * 35)
 
+        if df_sc_disp.empty:
+            st.info("선택하신 필터(업종/매수 타이밍) 조건에 부합하는 종목이 없습니다. 상단 필터를 '전체'로 변경해 보세요.")
         # -------------------------------------------------
         # Screener View A: High-Density Interactive Data Table
         # -------------------------------------------------
-        if "테이블" in sc_view_mode:
+        elif "테이블" in sc_view_mode:
             st.caption(f"스크리닝 결과: **총 {total_sc_items:,}개** 발굴됨 (10줄 높이 고정 · 표 내부 마우스 스크롤로 전체 탐색 및 다중 체크박스 선택 지원)")
-            disp_table_sc = df_sc_disp[[
+            desired_cols = [
                 "code", "name", "timing_label", "strategy_tag", "reason_summary", "market", "sector", "close", "change_pct",
                 "score", "label", "tp_pct", "sl_pct", "vol_ratio", "rsi", "ma_status"
-            ]].copy()
+            ]
+            valid_cols = [c for c in desired_cols if c in df_sc_disp.columns]
+            disp_table_sc = df_sc_disp[valid_cols].copy()
 
             grid_sc = st.dataframe(
                 disp_table_sc,
@@ -1956,7 +1972,15 @@ with tab1:
             )
 
             # Row Selection Inspector Panel
-            sel_sc_rows = grid_sc.selection.rows if hasattr(grid_sc, "selection") else []
+            grid_sel = getattr(grid_sc, "selection", None)
+            sel_sc_rows = []
+            if grid_sel:
+                if hasattr(grid_sel, "rows"):
+                    sel_sc_rows = grid_sel.rows
+                elif isinstance(grid_sel, dict):
+                    sel_sc_rows = grid_sel.get("rows", [])
+            sel_sc_rows = [r for r in sel_sc_rows if isinstance(r, int) and 0 <= r < len(df_sc_disp)]
+
             if sel_sc_rows and len(sel_sc_rows) > 0:
                 if len(sel_sc_rows) > 1:
                     sel_sc_df = df_sc_disp.iloc[sel_sc_rows]
@@ -2003,8 +2027,9 @@ with tab1:
                         [f"{r['name']} ({r['code']}) - {r.get('strategy_tag', '')}" for _, r in sel_sc_df.iterrows()],
                         key="sel_multi_inspect_sc"
                     )
-                    sel_sc_code = target_sc_name.split("(")[-1].split(")")[0].strip()
-                    sel_sc = sel_sc_df[sel_sc_df["code"] == sel_sc_code].iloc[0]
+                    sel_sc_code = target_sc_name.split("(")[-1].split(")")[0].strip() if "(" in target_sc_name else ""
+                    matched_sc = sel_sc_df[sel_sc_df["code"] == sel_sc_code]
+                    sel_sc = matched_sc.iloc[0] if not matched_sc.empty else sel_sc_df.iloc[0]
                 else:
                     sel_sc = df_sc_disp.iloc[sel_sc_rows[0]]
 
@@ -2085,11 +2110,15 @@ with tab1:
                         st.rerun()
 
                 # 4. Technical Indicator Breakdown Cards
-                bk = sel_sc.get("breakdown", {})
+                bk = sel_sc.get("breakdown") or {}
+                if not isinstance(bk, dict):
+                    bk = {}
+                r_val = float(bk.get('rsi_val') or sel_sc.get('rsi') or 50.0)
+                v_val = float(sel_sc.get('vol_ratio') or 1.0)
                 b1, b2, b3, b4 = st.columns(4)
-                b1.info(f"**RSI(14)**: {bk.get('rsi_val', sel_sc.get('rsi', 0)):.1f}")
+                b1.info(f"**RSI(14)**: {r_val:.1f}")
                 b2.info(f"**이평배열**: {sel_sc.get('ma_status', '-')}")
-                b3.info(f"**거래량 급증비**: {sel_sc.get('vol_ratio', 1.0):.2f}배")
+                b3.info(f"**거래량 급증비**: {v_val:.2f}배")
                 b4.info(f"**체결 원칙**: {sel_sc.get('rule_note', '-')}")
 
                 st.markdown("---")
@@ -2151,33 +2180,39 @@ with tab1:
         # -------------------------------------------------
         # Screener Section C: AI Quant Analyst Q&A Hub
         # -------------------------------------------------
-        st.markdown("---")
-        st.markdown("### 💬 AI 퀀트 수석 애널리스트 실시간 질의응답 (Q&A 허브)")
-        st.caption("스크리닝된 상승 유력 종목 중 궁금한 종목을 선택하여 왜 급등하는지, 지금 사도 되는지, 목표가/손절가 시나리오를 퀀트 전문가에게 실시간 질의하세요.")
+        if not df_sc_disp.empty:
+            qa_target_options = [f"{r['name']} ({r['code']}) - {r.get('strategy_tag', '')}" for _, r in df_sc_disp.iterrows()]
+            if qa_target_options:
+                st.markdown("---")
+                st.markdown("### 💬 AI 퀀트 수석 애널리스트 실시간 질의응답 (Q&A 허브)")
+                st.caption("스크리닝된 상승 유력 종목 중 궁금한 종목을 선택하여 왜 급등하는지, 지금 사도 되는지, 목표가/손절가 시나리오를 퀀트 전문가에게 실시간 질의하세요.")
 
-        qa_target_options = [f"{r['name']} ({r['code']}) - {r.get('strategy_tag', '')}" for _, r in df_sc_disp.iterrows()]
-        default_qa_idx = 0
-        if "qa_selected_stock_code" in st.session_state:
-            for idx, opt in enumerate(qa_target_options):
-                if f"({st.session_state['qa_selected_stock_code']})" in opt:
-                    default_qa_idx = idx
-                    break
+                default_qa_idx = 0
+                if "qa_selected_stock_code" in st.session_state:
+                    for idx, opt in enumerate(qa_target_options):
+                        if f"({st.session_state['qa_selected_stock_code']})" in opt:
+                            default_qa_idx = idx
+                            break
+                default_qa_idx = min(max(0, default_qa_idx), len(qa_target_options) - 1)
 
-        col_qa_sel, col_qa_opt = st.columns([3.5, 1.5])
-        with col_qa_sel:
-            qa_chosen_opt = st.selectbox(
-                "분석 및 질의응답할 스크리닝 종목 선택",
-                qa_target_options,
-                index=default_qa_idx,
-                key="qa_hub_stock_selectbox"
-            )
-        with col_qa_opt:
-            st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-            st.caption("💡 상단 테이블 클릭 또는 카드 버튼 클릭 시 자동 연동")
+                col_qa_sel, col_qa_opt = st.columns([3.5, 1.5])
+                with col_qa_sel:
+                    qa_chosen_opt = st.selectbox(
+                        "분석 및 질의응답할 스크리닝 종목 선택",
+                        qa_target_options,
+                        index=default_qa_idx,
+                        key="qa_hub_stock_selectbox"
+                    )
+                with col_qa_opt:
+                    st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+                    st.caption("💡 상단 테이블 클릭 또는 카드 버튼 클릭 시 자동 연동")
 
-        qa_chosen_code = qa_chosen_opt.split("(")[-1].split(")")[0].strip()
-        qa_stock_row = df_sc_disp[df_sc_disp["code"] == qa_chosen_code].iloc[0]
-        render_quant_analyst_qa_box(qa_stock_row, key_suffix="hub")
+                if qa_chosen_opt and "(" in qa_chosen_opt:
+                    qa_chosen_code = qa_chosen_opt.split("(")[-1].split(")")[0].strip()
+                    matched_rows = df_sc_disp[df_sc_disp["code"] == qa_chosen_code]
+                    if not matched_rows.empty:
+                        qa_stock_row = matched_rows.iloc[0]
+                        render_quant_analyst_qa_box(qa_stock_row, key_suffix="hub")
 
 # =========================================================
 # TAB 2: 관심종목 실시간 스코어보드 & 관리

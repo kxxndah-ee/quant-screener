@@ -76,5 +76,28 @@ class TestQuantAnalyst(unittest.TestCase):
         self.assertIn("상승 원인", answer)
         self.assertIn("내장 퀀트", answer)
 
+    def test_null_and_zero_division_safety(self):
+        # Stock info with None values, missing breakdown, and zero sl_pct
+        weird_stock = {
+            "name": "테스트주",
+            "code": "999999",
+            "close": None,
+            "change_pct": None,
+            "score": None,
+            "tp_pct": None,
+            "sl_pct": 0.0,
+            "breakdown": None
+        }
+        ans_entry = generate_quant_expert_answer(weird_stock, "지금 사도 되나요?")
+        self.assertIn("테스트주", ans_entry)
+        self.assertIn("손익비", ans_entry)
+
+        ans_tp = generate_quant_expert_answer(weird_stock, "목표가 얼마야?")
+        self.assertIn("목표 익절가", ans_tp)
+
+        ans_why = generate_quant_expert_answer(weird_stock, "왜 급등해?")
+        self.assertIn("상승 원인", ans_why)
+
 if __name__ == "__main__":
     unittest.main()
+
