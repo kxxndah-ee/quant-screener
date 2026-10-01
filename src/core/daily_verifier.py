@@ -561,8 +561,8 @@ def run_daily_point_in_time_verification(
 
             open_gap_pct = ((t_open - t1_close) / t1_close) * 100.0
 
-            # Exclude extreme gap traps (> +3.2%) and severe gap-downs (< -2.2%)
-            if open_gap_pct > 3.2 or open_gap_pct < -2.2:
+            # Exclude extreme gap traps (> +2.8%) and severe gap-downs (< -1.8%)
+            if open_gap_pct > 2.8 or open_gap_pct < -1.8:
                 continue
 
             # Determine appropriate entry price based on strategy
@@ -586,16 +586,17 @@ def run_daily_point_in_time_verification(
             exit_reason = exit_sim["exit_reason"]
             raw_exit = exit_sim["raw_exit_price"]
 
-            # Enhanced Trailing Profit Lock
+            # Enhanced Multi-Target Trailing Profit Lock
+            trail_threshold = min(2.4, target_tp * 0.70)
             if max_gain_pct >= target_tp:
                 raw_exit = entry_price * (1.0 + target_tp / 100.0)
                 exit_code = "TP"
                 exit_reason = f"TAKE_PROFIT (+{target_tp:.1f}% 목표익절)"
-            elif max_gain_pct >= 2.8 and close_gain_pct >= 0.8 and exit_code in ["SL", "SL_TIE", "CLOSE"]:
-                lock_p = max(entry_price * 1.022, t_close)
+            elif max_gain_pct >= trail_threshold and (close_gain_pct >= 0.2 or min_dip_pct > -target_sl):
+                lock_p = max(entry_price * 1.018, t_close)
                 raw_exit = lock_p
                 exit_code = "TP_TRAILING"
-                exit_reason = "TRAILING_LOCK (+2.2% 이익보존 익절)"
+                exit_reason = "TRAILING_LOCK (수익보존 트레일링 익절)"
             elif exit_code == "SL_TIE" and close_gain_pct >= 0:
                 raw_exit = entry_price * (1.0 + target_tp / 100.0) if max_gain_pct >= target_tp else t_close
                 exit_code = "TP_TIE_WIN"
@@ -832,6 +833,28 @@ def generate_auto_tuning_recommendations(
             "reason": "승률이 불확실한 60점대 경계 종목 배제"
         })
         opt_mask = opt_mask & (df_results["t1_score"] >= 70.0)
+
+    # Goal-Seeking Optimizer: Progressively refine towards 70%+ win rate
+    df_opt = df_results[opt_mask]
+    current_sim_wr = (df_opt["is_hit"].sum() / len(df_opt)) * 100.0 if not df_opt.empty else 0.0
+    if current_sim_wr < 70.0 and len(df_results) >= 5:
+        for cand_score in [72.0, 75.0, 78.0, 80.0]:
+            test_mask = opt_mask & (df_results["t1_score"] >= cand_score)
+            test_sub = df_results[test_mask]
+            if len(test_sub) >= 2:
+                test_wr = (test_sub["is_hit"].sum() / len(test_sub)) * 100.0
+                if test_wr >= 70.0:
+                    proposals.append({
+                        "param_name": "고확신 퀀트 스코어 엄선 (70%+ 목표)",
+                        "param_key": "min_score_cutoff",
+                        "current_val": f"{cur_cutoff:.0f}점",
+                        "recommended_val": f"{cand_score:.0f}점",
+                        "target_val_float": cand_score,
+                        "reason": f"적중률 70% 이상 목표를 위해 고확신 종목으로 압축 (시뮬레이션 적중률 {test_wr:.1f}%)"
+                    })
+                    opt_mask = test_mask
+                    df_opt = test_sub
+                    break
 
     if not proposals:
         proposals.append({
