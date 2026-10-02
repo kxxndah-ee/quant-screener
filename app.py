@@ -410,8 +410,42 @@ st.markdown("""
         color: #0F172A !important;
     }
     div.stButton > button[kind="secondary"]:focus,
-    [data-testid="stBaseButton-secondary"]:focus {
+    [data-testid="stBaseButton-secondary"] :focus {
         box-shadow: 0 0 0 2px rgba(203, 213, 225, 0.5) !important;
+    }
+
+    /* Compact Single-Row Question Buttons */
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        gap: 6px !important;
+        padding-bottom: 2px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="column"] {
+        min-width: 0 !important;
+        flex: 1 1 0% !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div.stButton > button {
+        padding: 0.22rem 0.35rem !important;
+        min-height: 1.85rem !important;
+        height: 1.85rem !important;
+        border-radius: 5px !important;
+        width: 100% !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div.stButton > button p {
+        font-size: 0.77rem !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+    @media (max-width: 768px) {
+        div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="column"] {
+            flex: 0 0 auto !important;
+            min-width: 105px !important;
+        }
     }
 
     /* Office Stealth Sliders: Slate grey accents instead of bright red */
@@ -1815,41 +1849,40 @@ with tab1:
                     st.session_state.pop(active_ans_key, None)
                     st.rerun()
 
-            # Quick Question Buttons (Pills)
-            st.markdown("<div style='font-size:0.82rem; font-weight:600; color:#475569; margin-bottom:4px;'>빠른 퀀트 질의 칩 (원클릭 질문 시 답변이 즉시 전환됩니다):</div>", unsafe_allow_html=True)
-            q_row1_c1, q_row1_c2, q_row1_c3 = st.columns(3)
-            q_row2_c1, q_row2_c2 = st.columns(2)
+            # Quick Question Buttons (Single-row compact layout)
+            st.markdown('<div class="compact-qa-buttons" style="display:none;"></div>', unsafe_allow_html=True)
+            q_cols = st.columns(5, gap="small")
 
             curr_active_q = st.session_state.get(active_q_key, quick_queries["why"]["label"])
 
             clicked_prompt = None
             clicked_label = None
 
-            with q_row1_c1:
+            with q_cols[0]:
                 b_type = "primary" if curr_active_q == quick_queries["why"]["label"] else "secondary"
                 if st.button(quick_queries["why"]["label"], key=f"btn_quick_why_{code}_{key_suffix}", type=b_type, use_container_width=True):
                     clicked_prompt = quick_queries["why"]["q"]
                     clicked_label = quick_queries["why"]["label"]
 
-            with q_row1_c2:
+            with q_cols[1]:
                 b_type = "primary" if curr_active_q == quick_queries["buy"]["label"] else "secondary"
                 if st.button(quick_queries["buy"]["label"], key=f"btn_quick_buy_{code}_{key_suffix}", type=b_type, use_container_width=True):
                     clicked_prompt = quick_queries["buy"]["q"]
                     clicked_label = quick_queries["buy"]["label"]
 
-            with q_row1_c3:
+            with q_cols[2]:
                 b_type = "primary" if curr_active_q == quick_queries["tp"]["label"] else "secondary"
                 if st.button(quick_queries["tp"]["label"], key=f"btn_quick_tp_{code}_{key_suffix}", type=b_type, use_container_width=True):
                     clicked_prompt = quick_queries["tp"]["q"]
                     clicked_label = quick_queries["tp"]["label"]
 
-            with q_row2_c1:
+            with q_cols[3]:
                 b_type = "primary" if curr_active_q == quick_queries["risk"]["label"] else "secondary"
                 if st.button(quick_queries["risk"]["label"], key=f"btn_quick_risk_{code}_{key_suffix}", type=b_type, use_container_width=True):
                     clicked_prompt = quick_queries["risk"]["q"]
                     clicked_label = quick_queries["risk"]["label"]
 
-            with q_row2_c2:
+            with q_cols[4]:
                 b_type = "primary" if curr_active_q == quick_queries["chart"]["label"] else "secondary"
                 if st.button(quick_queries["chart"]["label"], key=f"btn_quick_chart_{code}_{key_suffix}", type=b_type, use_container_width=True):
                     clicked_prompt = quick_queries["chart"]["q"]
