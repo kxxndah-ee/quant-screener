@@ -1743,7 +1743,9 @@ with tab1:
 
     def render_quant_analyst_qa_box(stock_row, key_suffix=""):
         stock_dict = stock_row.to_dict() if hasattr(stock_row, "to_dict") else dict(stock_row)
-        code = str(stock_dict.get("code") or "000000")
+        raw_code = str(stock_dict.get("code") or "000000").strip()
+        code = raw_code.zfill(6) if raw_code.isdigit() else raw_code
+        stock_dict["code"] = code
         name = str(stock_dict.get("name") or "종목")
         chat_key = f"quant_qa_history_{code}"
 
@@ -1776,19 +1778,19 @@ with tab1:
 
             selected_quick_q = None
             with q_row1_c1:
-                if st.button("🔥 왜 급등하나요?", key=f"btn_quick_why_{code}_{key_suffix}", use_container_width=True):
+                if st.button("왜 급등하나요?", key=f"btn_quick_why_{code}_{key_suffix}", use_container_width=True):
                     selected_quick_q = "이 종목이 오늘 왜 급등하고 거래량이 폭발하는지 핵심 원인을 분석해줘."
             with q_row1_c2:
-                if st.button("⚡ 지금 사도 되나요?", key=f"btn_quick_buy_{code}_{key_suffix}", use_container_width=True):
+                if st.button("지금 사도 되나요?", key=f"btn_quick_buy_{code}_{key_suffix}", use_container_width=True):
                     selected_quick_q = "지금 신규 매수 진입해도 안전한지, 추격매수 위험도와 손익비를 진단해줘."
             with q_row1_c3:
-                if st.button("🎯 목표가 & 손절가", key=f"btn_quick_tp_{code}_{key_suffix}", use_container_width=True):
+                if st.button("목표가 & 손절가", key=f"btn_quick_tp_{code}_{key_suffix}", use_container_width=True):
                     selected_quick_q = "알고리즘 권장 1차 목표 익절가와 원칙 손절 기준가, 트레일링 스탑 가격을 알려줘."
             with q_row2_c1:
-                if st.button("⚠️ 리스크 팩트체크", key=f"btn_quick_risk_{code}_{key_suffix}", use_container_width=True):
+                if st.button("리스크 팩트체크", key=f"btn_quick_risk_{code}_{key_suffix}", use_container_width=True):
                     selected_quick_q = "이 종목 진입 시 조심해야 할 고점 윗꼬리나 테마 급락 등 핵심 리스크를 알려줘."
             with q_row2_c2:
-                if st.button("📊 차트 & 지표 진단", key=f"btn_quick_chart_{code}_{key_suffix}", use_container_width=True):
+                if st.button("차트 & 지표 진단", key=f"btn_quick_chart_{code}_{key_suffix}", use_container_width=True):
                     selected_quick_q = "이평선 정배열 상태, RSI 과열 여부, 거래량 수급 지표를 종합 분석해줘."
 
             if selected_quick_q:
@@ -2122,7 +2124,7 @@ with tab1:
                 b4.info(f"**체결 원칙**: {sel_sc.get('rule_note', '-')}")
 
                 st.markdown("---")
-                st.markdown(f"#### 💬 **{sel_sc['name']}** AI 퀀트 수석 애널리스트 실시간 Q&A")
+                st.markdown(f"#### **{sel_sc['name']}** AI 퀀트 수석 애널리스트 실시간 Q&A")
                 render_quant_analyst_qa_box(sel_sc, key_suffix="insp")
 
         # -------------------------------------------------
@@ -2181,16 +2183,28 @@ with tab1:
         # Screener Section C: AI Quant Analyst Q&A Hub
         # -------------------------------------------------
         if not df_sc_disp.empty:
-            qa_target_options = [f"{r['name']} ({r['code']}) - {r.get('strategy_tag', '')}" for _, r in df_sc_disp.iterrows()]
+            opt_row_map = {}
+            qa_target_options = []
+            for _, r in df_sc_disp.iterrows():
+                raw_c = str(r.get("code", "")).strip()
+                r_code = raw_c.zfill(6) if raw_c.isdigit() else raw_c
+                r_name = str(r.get("name", "종목"))
+                r_tag = str(r.get("strategy_tag", ""))
+                opt_label = f"{r_name} ({r_code}) - {r_tag}" if r_tag else f"{r_name} ({r_code})"
+                qa_target_options.append(opt_label)
+                opt_row_map[opt_label] = r
+
             if qa_target_options:
                 st.markdown("---")
-                st.markdown("### 💬 AI 퀀트 수석 애널리스트 실시간 질의응답 (Q&A 허브)")
+                st.markdown("### AI 퀀트 수석 애널리스트 실시간 질의응답 (Q&A 허브)")
                 st.caption("스크리닝된 상승 유력 종목 중 궁금한 종목을 선택하여 왜 급등하는지, 지금 사도 되는지, 목표가/손절가 시나리오를 퀀트 전문가에게 실시간 질의하세요.")
 
                 default_qa_idx = 0
                 if "qa_selected_stock_code" in st.session_state:
+                    raw_sel = str(st.session_state["qa_selected_stock_code"]).strip()
+                    sel_target = raw_sel.zfill(6) if raw_sel.isdigit() else raw_sel
                     for idx, opt in enumerate(qa_target_options):
-                        if f"({st.session_state['qa_selected_stock_code']})" in opt:
+                        if f"({sel_target})" in opt:
                             default_qa_idx = idx
                             break
                 default_qa_idx = min(max(0, default_qa_idx), len(qa_target_options) - 1)
@@ -2205,14 +2219,23 @@ with tab1:
                     )
                 with col_qa_opt:
                     st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-                    st.caption("💡 상단 테이블 클릭 또는 카드 버튼 클릭 시 자동 연동")
+                    st.caption("[안내] 상단 테이블 클릭 또는 카드 버튼 클릭 시 자동 연동")
 
-                if qa_chosen_opt and "(" in qa_chosen_opt:
-                    qa_chosen_code = qa_chosen_opt.split("(")[-1].split(")")[0].strip()
-                    matched_rows = df_sc_disp[df_sc_disp["code"] == qa_chosen_code]
-                    if not matched_rows.empty:
-                        qa_stock_row = matched_rows.iloc[0]
-                        render_quant_analyst_qa_box(qa_stock_row, key_suffix="hub")
+                qa_stock_row = opt_row_map.get(qa_chosen_opt)
+                if qa_stock_row is None and qa_chosen_opt:
+                    import re
+                    m = re.search(r"\(([0-9A-Za-z]{6})\)", qa_chosen_opt)
+                    extracted_code = m.group(1) if m else ""
+                    if extracted_code:
+                        matched = df_sc_disp[df_sc_disp["code"].astype(str).str.zfill(6) == extracted_code]
+                        if not matched.empty:
+                            qa_stock_row = matched.iloc[0]
+
+                if qa_stock_row is None and not df_sc_disp.empty:
+                    qa_stock_row = df_sc_disp.iloc[0]
+
+                if qa_stock_row is not None:
+                    render_quant_analyst_qa_box(qa_stock_row, key_suffix="hub")
 
 # =========================================================
 # TAB 2: 관심종목 실시간 스코어보드 & 관리
