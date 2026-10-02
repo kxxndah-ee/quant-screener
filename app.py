@@ -1747,16 +1747,57 @@ with tab1:
         code = raw_code.zfill(6) if raw_code.isdigit() else raw_code
         stock_dict["code"] = code
         name = str(stock_dict.get("name") or "종목")
-        chat_key = f"quant_qa_history_{code}"
 
-        if chat_key not in st.session_state or not st.session_state[chat_key]:
-            try:
-                intro = generate_quant_expert_answer(stock_dict, "종목 종합 브리핑 및 상승 원인 요약")
-            except Exception as _e:
-                intro = f"브리핑 생성 중 일시적인 오류가 발생했습니다: {_e}"
-            st.session_state[chat_key] = [
-                {"role": "assistant", "content": intro}
-            ]
+        active_q_key = f"quant_active_q_{code}_{key_suffix}"
+        active_ans_key = f"quant_active_ans_{code}_{key_suffix}"
+        cache_key = f"quant_cache_{code}"
+        hist_key = f"quant_hist_{code}_{key_suffix}"
+
+        if cache_key not in st.session_state:
+            st.session_state[cache_key] = {}
+        if hist_key not in st.session_state:
+            st.session_state[hist_key] = []
+
+        quick_queries = {
+            "why": {
+                "label": "왜 급등하나요?",
+                "q": "왜 급등하나요? 거래량과 수급 상승 원인을 정밀 분석해줘."
+            },
+            "buy": {
+                "label": "지금 사도 되나요?",
+                "q": "지금 사도 되나요? 신규 매수 진입 적합도와 손익비를 진단해줘."
+            },
+            "tp": {
+                "label": "목표가 & 손절가",
+                "q": "목표가 & 손절가 알고리즘 권장 익절가와 스탑 가격을 알려줘."
+            },
+            "risk": {
+                "label": "리스크 팩트체크",
+                "q": "리스크 팩트체크 주의해야 할 핵심 투자 위험 요소를 알려줘."
+            },
+            "chart": {
+                "label": "차트 & 지표 진단",
+                "q": "차트 & 지표 진단 이평선과 RSI 기술적 지표를 종합 분석해줘."
+            }
+        }
+
+        # Initial answer initialization
+        if active_q_key not in st.session_state or active_ans_key not in st.session_state:
+            default_label = quick_queries["why"]["label"]
+            default_prompt = quick_queries["why"]["q"]
+            if default_prompt in st.session_state[cache_key]:
+                default_ans = st.session_state[cache_key][default_prompt]
+            else:
+                try:
+                    default_ans = generate_quant_expert_answer(stock_dict, default_prompt)
+                except Exception as _e:
+                    default_ans = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
+                st.session_state[cache_key][default_prompt] = default_ans
+
+            st.session_state[active_q_key] = default_label
+            st.session_state[active_ans_key] = default_ans
+            if not st.session_state[hist_key]:
+                st.session_state[hist_key].append({"q": default_label, "ans": default_ans})
 
         with st.container(border=True):
             hdr_c1, hdr_c2 = st.columns([3.5, 1.5])
@@ -1767,48 +1808,82 @@ with tab1:
                 rsi_v = float(stock_dict.get('rsi') or 50.0)
                 st.caption(f"전략: {stock_dict.get('strategy_tag', '')} | 스코어: {score_v:.1f}점 | 전일비 거래량: {vol_v:.1f}배 | RSI: {rsi_v:.1f}")
             with hdr_c2:
-                if st.button("대화 초기화", key=f"reset_chat_{code}_{key_suffix}", use_container_width=True):
-                    st.session_state[chat_key] = []
+                if st.button("질의 초기화", key=f"reset_chat_{code}_{key_suffix}", use_container_width=True):
+                    st.session_state[cache_key] = {}
+                    st.session_state[hist_key] = []
+                    st.session_state.pop(active_q_key, None)
+                    st.session_state.pop(active_ans_key, None)
                     st.rerun()
 
             # Quick Question Buttons (Pills)
-            st.markdown("<div style='font-size:0.82rem; font-weight:600; color:#475569; margin-bottom:4px;'>빠른 퀀트 질의 칩 (원클릭 질문):</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size:0.82rem; font-weight:600; color:#475569; margin-bottom:4px;'>빠른 퀀트 질의 칩 (원클릭 질문 시 답변이 즉시 전환됩니다):</div>", unsafe_allow_html=True)
             q_row1_c1, q_row1_c2, q_row1_c3 = st.columns(3)
             q_row2_c1, q_row2_c2 = st.columns(2)
 
-            selected_quick_q = None
-            with q_row1_c1:
-                if st.button("왜 급등하나요?", key=f"btn_quick_why_{code}_{key_suffix}", use_container_width=True):
-                    selected_quick_q = "이 종목이 오늘 왜 급등하고 거래량이 폭발하는지 핵심 원인을 분석해줘."
-            with q_row1_c2:
-                if st.button("지금 사도 되나요?", key=f"btn_quick_buy_{code}_{key_suffix}", use_container_width=True):
-                    selected_quick_q = "지금 신규 매수 진입해도 안전한지, 추격매수 위험도와 손익비를 진단해줘."
-            with q_row1_c3:
-                if st.button("목표가 & 손절가", key=f"btn_quick_tp_{code}_{key_suffix}", use_container_width=True):
-                    selected_quick_q = "알고리즘 권장 1차 목표 익절가와 원칙 손절 기준가, 트레일링 스탑 가격을 알려줘."
-            with q_row2_c1:
-                if st.button("리스크 팩트체크", key=f"btn_quick_risk_{code}_{key_suffix}", use_container_width=True):
-                    selected_quick_q = "이 종목 진입 시 조심해야 할 고점 윗꼬리나 테마 급락 등 핵심 리스크를 알려줘."
-            with q_row2_c2:
-                if st.button("차트 & 지표 진단", key=f"btn_quick_chart_{code}_{key_suffix}", use_container_width=True):
-                    selected_quick_q = "이평선 정배열 상태, RSI 과열 여부, 거래량 수급 지표를 종합 분석해줘."
+            curr_active_q = st.session_state.get(active_q_key, quick_queries["why"]["label"])
 
-            if selected_quick_q:
-                st.session_state[chat_key].append({"role": "user", "content": selected_quick_q})
-                with st.spinner("AI 퀀트 수석 애널리스트가 수급 및 팩트를 정밀 분석 중입니다..."):
-                    try:
-                        ans = generate_quant_expert_answer(stock_dict, selected_quick_q)
-                    except Exception as _e:
-                        ans = f"분석 답변 생성 중 일시적인 오류가 발생했습니다: {_e}"
-                    st.session_state[chat_key].append({"role": "assistant", "content": ans})
+            clicked_prompt = None
+            clicked_label = None
+
+            with q_row1_c1:
+                b_type = "primary" if curr_active_q == quick_queries["why"]["label"] else "secondary"
+                if st.button(quick_queries["why"]["label"], key=f"btn_quick_why_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["why"]["q"]
+                    clicked_label = quick_queries["why"]["label"]
+
+            with q_row1_c2:
+                b_type = "primary" if curr_active_q == quick_queries["buy"]["label"] else "secondary"
+                if st.button(quick_queries["buy"]["label"], key=f"btn_quick_buy_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["buy"]["q"]
+                    clicked_label = quick_queries["buy"]["label"]
+
+            with q_row1_c3:
+                b_type = "primary" if curr_active_q == quick_queries["tp"]["label"] else "secondary"
+                if st.button(quick_queries["tp"]["label"], key=f"btn_quick_tp_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["tp"]["q"]
+                    clicked_label = quick_queries["tp"]["label"]
+
+            with q_row2_c1:
+                b_type = "primary" if curr_active_q == quick_queries["risk"]["label"] else "secondary"
+                if st.button(quick_queries["risk"]["label"], key=f"btn_quick_risk_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["risk"]["q"]
+                    clicked_label = quick_queries["risk"]["label"]
+
+            with q_row2_c2:
+                b_type = "primary" if curr_active_q == quick_queries["chart"]["label"] else "secondary"
+                if st.button(quick_queries["chart"]["label"], key=f"btn_quick_chart_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["chart"]["q"]
+                    clicked_label = quick_queries["chart"]["label"]
+
+            if clicked_prompt and clicked_label:
+                if clicked_prompt in st.session_state[cache_key]:
+                    new_ans = st.session_state[cache_key][clicked_prompt]
+                else:
+                    with st.spinner(f"AI 퀀트 수석 애널리스트가 '{clicked_label}' 항목을 정밀 분석 중입니다..."):
+                        try:
+                            new_ans = generate_quant_expert_answer(stock_dict, clicked_prompt)
+                        except Exception as _e:
+                            new_ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
+                        st.session_state[cache_key][clicked_prompt] = new_ans
+
+                st.session_state[active_q_key] = clicked_label
+                st.session_state[active_ans_key] = new_ans
+                st.session_state[hist_key].append({"q": clicked_label, "ans": new_ans})
                 st.rerun()
 
-            # Render Chat History
-            chat_box = st.container(height=360)
-            with chat_box:
-                for msg in st.session_state[chat_key]:
-                    with st.chat_message(msg["role"]):
-                        st.markdown(msg["content"])
+            # Active Answer Display
+            active_q_disp = st.session_state.get(active_q_key, quick_queries["why"]["label"])
+            active_ans_disp = st.session_state.get(active_ans_key, "")
+
+            st.markdown(
+                f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:8px 12px; border-radius:6px; border:1px solid #CBD5E1; margin-top:10px; margin-bottom:10px;'>"
+                f"선택 질의: <span style='color:#0284C7;'>{active_q_disp}</span>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+            with st.chat_message("assistant"):
+                st.markdown(active_ans_disp)
 
             # Custom Question Form
             with st.form(key=f"custom_q_form_{code}_{key_suffix}", clear_on_submit=True):
@@ -1824,14 +1899,25 @@ with tab1:
                     submitted = st.form_submit_button("질문 전송", type="primary", use_container_width=True)
 
                 if submitted and user_custom_input.strip():
-                    st.session_state[chat_key].append({"role": "user", "content": user_custom_input.strip()})
+                    c_prompt = user_custom_input.strip()
                     with st.spinner("퀀트 전문가 답변 생성 중..."):
                         try:
-                            ans = generate_quant_expert_answer(stock_dict, user_custom_input.strip())
+                            ans = generate_quant_expert_answer(stock_dict, c_prompt)
                         except Exception as _e:
-                            ans = f"분석 답변 생성 중 일시적인 오류가 발생했습니다: {_e}"
-                        st.session_state[chat_key].append({"role": "assistant", "content": ans})
+                            ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
+                    st.session_state[active_q_key] = f"직접 질문: {c_prompt}"
+                    st.session_state[active_ans_key] = ans
+                    st.session_state[hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
                     st.rerun()
+
+            # Past Question History Expander
+            if len(st.session_state[hist_key]) > 1:
+                with st.expander(f"이전 질의응답 기록 ({len(st.session_state[hist_key])}건)", expanded=False):
+                    for h_idx, h in enumerate(reversed(st.session_state[hist_key][:-1])):
+                        st.markdown(f"**[질문] {h['q']}**")
+                        st.markdown(h['ans'])
+                        if h_idx < len(st.session_state[hist_key]) - 2:
+                            st.divider()
 
     # Display Persistent Screened Results like Watchlist
     if "screened_results_df" in st.session_state and st.session_state["screened_results_df"] is not None and not st.session_state["screened_results_df"].empty:

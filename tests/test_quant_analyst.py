@@ -98,6 +98,22 @@ class TestQuantAnalyst(unittest.TestCase):
         ans_why = generate_quant_expert_answer(weird_stock, "왜 급등해?")
         self.assertIn("상승 원인", ans_why)
 
+    def test_all_five_quick_questions_unique(self):
+        prompts = [
+            ("왜 급등하나요?", "왜 급등하나요? 거래량과 수급 상승 원인을 정밀 분석해줘.", "상승 원인"),
+            ("지금 사도 되나요?", "지금 사도 되나요? 신규 매수 진입 적합도와 손익비를 진단해줘.", "신규 진입"),
+            ("목표가 & 손절가", "목표가 & 손절가 알고리즘 권장 익절가와 스탑 가격을 알려줘.", "목표가 & 손절가"),
+            ("리스크 팩트체크", "리스크 팩트체크 주의해야 할 핵심 투자 위험 요소를 알려줘.", "투자 리스크"),
+            ("차트 & 지표 진단", "차트 & 지표 진단 이평선과 RSI 기술적 지표를 종합 분석해줘.", "기술적 지표")
+        ]
+        answers = []
+        for label, prompt, expected_keyword in prompts:
+            ans = generate_quant_expert_answer(self.sample_stock, prompt)
+            self.assertIn(expected_keyword, ans, f"Prompt '{label}' should contain '{expected_keyword}'")
+            answers.append(ans)
+        self.assertEqual(len(set(answers)), 5, "All 5 questions must produce distinct answers")
+
+
 if __name__ == "__main__":
     unittest.main()
 
