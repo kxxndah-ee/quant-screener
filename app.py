@@ -1701,7 +1701,7 @@ with tab1:
     if is_worker_running:
         col_btn_run, col_btn_cancel = st.columns([3.8, 1.2])
         with col_btn_run:
-            st.button("백그라운드 스크리닝 진행 중 (다른 탭 이동 가능)...", disabled=True, use_container_width=True)
+            st.button("스크리닝 진행 중...", disabled=True, use_container_width=True)
         with col_btn_cancel:
             if st.button("작업 중단", type="secondary", use_container_width=True, key="btn_cancel_screening"):
                 sc_worker.cancel()
@@ -1717,10 +1717,6 @@ with tab1:
                 prog = cur_st["progress"]
                 stock = cur_st["current_name"]
                 st.progress(prog, text=f"전수 탐색 중 ({curr}/{tot}): {stock} (진행률 {prog*100:.1f}%)")
-                st.info(
-                    f"**[{cur_st['mode_label']}] 백그라운드 스크리닝이 안전하게 진행 중입니다.**\n\n"
-                    f"**다른 탭(2. 관심종목, 3. 워크포워드 등)이나 다른 메뉴로 이동하셔도 작업이 절대 중단되지 않고 계속 진행됩니다.**"
-                )
             elif cur_st["status"] in ("COMPLETED", "CANCELLED", "FAILED"):
                 st.rerun()
 
