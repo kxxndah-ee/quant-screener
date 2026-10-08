@@ -2098,6 +2098,12 @@ with tab1:
             df_sc_disp["reason_core"] = "설정된 퀀트 전략 기준을 모두 통과하여 선정되었습니다."
         if "reason_criteria" not in df_sc_disp.columns:
             df_sc_disp["reason_criteria"] = [[] for _ in range(len(df_sc_disp))]
+        if "open_pct" not in df_sc_disp.columns:
+            df_sc_disp["open_pct"] = df_sc_disp.get("change_pct", 0.0)
+        if "high_pct" not in df_sc_disp.columns:
+            df_sc_disp["high_pct"] = df_sc_disp.get("change_pct", 0.0)
+        if "low_pct" not in df_sc_disp.columns:
+            df_sc_disp["low_pct"] = df_sc_disp.get("change_pct", 0.0)
 
         if "장전" in sc_timing_filter:
             df_sc_disp = df_sc_disp[df_sc_disp["timing_label"].str.contains("08:00|장전", na=False)]
@@ -2135,7 +2141,8 @@ with tab1:
         elif "테이블" in sc_view_mode:
             st.caption(f"스크리닝 결과: **총 {total_sc_items:,}개** 발굴됨 (10줄 높이 고정 · 표 내부 마우스 스크롤로 전체 탐색 및 다중 체크박스 선택 지원)")
             desired_cols = [
-                "code", "name", "timing_label", "strategy_tag", "reason_summary", "market", "sector", "close", "change_pct",
+                "code", "name", "timing_label", "strategy_tag", "reason_summary", "market", "sector",
+                "close", "change_pct", "open_pct", "high_pct", "low_pct",
                 "score", "label", "tp_pct", "sl_pct", "vol_ratio", "rsi", "ma_status"
             ]
             valid_cols = [c for c in desired_cols if c in df_sc_disp.columns]
@@ -2152,7 +2159,10 @@ with tab1:
                     "market": st.column_config.TextColumn("시장", width="small"),
                     "sector": st.column_config.TextColumn("업종", width="small"),
                     "close": st.column_config.NumberColumn("현재가", format="%,d원"),
-                    "change_pct": st.column_config.NumberColumn("전일대비", format="%+.2f%%"),
+                    "change_pct": st.column_config.NumberColumn("현재가(%)", help="전일 종가 대비 현재가 등락률", format="%+.2f%%"),
+                    "open_pct": st.column_config.NumberColumn("시가(%)", help="전일 종가 대비 당일 시초가 등락률", format="%+.2f%%"),
+                    "high_pct": st.column_config.NumberColumn("고가(%)", help="전일 종가 대비 당일 최고가 등락률", format="%+.2f%%"),
+                    "low_pct": st.column_config.NumberColumn("저가(%)", help="전일 종가 대비 당일 최저가 등락률", format="%+.2f%%"),
                     "score": st.column_config.ProgressColumn("익일 스코어", min_value=0, max_value=100, format="%.1f점"),
                     "label": st.column_config.TextColumn("전망"),
                     "tp_pct": st.column_config.NumberColumn("목표익절", format="+%.1f%%"),
@@ -2294,6 +2304,10 @@ with tab1:
                     st.metric("익일 전망 스코어", f"{sel_sc['score']:.1f}점", delta=sel_sc['label'])
                 with insp_c2:
                     st.metric("현재가 / 등락률", f"{sel_sc['close']:,.0f}원", delta=f"{sel_sc['change_pct']:+.2f}%")
+                    op_v = sel_sc.get("open_pct", sel_sc["change_pct"])
+                    hp_v = sel_sc.get("high_pct", sel_sc["change_pct"])
+                    lp_v = sel_sc.get("low_pct", sel_sc["change_pct"])
+                    st.caption(f"시 {op_v:+.2f}% · 고 {hp_v:+.2f}% · 저 {lp_v:+.2f}%")
                 with insp_c3:
                     st.metric("목표 익절가", f"{target_tp_val:,.0f}원", delta=f"+{sel_sc['tp_pct']:.1f}%")
                 with insp_c4:
@@ -2353,6 +2367,10 @@ with tab1:
                         st.caption(f"{srow['market']} | {srow['sector']} | {srow['strategy_tag']}")
                         chg_c = "red" if srow["change_pct"] > 0 else ("blue" if srow["change_pct"] < 0 else "gray")
                         st.markdown(f"**{srow['close']:,.0f}원** <span style='color:{chg_c}; font-weight:600;'>{srow['change_pct']:+.2f}%</span>", unsafe_allow_html=True)
+                        op_c = srow.get("open_pct", srow["change_pct"])
+                        hp_c = srow.get("high_pct", srow["change_pct"])
+                        lp_c = srow.get("low_pct", srow["change_pct"])
+                        st.caption(f"시 {op_c:+.2f}% | 고 {hp_c:+.2f}% | 저 {lp_c:+.2f}%")
                         st.markdown(f"**스코어 {srow['score']:.1f}점** ({srow['label']})")
                         st.progress(min(1.0, max(0.0, srow["score"] / 100.0)))
                         st.caption(f"목표: +{srow['tp_pct']:.1f}% | 손절: -{srow['sl_pct']:.1f}%")

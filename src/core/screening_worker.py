@@ -234,12 +234,20 @@ class ScreeningWorker:
                         continue
 
                     close_p = float(df_stock["Close"].iloc[-1])
+                    open_p = float(df_stock["Open"].iloc[-1]) if "Open" in df_stock.columns else close_p
+                    high_p = float(df_stock["High"].iloc[-1]) if "High" in df_stock.columns else close_p
+                    low_p = float(df_stock["Low"].iloc[-1]) if "Low" in df_stock.columns else close_p
                     prev_p = float(df_stock["Close"].iloc[-2]) if len(df_stock) >= 2 else close_p
+
                     chg_pct = ((close_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
+                    open_pct = ((open_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
+                    high_pct = ((high_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
+                    low_pct = ((low_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
                     vol_p = int(df_stock["Volume"].iloc[-1])
 
                     now_dt = get_now_kst()
                     try:
+                        last_bar_dt = df_stock.index[-1]
                         last_bar_str = last_bar_dt.strftime("%Y-%m-%d") if hasattr(last_bar_dt, "strftime") else str(last_bar_dt)[:10]
                         is_today_intraday = (last_bar_str == now_dt.strftime("%Y-%m-%d") and now_dt.hour < 15)
                     except Exception:
@@ -318,6 +326,12 @@ class ScreeningWorker:
                                 "sector": sector,
                                 "close": close_p,
                                 "change_pct": chg_pct,
+                                "open_pct": open_pct,
+                                "high_pct": high_pct,
+                                "low_pct": low_pct,
+                                "open": open_p,
+                                "high": high_p,
+                                "low": low_p,
                                 "volume": vol_p,
                                 "timing_label": "장전 (주도 갭상승)",
                                 "strategy_mode": "PRE_MARKET_OPEN",
@@ -365,6 +379,12 @@ class ScreeningWorker:
                                 "sector": sector,
                                 "close": close_p,
                                 "change_pct": chg_pct,
+                                "open_pct": open_pct,
+                                "high_pct": high_pct,
+                                "low_pct": low_pct,
+                                "open": open_p,
+                                "high": high_p,
+                                "low": low_p,
                                 "volume": vol_p,
                                 "timing_label": "장전 (눌림 반등)",
                                 "strategy_mode": "PRE_MARKET_OPEN",
@@ -425,6 +445,12 @@ class ScreeningWorker:
                             "sector": sector,
                             "close": close_p,
                             "change_pct": chg_pct,
+                            "open_pct": open_pct,
+                            "high_pct": high_pct,
+                            "low_pct": low_pct,
+                            "open": open_p,
+                            "high": high_p,
+                            "low": low_p,
                             "volume": vol_p,
                             "timing_label": "장중 실시간 (09:10~14:30)",
                             "strategy_mode": "DAY_TRADE_5PCT",
@@ -477,6 +503,12 @@ class ScreeningWorker:
                             "sector": sector,
                             "close": close_p,
                             "change_pct": chg_pct,
+                            "open_pct": open_pct,
+                            "high_pct": high_pct,
+                            "low_pct": low_pct,
+                            "open": open_p,
+                            "high": high_p,
+                            "low": low_p,
                             "volume": vol_p,
                             "timing_label": "장초 (09:00 시초가)",
                             "strategy_mode": "SNIPER",
@@ -525,6 +557,12 @@ class ScreeningWorker:
                             "sector": sector,
                             "close": close_p,
                             "change_pct": chg_pct,
+                            "open_pct": open_pct,
+                            "high_pct": high_pct,
+                            "low_pct": low_pct,
+                            "open": open_p,
+                            "high": high_p,
+                            "low": low_p,
                             "volume": vol_p,
                             "timing_label": "마감 직전 (15:20 종가)",
                             "strategy_mode": "CLOSING_BET",
@@ -583,6 +621,12 @@ class ScreeningWorker:
                             "sector": sector,
                             "close": close_p,
                             "change_pct": chg_pct,
+                            "open_pct": open_pct,
+                            "high_pct": high_pct,
+                            "low_pct": low_pct,
+                            "open": open_p,
+                            "high": high_p,
+                            "low": low_p,
                             "volume": vol_p,
                             "timing_label": "마감 직전 (15:20 종가)",
                             "strategy_mode": "SURGE_5PCT",
@@ -634,6 +678,12 @@ class ScreeningWorker:
                             "sector": sector,
                             "close": close_p,
                             "change_pct": chg_pct,
+                            "open_pct": open_pct,
+                            "high_pct": high_pct,
+                            "low_pct": low_pct,
+                            "open": open_p,
+                            "high": high_p,
+                            "low": low_p,
                             "volume": vol_p,
                             "timing_label": "장초 (09:00 시초가)",
                             "strategy_mode": "NORMAL",

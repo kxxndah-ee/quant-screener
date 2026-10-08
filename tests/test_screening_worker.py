@@ -134,6 +134,13 @@ class TestScreeningWorker(unittest.TestCase):
             self.assertEqual(df_res.iloc[0]["strategy_mode"], "PRE_MARKET_OPEN")
             self.assertIn("장전시초가", df_res.iloc[0]["strategy_tag"])
             self.assertIn("장전", df_res.iloc[0]["timing_label"])
+            self.assertIn("open_pct", df_res.columns)
+            self.assertIn("high_pct", df_res.columns)
+            self.assertIn("low_pct", df_res.columns)
+            self.assertIn("change_pct", df_res.columns)
+            self.assertAlmostEqual(df_res.iloc[0]["open_pct"], ((55000 - prices[-2]) / prices[-2]) * 100.0, places=2)
+            self.assertAlmostEqual(df_res.iloc[0]["high_pct"], ((58200 - prices[-2]) / prices[-2]) * 100.0, places=2)
+            self.assertAlmostEqual(df_res.iloc[0]["low_pct"], ((54800 - prices[-2]) / prices[-2]) * 100.0, places=2)
 
 
 if __name__ == "__main__":
