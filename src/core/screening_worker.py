@@ -6,11 +6,12 @@ can navigate between tabs and menus without cancelling or interrupting the proce
 
 import time
 import threading
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 import pandas as pd
 
 from src.database.models import get_db_connection, get_now_kst
-from src.collectors.market_data import fetch_ohlcv, get_benchmark_ohlcv
+from src.collectors.market_data import fetch_ohlcv, get_benchmark_ohlcv, fetch_realtime_quotes
 from src.collectors.krx_universe import get_universe
 from src.core.scoring import evaluate_stock_latest
 from src.core.high_winrate_strategies import (
@@ -188,6 +189,10 @@ class ScreeningWorker:
             bm_ohlcv = get_benchmark_ohlcv() if ("스나이퍼" in sc_mode or "당일 단타" in sc_mode or "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode) else None
             screened_results = []
 
+            # Batch fetch real-time live quotes for sample pool to match HTS 100%
+            pool_codes = sample_pool["code"].astype(str).str.zfill(6).tolist()
+            realtime_quotes = fetch_realtime_quotes(pool_codes)
+
             # Extract specific parameters
             min_daytrade_val_b = params.get("min_daytrade_val_b", 200)
             intraday_gain_range = params.get("intraday_gain_range", (3.0, 8.5))
@@ -228,24 +233,53 @@ class ScreeningWorker:
                 market = row["market"]
 
                 try:
-                    df_stock = fetch_ohlcv(code)
+                    now_dt = get_now_kst()
+                    today_str = now_dt.strftime("%Y-%m-%d")
+                    yesterday_str = (now_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+
+                    # Synchronize real-time live quote if available
+                    rt_info = realtime_quotes.get(code)
+                    if rt_info and rt_info.get("close", 0) > 0 and (now_dt.weekday() < 5 and now_dt.hour >= 9):
+                        df_stock = fetch_ohlcv(code, end=yesterday_str)
+                        close_p = float(rt_info["close"])
+                        open_p = float(rt_info["open"])
+                        high_p = float(rt_info["high"])
+                        low_p = float(rt_info["low"])
+                        prev_p = float(rt_info["prev_close"])
+                        chg_pct = float(rt_info["change_pct"])
+                        open_pct = float(rt_info["open_pct"])
+                        high_pct = float(rt_info["high_pct"])
+                        low_pct = float(rt_info["low_pct"])
+                        vol_p = int(rt_info["volume"])
+
+                        # Inject live quote into latest bar of df_stock for technical indicators
+                        today_dt = pd.to_datetime(rt_info.get("date") or today_str)
+                        df_live_bar = pd.DataFrame([{
+                            "Open": open_p, "High": high_p, "Low": low_p, "Close": close_p, "Volume": vol_p, "Change": chg_pct / 100.0
+                        }], index=[today_dt])
+                        df_stock = pd.concat([df_stock, df_live_bar])
+                    else:
+                        df_stock = fetch_ohlcv(code)
+                        min_bars = 1 if ("당일 단타" in sc_mode or "5% 급등" in sc_mode or "종가배팅" in sc_mode) else 20
+                        if df_stock.empty or len(df_stock) < min_bars:
+                            continue
+
+                        close_p = float(df_stock["Close"].iloc[-1])
+                        open_p = float(df_stock["Open"].iloc[-1]) if "Open" in df_stock.columns else close_p
+                        high_p = float(df_stock["High"].iloc[-1]) if "High" in df_stock.columns else close_p
+                        low_p = float(df_stock["Low"].iloc[-1]) if "Low" in df_stock.columns else close_p
+                        prev_p = float(df_stock["Close"].iloc[-2]) if len(df_stock) >= 2 else close_p
+
+                        chg_pct = ((close_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
+                        open_pct = ((open_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
+                        high_pct = ((high_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
+                        low_pct = ((low_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
+                        vol_p = int(df_stock["Volume"].iloc[-1])
+
                     min_bars = 1 if ("당일 단타" in sc_mode or "5% 급등" in sc_mode or "종가배팅" in sc_mode) else 20
                     if df_stock.empty or len(df_stock) < min_bars:
                         continue
 
-                    close_p = float(df_stock["Close"].iloc[-1])
-                    open_p = float(df_stock["Open"].iloc[-1]) if "Open" in df_stock.columns else close_p
-                    high_p = float(df_stock["High"].iloc[-1]) if "High" in df_stock.columns else close_p
-                    low_p = float(df_stock["Low"].iloc[-1]) if "Low" in df_stock.columns else close_p
-                    prev_p = float(df_stock["Close"].iloc[-2]) if len(df_stock) >= 2 else close_p
-
-                    chg_pct = ((close_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
-                    open_pct = ((open_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
-                    high_pct = ((high_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
-                    low_pct = ((low_p - prev_p) / prev_p) * 100.0 if prev_p > 0 else 0.0
-                    vol_p = int(df_stock["Volume"].iloc[-1])
-
-                    now_dt = get_now_kst()
                     try:
                         last_bar_dt = df_stock.index[-1]
                         last_bar_str = last_bar_dt.strftime("%Y-%m-%d") if hasattr(last_bar_dt, "strftime") else str(last_bar_dt)[:10]

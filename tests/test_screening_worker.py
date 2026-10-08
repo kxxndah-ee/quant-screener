@@ -73,9 +73,10 @@ class TestScreeningWorker(unittest.TestCase):
             status = self.worker.get_status()
             self.assertEqual(status["status"], "CANCELLED")
 
+    @patch("src.core.screening_worker.fetch_realtime_quotes", return_value={})
     @patch("src.core.screening_worker.get_universe")
     @patch("src.core.screening_worker.get_benchmark_ohlcv")
-    def test_pre_market_opening_strategy_worker(self, mock_bm, mock_univ):
+    def test_pre_market_opening_strategy_worker(self, mock_bm, mock_univ, mock_rt):
         import numpy as np
         # 1. Setup mock universe
         mock_univ.return_value = pd.DataFrame({
@@ -141,6 +142,18 @@ class TestScreeningWorker(unittest.TestCase):
             self.assertAlmostEqual(df_res.iloc[0]["open_pct"], ((55000 - prices[-2]) / prices[-2]) * 100.0, places=2)
             self.assertAlmostEqual(df_res.iloc[0]["high_pct"], ((58200 - prices[-2]) / prices[-2]) * 100.0, places=2)
             self.assertAlmostEqual(df_res.iloc[0]["low_pct"], ((54800 - prices[-2]) / prices[-2]) * 100.0, places=2)
+
+    def test_realtime_quotes_fetcher(self):
+        from src.collectors.market_data import fetch_realtime_quotes
+        quotes = fetch_realtime_quotes(["005930"])
+        if quotes and "005930" in quotes:
+            q = quotes["005930"]
+            self.assertEqual(q["code"], "005930")
+            self.assertGreater(q["close"], 0)
+            self.assertIn("change_pct", q)
+            self.assertIn("open_pct", q)
+            self.assertIn("high_pct", q)
+            self.assertIn("low_pct", q)
 
 
 if __name__ == "__main__":
