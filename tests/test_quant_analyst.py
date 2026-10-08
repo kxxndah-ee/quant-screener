@@ -116,7 +116,7 @@ class TestQuantAnalyst(unittest.TestCase):
     def test_pre_market_opening_strategy_qa(self):
         pre_stock = dict(self.sample_stock)
         pre_stock["strategy_tag"] = "장전시초가 (주도 갭상승)"
-        pre_stock["timing_label"] = "08:00~09:00 (주도 갭상승)"
+        pre_stock["timing_label"] = "장전 (주도 갭상승)"
         ans = generate_quant_expert_answer(pre_stock, "지금 사도 되나요?")
         self.assertIn("장전 시초가", ans)
         self.assertIn("08:00~08:50", ans)

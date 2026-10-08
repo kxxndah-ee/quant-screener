@@ -112,7 +112,7 @@ class TestScreeningWorker(unittest.TestCase):
 
         with patch("src.core.screening_worker.fetch_ohlcv", return_value=df_lead):
             started = self.worker.start_screening({
-                "sc_mode": "08:00~09:00 장전 시초가 공략 (눌림 반등 + 주도 갭상승)",
+                "sc_mode": "장전 시초가 공략 (눌림 반등 + 주도 갭상승)",
                 "sc_scope": "전수조사",
                 "target_market": "전체",
                 "min_val_krw_b": 100,
@@ -133,7 +133,7 @@ class TestScreeningWorker(unittest.TestCase):
             self.assertEqual(df_res.iloc[0]["code"], "005930")
             self.assertEqual(df_res.iloc[0]["strategy_mode"], "PRE_MARKET_OPEN")
             self.assertIn("장전시초가", df_res.iloc[0]["strategy_tag"])
-            self.assertIn("08:00~09:00", df_res.iloc[0]["timing_label"])
+            self.assertIn("장전", df_res.iloc[0]["timing_label"])
 
 
 if __name__ == "__main__":
