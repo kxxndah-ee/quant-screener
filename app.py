@@ -1130,8 +1130,9 @@ tab1, tab2, tab3 = st.tabs(main_tab_names, key="main_active_tab_nav")
 # =========================================================
 with tab1:
     sc_mode = st.radio(
-        "스크리닝 전략 모드 선택 (아래 5개 중 1개 선택)",
+        "스크리닝 전략 모드 선택 (아래 6개 중 1개 선택)",
         [
+            "08:00~09:00 장전 시초가 공략 (눌림 반등 + 주도 갭상승)",
             "실시간 당일 단타 (5% 익절)",
             "스나이퍼 고확신 (눌림목 반등)",
             "5% 급등 타겟 (1~2일 스윙)",
@@ -1146,7 +1147,9 @@ with tab1:
         st.session_state["screened_results_df"] = st.session_state["screened_cache_by_mode"][sc_mode]
         st.session_state["screened_mode_label"] = sc_mode
 
-    if "당일 단타" in sc_mode:
+    if "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode:
+        m_tag = '<span style="color:#0D9488; font-weight:700;">[08:00~09:00 장전 시초가]</span> 정규장 개장 전 08:00~09:00 집중 분석 · 20일선 첫 눌림목 반등 + 어제 800억~1,000억+ 폭발 주도 대장주 시초 갭상승 복합 공략 (TP +2.5%~+4.0% / SL -2.0%~-2.5%)'
+    elif "당일 단타" in sc_mode:
         m_tag = '<span style="color:#0284C7; font-weight:700;">[실시간 당일 단타]</span> 장중 09:10~14:30 수급 폭발 주도주 포착 · 당일 +5.0% 익절 / 15:15 미도달 시 종가 전량 청산 (No Overnight)'
     elif "스나이퍼" in sc_mode:
         m_tag = '<span style="color:#059669; font-weight:700;">[스나이퍼 고확신]</span> 오전 09:00 시초가 진입 · 20일선 첫 눌림목 반등 공략 (익절 +1.2% / 손절 -2.0% 엄수, 승률 80% 타겟)'
@@ -1165,7 +1168,44 @@ with tab1:
             dt = get_now_kst()
         cur_hm = dt.hour * 100 + dt.minute
 
-        if "당일 단타" in strategy_mode:
+        if "장전 시초가" in strategy_mode or "08:00~09:00" in strategy_mode:
+            if 800 <= cur_hm < 900:
+                return {
+                    "slot_name": "08:00 ~ 09:00 [장전 시초가 공략 분석]",
+                    "slot_id": "pre_slot_0",
+                    "highlight_idx": 0,
+                    "val": 100,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "20일평균 100억↑ 눌림목 & 어제 800억~1,000억↑ 주도 갭상승",
+                    "tip": "전일 확정 데이터 기반 09:00 시초가 진입 타겟 사전 압축",
+                    "params": {"min_val_krw_b": 100, "max_disparity_val": 103.5, "ignore_market_filter": False}
+                }
+            elif 900 <= cur_hm < 930:
+                return {
+                    "slot_name": "09:00 ~ 09:30 [시초 체결 & 갭 검증]",
+                    "slot_id": "pre_slot_1",
+                    "highlight_idx": 1,
+                    "val": 100,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "눌림목(갭 -1.5%~+1.5%) / 주도주(갭 +1.5%~+4.5%)",
+                    "tip": "+5.0% 초과 과도한 갭상승 종목은 뇌동매매 진입 금지",
+                    "params": {"min_val_krw_b": 100, "max_disparity_val": 103.5, "ignore_market_filter": False}
+                }
+            else:
+                return {
+                    "slot_name": "장외/장마감 후 [익일 08:00 시초가 후보 사전 준비]",
+                    "slot_id": "pre_slot_off",
+                    "highlight_idx": 0,
+                    "val": 100,
+                    "gain": (0, 0),
+                    "vol": 1.0,
+                    "badge_desc": "20일평균 100억↑ 눌림 & 주도 대장주",
+                    "tip": "내일 오전 8시 분석을 위한 후보군 사전 점검",
+                    "params": {"min_val_krw_b": 100, "max_disparity_val": 103.5, "ignore_market_filter": False}
+                }
+        elif "당일 단타" in strategy_mode:
             if 910 <= cur_hm < 940:
                 return {
                     "slot_name": "09:10 ~ 09:40 [장초반 수급 집중]",
@@ -1394,7 +1434,32 @@ with tab1:
             key="g_guide_view_radio"
         )
         if "핵심 원칙" in g_guide_mode:
-            if "당일 단타" in sc_mode:
+            if "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode:
+                bm_ohlcv = get_benchmark_ohlcv()
+                mkt_ok, mkt_msg, mkt_meta = evaluate_market_regime(bm_ohlcv)
+                mkt_color = "#059669" if mkt_ok else "#D97706"
+                mkt_bg = "#ECFDF5" if mkt_ok else "#FFFBEB"
+                mkt_border = "#A7F3D0" if mkt_ok else "#FDE68A"
+                mkt_txt = "장전 시초가 공략 신규 매수가 적극 허용됩니다." if mkt_ok else "지수 하락/조정장 주의: 눌림목 반등 위주 선별 및 비중 조절 권장"
+                st.markdown(
+                    f'<div style="font-size:0.78rem; line-height:1.45; color:{mkt_color}; background:{mkt_bg}; border:1px solid {mkt_border}; border-radius:5px; padding:6px 10px; margin-bottom:8px;">'
+                    f'<strong>[시장 체제 점검]</strong> KODEX 200 20일선 기준: {mkt_txt} ({mkt_msg})'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                st.markdown(
+                    """
+<div style="font-size:0.78rem; line-height:1.45; color:#334155; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:10px 12px;">
+<div style="font-size:0.84rem; font-weight:700; color:#1E293B; margin-bottom:6px;">[08:00~09:00 장전 시초가 공략 모드] 핵심 원칙 (눌림 반등 + 주도 갭상승 복합)</div>
+• <strong>분석 시점</strong>: 매일 아침 08:00 ~ 08:50 (정규장 개장 전 전일 확정 데이터 기반 100% 안전 분석)<br>
+• <strong>트랙 1 (20일선 눌림목 반등)</strong>: 20일 일평균 거래대금 100억↑ & 20일선 이격도 98%~103.5% 첫 지지 반등 우량주 (시초 갭 -1.5%~+1.5% 진입, 익절 +2.5% / 손절 -2.0%)<br>
+• <strong>트랙 2 (주도 대장주 갭상승)</strong>: 전일 거래대금 800억~1,000억↑ 폭발 & 고가 마감 최상위 1등주 (동시호가 +1.5%~+4.5% 적정 갭 확인 후 시초가 진입, 익절 +4.0% / 손절 -2.5%)<br>
+• <strong>뇌동매매 방지</strong>: +5.0% 초과 과도한 갭상승 출발 종목은 장초반 차익 매물 위험으로 절대 추격 매수 금지
+</div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            elif "당일 단타" in sc_mode:
                 bm_ohlcv = get_benchmark_ohlcv()
                 mkt_ok, mkt_msg, mkt_meta = evaluate_market_regime(bm_ohlcv)
                 mkt_color = "#059669" if mkt_ok else "#D97706"
@@ -1485,7 +1550,20 @@ with tab1:
 
         else:
             active_tag = ' <span style="color:#0F172A; font-weight:700; font-size:0.68rem; background:#E2E8F0; padding:1px 5px; border-radius:4px; border:1px solid #94A3B8;">▶ 현재 자동 세팅됨</span>'
-            if "당일 단타" in sc_mode:
+            if "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode:
+                p0_t = active_tag if rec_time["highlight_idx"] == 0 else ""
+                p1_t = active_tag if rec_time["highlight_idx"] == 1 else ""
+                st.markdown(
+                    f"""
+| 분석/실행 시점 | 데이터 기준 | 권장 설정값 (20일 평균 대금) | 매매 행동 요령 & 주의사항 |
+| :--- | :--- | :--- | :--- |
+| **08:00 ~ 08:50**{p0_t}<br>(장전 집중 분석) | **전일 확정 데이터 기반 우량 눌림목 & 주도 대장주** | **100억 원 이상** | 20일선 눌림목 반등 후보 + 어제 800억~1,000억+ 폭발 주도 대장주 사전 압축 |
+| **08:40 ~ 09:00**<br>(동시호가 갭 검증) | **동시호가 예상체결가 & 예상 갭비율** | **눌림목(-1.5%~+1.5%) / 주도주(+1.5%~+4.5%)** | 주도주는 +1.5%~+4.5% 적정 갭 확인 후 시초가 주문, +5% 초과 과열 갭은 진입 금지 |
+| **09:00 ~ 09:30**{p1_t}<br>(시초 체결 & 익절) | **장초반 시세 체결 및 자동 분할 매도** | **눌림목 +2.5% / 주도주 +4.0%** | 시초가 체결 즉시 MTS 자동 감시 주문(스탑로스 -2.0%~-2.5%) 등록 필수 |
+                    """,
+                    unsafe_allow_html=True
+                )
+            elif "당일 단타" in sc_mode:
                 r0_t = active_tag if rec_time["highlight_idx"] == 0 else ""
                 r1_t = active_tag if rec_time["highlight_idx"] == 1 else ""
                 r2_t = active_tag if rec_time["highlight_idx"] == 2 else ""
@@ -1621,7 +1699,7 @@ with tab1:
                 help="권장 설정: 최소 0.5배(50%) 이상 | 거래량 폭발 대장주 0.8배 이상",
                 key="sc_min_daytrade_vol_ratio"
             )
-    elif "스나이퍼" in sc_mode:
+    elif "스나이퍼" in sc_mode or "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode:
         with sc_c3:
             cur_snp_val = st.session_state.get("sc_min_val_krw_b", 100)
             snp_options = [50, 100, 150, 200, 300]
@@ -1732,16 +1810,16 @@ with tab1:
                 "min_daytrade_val_b": min_daytrade_val_b if "당일 단타" in sc_mode else 100,
                 "intraday_gain_range": intraday_gain_range if "당일 단타" in sc_mode else (2.5, 12.0),
                 "min_daytrade_vol_ratio": min_daytrade_vol_ratio if "당일 단타" in sc_mode else 0.5,
-                "min_val_krw_b": min_val_krw_b if "스나이퍼" in sc_mode else 100,
-                "max_disparity_val": max_disparity_val if "스나이퍼" in sc_mode else 103.5,
-                "ignore_market_filter": ignore_market_filter if "스나이퍼" in sc_mode else False,
+                "min_val_krw_b": min_val_krw_b if ("스나이퍼" in sc_mode or "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode) else 100,
+                "max_disparity_val": max_disparity_val if ("스나이퍼" in sc_mode or "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode) else 103.5,
+                "ignore_market_filter": ignore_market_filter if ("스나이퍼" in sc_mode or "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode) else False,
                 "min_today_val_b": min_today_val_b if "종가배팅" in sc_mode else 200,
                 "min_day_ret_val": min_day_ret_val if "종가배팅" in sc_mode else 3.0,
                 "min_surge_val_b": min_surge_val_b if ("5% 급등" in sc_mode or "5% 돌파" in sc_mode) else 200,
                 "min_day_surge_pct": min_day_surge_pct if ("5% 급등" in sc_mode or "5% 돌파" in sc_mode) else 8.0,
-                "min_screener_score": min_screener_score if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else 65.0,
-                "min_vol_surge": min_vol_surge if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else 1.5,
-                "require_ma_align": require_ma_align if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else True,
+                "min_screener_score": min_screener_score if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "장전 시초가" not in sc_mode and "08:00~09:00" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else 65.0,
+                "min_vol_surge": min_vol_surge if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "장전 시초가" not in sc_mode and "08:00~09:00" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else 1.5,
+                "require_ma_align": require_ma_align if ("당일 단타" not in sc_mode and "스나이퍼" not in sc_mode and "장전 시초가" not in sc_mode and "08:00~09:00" not in sc_mode and "종가배팅" not in sc_mode and "5% 급등" not in sc_mode and "5% 돌파" not in sc_mode) else True,
             }
             sc_worker.start_screening(params)
             st.rerun()
@@ -1989,6 +2067,7 @@ with tab1:
                 "매수 타이밍 분류 필터",
                 [
                     "전체 타이밍",
+                    "장전 (08:00~09:00 시초가) 공략 후보",
                     "장중 실시간 (09:10~14:30) 당일단타 후보",
                     "장초 (09:00 시초가) 스나이퍼 후보",
                     "마감 직전 (15:20 종가) 5%급등 후보"
@@ -2020,7 +2099,9 @@ with tab1:
         if "reason_criteria" not in df_sc_disp.columns:
             df_sc_disp["reason_criteria"] = [[] for _ in range(len(df_sc_disp))]
 
-        if "장중 실시간" in sc_timing_filter:
+        if "장전" in sc_timing_filter:
+            df_sc_disp = df_sc_disp[df_sc_disp["timing_label"].str.contains("08:00|장전", na=False)]
+        elif "장중 실시간" in sc_timing_filter:
             df_sc_disp = df_sc_disp[df_sc_disp["timing_label"].str.contains("장중|09:10", na=False)]
         elif "장초 (09:00" in sc_timing_filter:
             df_sc_disp = df_sc_disp[df_sc_disp["timing_label"].str.contains("09:00", na=False)]
@@ -2186,7 +2267,15 @@ with tab1:
                 target_tp_val = sel_sc["close"] * (1.0 + sel_sc["tp_pct"] / 100.0)
                 target_sl_val = sel_sc["close"] * (1.0 - sel_sc["sl_pct"] / 100.0)
 
-                if "장중" in timing_val or "09:10" in timing_val:
+                if "08:00" in timing_val or "장전" in timing_val:
+                    st.success(
+                        f"**[08:00~09:00 장전 시초가 공략: {sel_sc.get('strategy_tag', '')}]**\n\n"
+                        f"• **장전 후보 압축 (08:00~08:50)**: 전일 확정 데이터 기준 눌림목 반등 및 주도 대장주 선별 완료\n\n"
+                        f"• **동시호가 갭 확인 (08:40~09:00)**: 예상 체결가 갭 점검 (눌림목 -1.5%~+1.5% / 주도주 +1.5%~+4.5% 적정 갭 확인 후 시초가 주문, +5% 초과 과열 시 진입 금지)\n\n"
+                        f"• **목표 익절가**: **{target_tp_val:,.0f}원 (+{sel_sc['tp_pct']:.1f}%)** 도달 시 자동 분할 익절\n\n"
+                        f"• **원칙 손절가**: **{target_sl_val:,.0f}원 (-{sel_sc['sl_pct']:.1f}%)** 이탈 시 즉시 기계적 손절"
+                    )
+                elif "장중" in timing_val or "09:10" in timing_val:
                     st.success(
                         f"**[실시간 당일단타 5% 돌파 모드: 현재 분석 시점 진입 기준]**\n\n"
                         f"• **진입 기준가 (현재 체결가)**: **{sel_sc['close']:,.0f}원** (분석 요청 시점 기준)\n\n"

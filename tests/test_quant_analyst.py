@@ -113,6 +113,15 @@ class TestQuantAnalyst(unittest.TestCase):
             answers.append(ans)
         self.assertEqual(len(set(answers)), 5, "All 5 questions must produce distinct answers")
 
+    def test_pre_market_opening_strategy_qa(self):
+        pre_stock = dict(self.sample_stock)
+        pre_stock["strategy_tag"] = "장전시초가 (주도 갭상승)"
+        pre_stock["timing_label"] = "08:00~09:00 (주도 갭상승)"
+        ans = generate_quant_expert_answer(pre_stock, "지금 사도 되나요?")
+        self.assertIn("장전 시초가", ans)
+        self.assertIn("08:00~08:50", ans)
+        self.assertIn("동시호가", ans)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -185,7 +185,7 @@ class ScreeningWorker:
                 self._state["total_count"] = total_pool_cnt
 
             # 3. Strategy setup & benchmark
-            bm_ohlcv = get_benchmark_ohlcv() if ("스나이퍼" in sc_mode or "당일 단타" in sc_mode) else None
+            bm_ohlcv = get_benchmark_ohlcv() if ("스나이퍼" in sc_mode or "당일 단타" in sc_mode or "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode) else None
             screened_results = []
 
             # Extract specific parameters
@@ -246,7 +246,148 @@ class ScreeningWorker:
                         is_today_intraday = False
                     df_snp_eval = df_stock.iloc[:-1] if is_today_intraday and len(df_stock) >= 31 else df_stock
 
-                    if "당일 단타" in sc_mode:
+                    if "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode:
+                        bm_for_eval = None if ignore_market_filter else bm_ohlcv
+
+                        # 트랙 1: 20일선 눌림목 첫 반등 (Pullback Rebound)
+                        snp = evaluate_sniper_candidate(df_snp_eval, df_benchmark=bm_for_eval, min_daily_val_krw=min_val_krw_b * 100_000_000)
+                        is_pullback_cand = False
+                        if snp and snp["metrics"]["disparity"] <= max_disparity_val:
+                            is_pullback_cand = True
+
+                        # 트랙 2: 전일 대규모 거래대금 폭발 주도 대장주 (Top Trading Value Breakout)
+                        df_eval_lead = df_snp_eval
+                        is_lead_gap_cand = False
+                        lead_metrics = {}
+                        if len(df_eval_lead) >= 20:
+                            c_last = float(df_eval_lead["Close"].iloc[-1])
+                            c_prev = float(df_eval_lead["Close"].iloc[-2]) if len(df_eval_lead) >= 2 else c_last
+                            h_last = float(df_eval_lead["High"].iloc[-1])
+                            l_last = float(df_eval_lead["Low"].iloc[-1])
+                            v_last = float(df_eval_lead["Volume"].iloc[-1])
+
+                            yesterday_val_krw = c_last * v_last
+                            yesterday_val_b = yesterday_val_krw / 100_000_000.0
+
+                            ma5 = float(df_eval_lead["Close"].tail(5).mean())
+                            ma20 = float(df_eval_lead["Close"].tail(20).mean())
+                            vol20_avg = float(df_eval_lead["Volume"].tail(20).mean())
+                            vol_ratio = (v_last / vol20_avg) if vol20_avg > 0 else 1.0
+
+                            day_ret_pct = ((c_last - c_prev) / c_prev) * 100.0 if c_prev > 0 else 0.0
+                            high_close_ratio = ((c_last - l_last) / (h_last - l_last) * 100.0) if (h_last - l_last) > 0 else 100.0
+
+                            lead_val_threshold = max(500.0, float(min_val_krw_b) * 5.0)
+                            if yesterday_val_b >= lead_val_threshold and day_ret_pct >= 3.5 and high_close_ratio >= 70.0 and c_last >= ma5 and ma5 >= ma20:
+                                is_lead_gap_cand = True
+                                lead_metrics = {
+                                    "val_b": yesterday_val_b,
+                                    "ret_pct": day_ret_pct,
+                                    "hc_ratio": high_close_ratio,
+                                    "vol_ratio": vol_ratio,
+                                    "ma5": ma5,
+                                    "ma20": ma20
+                                }
+
+                        if not is_pullback_cand and not is_lead_gap_cand:
+                            continue
+
+                        # Dual-track priority
+                        if is_lead_gap_cand and (not is_pullback_cand or lead_metrics.get("val_b", 0) >= 1200.0):
+                            val_b = lead_metrics["val_b"]
+                            ret_p = lead_metrics["ret_pct"]
+                            hc_r = lead_metrics["hc_ratio"]
+                            vr = lead_metrics["vol_ratio"]
+                            lead_score = min(98.0, 78.0 + min(12.0, val_b / 250.0) + min(8.0, ret_p / 2.0))
+
+                            reason_summary = f"[주도 갭상승] 전일대금 {val_b:,.0f}억 폭발 | 종가 +{ret_p:.1f}% 고가마감 | 거래량 {vr:.1f}배"
+                            reason_core = "전일 대규모 주도 거래대금을 분출하며 일봉 최고가권으로 마감한 시장 1등 대장주입니다. 장전 08:00~08:50 동시호가 예상체결가 점검 후 09:00 시초가 적정 갭상승(+1.5%~+4.5%) 출발 시 장초반 강력한 2차 슈팅 파동을 타겟합니다."
+                            reason_criteria = [
+                                f"전일 거래대금 {val_b:,.0f}억 원 폭발 (기준 {lead_val_threshold:,.0f}억 원 이상 시장 주도 수급)",
+                                f"전일 종가상승률 +{ret_p:.1f}% 장대양봉 마감 (강력한 단기 상승 탄력)",
+                                f"고점 지지율 {hc_r:.1f}% (윗꼬리 적은 마루보즈형 종가 관리 매수세 확인)",
+                                "이평선 정배열 (종가 > 5일선 > 20일선 단기 정배열 유지)",
+                                "장전 시초가 체결 원칙: 예상 갭 +1.5% ~ +4.5% 적정 갭 확인 후 진입 (+5% 초과 과열 시 진입 금지)",
+                                "목표 익절 +4.0% / 원칙 손절 -2.5% 자동 스탑로스"
+                            ]
+
+                            screened_results.append({
+                                "code": code,
+                                "name": name,
+                                "market": market,
+                                "sector": sector,
+                                "close": close_p,
+                                "change_pct": chg_pct,
+                                "volume": vol_p,
+                                "timing_label": "08:00~09:00 (주도 갭상승)",
+                                "strategy_mode": "PRE_MARKET_OPEN",
+                                "strategy_tag": "장전시초가 (주도 갭상승)",
+                                "score": lead_score,
+                                "label": "강력 주도주" if lead_score >= 88 else "우량 주도주",
+                                "tp_pct": 4.0,
+                                "sl_pct": 2.5,
+                                "vol_ratio": vr,
+                                "rsi": 68.0,
+                                "ma_status": "5·20일선 정배열 대장주",
+                                "rule_note": "08:00~08:50 분석 완료 -> 09:00 적정 갭상승(+1.5%~+4.5%) 시초가 진입 -> 슈팅 시 +4.0% 분할 익절",
+                                "reason_summary": reason_summary,
+                                "reason_core": reason_core,
+                                "reason_criteria": reason_criteria,
+                                "breakdown": {
+                                    "rsi_val": 68.0,
+                                    "ma_status": "주도 대장주 장대양봉",
+                                    "vol_ratio": vr,
+                                    "bb_pct": hc_r / 100.0
+                                }
+                            })
+                        else:
+                            m_snp = snp["metrics"]
+                            disp_val = m_snp.get("disparity", 100.0)
+                            avg_val_b = m_snp.get("avg_trading_val_억", 0)
+                            rsi_val = m_snp.get("rsi", 50.0)
+                            vol_r_val = m_snp.get("vol_ratio", 1.0)
+
+                            reason_summary = f"[눌림 반등] 20일선 이격도 {disp_val:.1f}% 지지 | 20일평균 대금 {avg_val_b:,.0f}억 | RSI {rsi_val:.1f}"
+                            reason_core = "전일 확정 데이터 기준 20일 이동평균선 눌림목 첫 지지 반등이 검증된 풍부한 유동성의 우량주입니다. 08:00~08:50 후보 압축 후 09:00 시초가 보합권(-1.5%~+1.5%) 진입 시 안정적인 승률과 손익비를 목표로 합니다."
+                            reason_criteria = [
+                                "KODEX 200 지수 추세 필터 통과 (시스템적 하락장 차단)" if not ignore_market_filter else "개별 종목 기술적 지표 단독 검증",
+                                f"20일 일평균 거래대금 {avg_val_b:,.0f}억 원 (기준 {min_val_krw_b}억 원 이상 충족)",
+                                f"20일선 이격도 {disp_val:.1f}% (설정 기준 98.0% ~ {max_disparity_val:.1f}% 내 20일선 지지 반등)",
+                                f"RSI(14) {rsi_val:.1f} (에너지 응축 건전한 반등 구간)",
+                                "장전 시초가 체결 원칙: 시초가 갭 -1.5% ~ +1.5% 적정 보합권 진입 (+1.5% 초과 갭상승 시 진입 금지)",
+                                "목표 익절 +2.5% / 원칙 손절 -2.0% 자동 스탑로스"
+                            ]
+
+                            screened_results.append({
+                                "code": code,
+                                "name": name,
+                                "market": market,
+                                "sector": sector,
+                                "close": close_p,
+                                "change_pct": chg_pct,
+                                "volume": vol_p,
+                                "timing_label": "08:00~09:00 (눌림 반등)",
+                                "strategy_mode": "PRE_MARKET_OPEN",
+                                "strategy_tag": "장전시초가 (눌림 반등)",
+                                "score": snp["score"],
+                                "label": snp["label"],
+                                "tp_pct": 2.5,
+                                "sl_pct": 2.0,
+                                "vol_ratio": vol_r_val,
+                                "rsi": rsi_val,
+                                "ma_status": m_snp.get("ma_status", "20일선 지지"),
+                                "rule_note": "08:00~08:50 후보 압축 -> 09:00 시초가 갭(-1.5%~+1.5%) 진입 -> 익절 +2.5% / 손절 -2.0%",
+                                "reason_summary": reason_summary,
+                                "reason_core": reason_core,
+                                "reason_criteria": reason_criteria,
+                                "breakdown": {
+                                    "rsi_val": rsi_val,
+                                    "ma_status": "20일선 지지 첫반등",
+                                    "vol_ratio": vol_r_val,
+                                    "bb_pct": 0.5
+                                }
+                            })
+                    elif "당일 단타" in sc_mode:
                         dtrade = evaluate_intraday_daytrade_candidate(
                             df_stock,
                             df_benchmark=bm_ohlcv,
