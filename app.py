@@ -250,23 +250,63 @@ st.markdown("""
         margin-top: 2px !important;
         margin-bottom: 3px !important;
     }
+    /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (명확한 시각적 구분) */
     div[data-testid="stTabs"] {
         margin-top: 0px !important;
-        margin-bottom: 8px !important;
+        margin-bottom: 12px !important;
     }
     div[data-baseweb="tab-list"] {
-        gap: 6px !important;
+        gap: 8px !important;
+        background: #F1F5F9 !important;
+        padding: 6px !important;
+        border-radius: 8px !important;
+        border: 1px solid #CBD5E1 !important;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: stretch !important;
     }
+    /* 기본 언더라인 제거 */
+    div[data-baseweb="tab-highlight"],
+    div[data-baseweb="tab-border"] {
+        display: none !important;
+    }
+    /* 비활성 탭: 독립된 화이트 카드 버튼과 테두리 */
     button[data-baseweb="tab"] {
-        font-size: 0.86rem !important;
+        flex: 1 1 0px !important;
+        text-align: center !important;
+        font-size: 0.88rem !important;
         font-weight: 600 !important;
-        padding: 4px 14px !important;
-        color: #64748B !important;
+        padding: 8px 12px !important;
+        background: #FFFFFF !important;
+        color: #334155 !important;
+        border: 1px solid #CBD5E1 !important;
+        border-radius: 6px !important;
+        transition: all 0.15s ease-in-out !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+        cursor: pointer !important;
     }
-    button[data-baseweb="tab"][aria-selected="true"] {
+    button[data-baseweb="tab"] * {
+        color: inherit !important;
+        font-weight: inherit !important;
+    }
+    /* 비활성 탭 호버 효과 */
+    button[data-baseweb="tab"]:hover {
+        background: #F8FAFC !important;
+        border-color: #94A3B8 !important;
         color: #0F172A !important;
-        font-weight: 700 !important;
-        border-bottom: 2px solid #475569 !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06) !important;
+    }
+    /* 활성 탭: 짙은 네이비 배경에 순백색 텍스트로 즉각적인 구별 */
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background: #1E293B !important;
+        color: #FFFFFF !important;
+        font-weight: 800 !important;
+        border: 1px solid #0F172A !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.20) !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] * {
+        color: #FFFFFF !important;
+        font-weight: 800 !important;
     }
     .stMarkdown table {
         font-size: 0.78rem !important;
