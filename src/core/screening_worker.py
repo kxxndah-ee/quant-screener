@@ -11,7 +11,12 @@ from typing import Dict, Any, Optional, List
 import pandas as pd
 
 from src.database.models import get_db_connection, get_now_kst
-from src.collectors.market_data import fetch_ohlcv, get_benchmark_ohlcv, fetch_realtime_quotes
+from src.collectors.market_data import (
+    fetch_ohlcv,
+    get_benchmark_ohlcv,
+    fetch_realtime_quotes,
+    get_last_completed_trading_day
+)
 from src.collectors.krx_universe import get_universe
 from src.core.scoring import evaluate_stock_latest
 from src.core.high_winrate_strategies import (
@@ -20,6 +25,42 @@ from src.core.high_winrate_strategies import (
     evaluate_5pct_surge_candidate,
     evaluate_intraday_daytrade_candidate
 )
+
+
+def _fetch_live_market_leader_codes(target_market: str = "ALL") -> List[str]:
+    """
+    Fetches real-time market cap, volume, and surging leader codes from Naver mobile API.
+    Returns prioritized list of 6-digit stock codes (surging stocks first, then trading value leaders).
+    """
+    import requests
+    headers = {"User-Agent": "Mozilla/5.0"}
+    markets = ["KOSPI", "KOSDAQ"] if target_market == "ALL" else [target_market.upper()]
+
+    surging_codes: List[str] = []
+    high_val_codes: List[str] = []
+
+    for m in markets:
+        try:
+            url = f"https://m.stock.naver.com/api/stocks/marketValue/{m}?page=1&pageSize=100"
+            r = requests.get(url, headers=headers, verify=False, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                stocks = data.get("stocks", [])
+                # 1. Stocks surging today (fluctuationsRatio >= 2.5%) sorted by trading value
+                surging = [
+                    s for s in stocks
+                    if float(str(s.get("fluctuationsRatio", 0)).replace("%", "").replace(",", "") or 0) >= 2.5
+                ]
+                surging.sort(key=lambda s: float(s.get("accumulatedTradingValueRaw", 0) or 0), reverse=True)
+                surging_codes.extend([s["itemCode"].zfill(6) for s in surging if s.get("itemCode")])
+
+                # 2. Top trading value leaders
+                by_val = sorted(stocks, key=lambda s: float(s.get("accumulatedTradingValueRaw", 0) or 0), reverse=True)
+                high_val_codes.extend([s["itemCode"].zfill(6) for s in by_val if s.get("itemCode")])
+        except Exception:
+            pass
+
+    return list(dict.fromkeys(surging_codes + high_val_codes))
 
 
 class ScreeningWorker:
@@ -142,33 +183,26 @@ class ScreeningWorker:
                     wl_recs = cursor.fetchall()
                 sample_pool = pd.DataFrame([dict(r) for r in wl_recs]) if wl_recs else df_univ.head(100)
             elif "300선" in sc_scope or "급등" in sc_scope or "주도주" in sc_scope:
-                top_surge_codes = []
-                top_lead_codes = []
-                try:
-                    import FinanceDataReader as fdr
-                    df_krx_lead = fdr.StockListing("KRX")
-                    if not df_krx_lead.empty:
-                        if target_market in ("KOSPI", "KOSDAQ"):
-                            df_krx_lead = df_krx_lead[df_krx_lead["Market"].str.upper() == target_market]
-                        # 1. Stocks surging today (ChagesRatio >= 3.5%) sorted by Amount
-                        if "ChagesRatio" in df_krx_lead.columns:
-                            df_surging = df_krx_lead[df_krx_lead["ChagesRatio"] >= 3.5].sort_values("Amount", ascending=False)
-                            top_surge_codes = df_surging["Code"].astype(str).str.zfill(6).tolist()[:150]
-                        # 2. Top trading amount stocks today
-                        if "Amount" in df_krx_lead.columns:
-                            df_amount = df_krx_lead.sort_values("Amount", ascending=False)
-                            top_lead_codes = df_amount["Code"].astype(str).str.zfill(6).tolist()[:250]
-                except Exception:
-                    top_surge_codes = []
-                    top_lead_codes = []
+                # 1. Fetch real-time market cap, volume, and surging leader codes
+                leader_codes = _fetch_live_market_leader_codes(target_market)
 
+                # 2. Add watchlist codes
                 with get_db_connection() as conn:
                     cursor = conn.cursor()
                     cursor.execute("SELECT code FROM watchlist")
                     wl_codes = [r["code"] for r in cursor.fetchall()]
 
-                # Combined unique codes: surging stocks first, then trading amount leaders, then watchlist!
-                combined_codes = list(dict.fromkeys(top_surge_codes + top_lead_codes + wl_codes))
+                # 3. Add cached liquid universe stocks
+                import glob, os
+                cache_files = glob.glob(os.path.join("data", "cache", "*.parquet"))
+                cached_codes = [
+                    os.path.splitext(os.path.basename(f))[0]
+                    for f in cache_files
+                    if os.path.splitext(os.path.basename(f))[0].isdigit() and len(os.path.splitext(os.path.basename(f))[0]) == 6
+                ]
+
+                # Combined unique codes: real-time surging/leaders first, then watchlist, then liquid cache!
+                combined_codes = list(dict.fromkeys(leader_codes + wl_codes + cached_codes))
                 df_top = df_univ[df_univ["code"].isin(combined_codes)].copy()
                 code_rank = {c: i for i, c in enumerate(combined_codes)}
                 df_top["_order"] = df_top["code"].map(code_rank).fillna(9999)
@@ -235,12 +269,12 @@ class ScreeningWorker:
                 try:
                     now_dt = get_now_kst()
                     today_str = now_dt.strftime("%Y-%m-%d")
-                    yesterday_str = (now_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+                    last_trading_day_str = get_last_completed_trading_day()
 
                     # Synchronize real-time live quote if available
                     rt_info = realtime_quotes.get(code)
                     if rt_info and rt_info.get("close", 0) > 0 and (now_dt.weekday() < 5 and now_dt.hour >= 9):
-                        df_stock = fetch_ohlcv(code, end=yesterday_str)
+                        df_stock = fetch_ohlcv(code, end=last_trading_day_str)
                         close_p = float(rt_info["close"])
                         open_p = float(rt_info["open"])
                         high_p = float(rt_info["high"])
@@ -319,8 +353,8 @@ class ScreeningWorker:
                             day_ret_pct = ((c_last - c_prev) / c_prev) * 100.0 if c_prev > 0 else 0.0
                             high_close_ratio = ((c_last - l_last) / (h_last - l_last) * 100.0) if (h_last - l_last) > 0 else 100.0
 
-                            lead_val_threshold = max(500.0, float(min_val_krw_b) * 5.0)
-                            if yesterday_val_b >= lead_val_threshold and day_ret_pct >= 3.5 and high_close_ratio >= 70.0 and c_last >= ma5 and ma5 >= ma20:
+                            lead_val_threshold = max(300.0, float(min_val_krw_b) * 3.0)
+                            if yesterday_val_b >= lead_val_threshold and day_ret_pct >= 2.5 and high_close_ratio >= 65.0 and c_last >= ma5 and ma5 >= ma20:
                                 is_lead_gap_cand = True
                                 lead_metrics = {
                                     "val_b": yesterday_val_b,

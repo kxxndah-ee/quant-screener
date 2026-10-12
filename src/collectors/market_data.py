@@ -115,6 +115,47 @@ def fetch_realtime_quotes(codes: list) -> Dict[str, Dict[str, Any]]:
     return result
 
 
+_LAST_COMPLETED_TRADING_DAY: Optional[str] = None
+_LAST_COMPLETED_CHECK_TIME: float = 0.0
+
+
+def get_last_completed_trading_day() -> str:
+    """
+    Returns the most recent completed market trading date string (YYYY-MM-DD) before today.
+    Uses cached KODEX 200 benchmark dates to accurately account for market holidays and weekends.
+    """
+    global _LAST_COMPLETED_TRADING_DAY, _LAST_COMPLETED_CHECK_TIME
+    import time
+    now = time.time()
+    now_kst = get_now_kst()
+    today_str = now_kst.strftime("%Y-%m-%d")
+
+    if _LAST_COMPLETED_TRADING_DAY and (now - _LAST_COMPLETED_CHECK_TIME < 300):
+        return _LAST_COMPLETED_TRADING_DAY
+
+    try:
+        cache_path = get_cache_path(BENCHMARK_CODE)
+        if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
+            bm = pd.read_parquet(cache_path)
+            if not bm.empty:
+                bm.index = pd.to_datetime(bm.index)
+                bm_past = bm[bm.index.strftime("%Y-%m-%d") < today_str]
+                if not bm_past.empty:
+                    _LAST_COMPLETED_TRADING_DAY = bm_past.index.max().strftime("%Y-%m-%d")
+                    _LAST_COMPLETED_CHECK_TIME = now
+                    return _LAST_COMPLETED_TRADING_DAY
+    except Exception:
+        pass
+
+    # Fallback to weekday subtraction
+    dt = now_kst - timedelta(days=1)
+    while dt.weekday() >= 5:
+        dt -= timedelta(days=1)
+    _LAST_COMPLETED_TRADING_DAY = dt.strftime("%Y-%m-%d")
+    _LAST_COMPLETED_CHECK_TIME = now
+    return _LAST_COMPLETED_TRADING_DAY
+
+
 def fetch_ohlcv(
     code: str,
     start: str = "2017-01-01",
@@ -130,13 +171,14 @@ def fetch_ohlcv(
     now_kst = get_now_kst()
     today_str = now_kst.strftime("%Y-%m-%d")
     target_end = end or today_str
+    last_trading_day = get_last_completed_trading_day()
 
     is_market_session = (now_kst.weekday() < 5 and now_kst.hour < 16)
     is_target_today = (target_end >= today_str)
 
     df_cached: Optional[pd.DataFrame] = None
 
-    if not force_refresh and os.path.exists(cache_path):
+    if not force_refresh and os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
         try:
             df_cached = pd.read_parquet(cache_path)
             if not df_cached.empty:
@@ -148,15 +190,27 @@ def fetch_ohlcv(
 
                 last_cached_date = df_cached.index.max().strftime("%Y-%m-%d") if not df_cached.empty else "1900-01-01"
 
-                # If cache already covers target_end (and not currently in live market session)
-                if not is_market_session and last_cached_date >= target_end:
-                    filtered = df_cached.loc[start:target_end]
-                    return filtered
+                # If target is historical (prior to today) and cache covers it or last completed trading day
+                if not is_target_today:
+                    if last_cached_date >= target_end or last_cached_date >= last_trading_day:
+                        return df_cached.loc[start:target_end]
+                else:
+                    # Target is today: if outside market session and cache covers target_end
+                    if not is_market_session and last_cached_date >= target_end:
+                        return df_cached.loc[start:target_end]
 
                 # Incremental fetch
                 next_day = (df_cached.index.max() + timedelta(days=1)).strftime("%Y-%m-%d")
+                # If target is historical and next_day is after last completed trading day, no new trading bars exist
+                if not is_target_today and next_day > last_trading_day:
+                    return df_cached.loc[start:target_end]
+
                 if next_day <= target_end:
-                    df_new = fdr.DataReader(code, next_day, target_end)
+                    try:
+                        df_new = fdr.DataReader(code, next_day, target_end)
+                    except Exception:
+                        df_new = None
+
                     if df_new is not None and not df_new.empty:
                         df_new.index = pd.to_datetime(df_new.index)
                         df_combined = pd.concat([df_cached, df_new])
