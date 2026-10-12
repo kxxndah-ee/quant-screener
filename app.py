@@ -9,6 +9,7 @@ Tab 3: 예측 다이어리 & 라이브 추적 (Model Decay 감지)
 import os
 import sys
 from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional
 
 # Fix Windows SSL certificate verification before importing network libraries
 try:
@@ -1114,21 +1115,726 @@ with col_top_r:
         if st.button("동기화", help="현재시각 및 시장상태 최신화", key="btn_top_time_sync"):
             st.rerun()
 
+def _safe_float_val(v, default=0.0) -> float:
+    try:
+        if v is None:
+            return default
+        import math
+        f = float(v)
+        return default if math.isnan(f) else f
+    except Exception:
+        return default
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_cached_universe_options():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT code, name, market, COALESCE(sector, '기타') as sector, COALESCE(industry, '') as industry
+                FROM universe
+                WHERE is_active = 1
+                ORDER BY
+                    CASE WHEN market='KOSPI' THEN 1 ELSE 2 END,
+                    name ASC
+            """)
+            rows = cursor.fetchall()
+            if rows:
+                return [
+                    {
+                        "code": r["code"],
+                        "name": r["name"],
+                        "market": r["market"],
+                        "sector": normalize_sector(r["sector"], r["name"], r["industry"]),
+                        "display": f"{r['name']} ({r['code']}) [{r['market']} · {normalize_sector(r['sector'], r['name'], r['industry'])}]"
+                    }
+                    for r in rows
+                ]
+    except Exception as e:
+        logger.warning(f"Failed to fetch cached universe options: {e}")
+
+    defaults = [
+        ("005930", "삼성전자", "KOSPI", "전기/전자"),
+        ("000660", "SK하이닉스", "KOSPI", "전기/전자"),
+        ("005380", "현대차", "KOSPI", "자동차"),
+        ("035420", "NAVER", "KOSPI", "IT/소프트웨어"),
+        ("196170", "알테오젠", "KOSDAQ", "바이오/R&D"),
+        ("247540", "에코프로비엠", "KOSDAQ", "2차전지/소재"),
+    ]
+    return [
+        {
+            "code": c,
+            "name": n,
+            "market": m,
+            "sector": s,
+            "display": f"{n} ({c}) [{m} · {s}]"
+        }
+        for c, n, m, s in defaults
+    ]
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def get_stock_factsheet_payload(code: str) -> Dict[str, Any]:
+    raw_code = str(code).strip()
+    clean_code = raw_code.zfill(6) if raw_code.isdigit() else raw_code
+
+    name = f"종목 {clean_code}"
+    market = "KRX"
+    sector = "기타"
+    industry = ""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name, market, COALESCE(sector, '기타') as sector, COALESCE(industry, '') as industry FROM universe WHERE code = ?", (clean_code,))
+            row = cursor.fetchone()
+            if row:
+                name = row["name"]
+                market = row["market"]
+                industry = row["industry"]
+                sector = normalize_sector(row["sector"], name, industry)
+    except Exception as e:
+        logger.warning(f"Failed to lookup universe for {clean_code}: {e}")
+
+    price_info = get_latest_market_info(clean_code)
+    close = _safe_float_val(price_info.get("close"), 0.0)
+    change_pct = _safe_float_val(price_info.get("change_pct"), 0.0)
+    open_p = _safe_float_val(price_info.get("open"), close)
+    high_p = _safe_float_val(price_info.get("high"), close)
+    low_p = _safe_float_val(price_info.get("low"), close)
+    prev_close = _safe_float_val(price_info.get("prev_close"), close)
+    open_pct = _safe_float_val(price_info.get("open_pct"), 0.0)
+    high_pct = _safe_float_val(price_info.get("high_pct"), 0.0)
+    low_pct = _safe_float_val(price_info.get("low_pct"), 0.0)
+    volume = int(_safe_float_val(price_info.get("volume"), 0))
+    date_str = str(price_info.get("date", ""))
+
+    df = None
+    try:
+        df = fetch_ohlcv(clean_code)
+    except Exception as e:
+        logger.warning(f"Failed to fetch OHLCV for {clean_code}: {e}")
+
+    score = 50.0
+    label = "중립"
+    tp_pct = 5.0
+    sl_pct = 2.5
+    bk = {
+        "rsi_val": 50.0,
+        "vol_ratio": 1.0,
+        "ma_status": "이평 밀집/수렴",
+        "bb_pct": 0.5,
+        "rsi_score": 10.0,
+        "ma_score": 10.0,
+        "vol_score": 10.0,
+        "bb_score": 10.0
+    }
+
+    if df is not None and not df.empty and len(df) >= 20:
+        try:
+            score_info = evaluate_stock_latest(df)
+            if score_info:
+                score = score_info["score"]
+                label = score_info["label"]
+                tp_pct = score_info["tp_pct"]
+                sl_pct = score_info["sl_pct"]
+                bk = score_info["breakdown"]
+        except Exception as e:
+            logger.warning(f"Failed to evaluate scoring for {clean_code}: {e}")
+
+    bm_ohlcv = get_benchmark_ohlcv()
+    is_daytrade = False
+    is_surge_5pct = False
+    is_sniper = False
+    is_closing_bet = False
+
+    if df is not None and not df.empty and len(df) >= 30:
+        try:
+            if evaluate_intraday_daytrade_candidate(df, bm_ohlcv, min_today_val_krw=10_000_000_000):
+                is_daytrade = True
+            if evaluate_5pct_surge_candidate(df, bm_ohlcv, min_today_val_krw=10_000_000_000, min_day_return=8.0):
+                is_surge_5pct = True
+            if evaluate_sniper_candidate(df, bm_ohlcv, min_daily_val_krw=5_000_000_000):
+                is_sniper = True
+            if evaluate_closing_bet_candidate(df, min_today_val_krw=10_000_000_000):
+                is_closing_bet = True
+        except Exception:
+            pass
+
+    if is_daytrade:
+        strategy_tag = "실시간 당일 단타 (당일 +5% 익절)"
+        tp_pct = 5.0
+        sl_pct = 2.5
+        reason_core = "장중 거래대금 급증 및 주도 수급 유입으로 당일 내 변동성 상방 확장 조건 충족"
+        rule_note = "장중 목표가(+5%) 도달 시 50% 분할 익절, 잔여분 +1.8% 트레일링 락. 당일 15:20 미체결 시 전량 청산"
+    elif is_surge_5pct:
+        strategy_tag = "5% 급등 타겟 (1~2일 스윙)"
+        tp_pct = 5.0
+        sl_pct = 4.0
+        reason_core = "전일비 거래량 폭발 및 장대 양봉 돌파 모멘텀 발생"
+        rule_note = "15:20~15:30 분할 진입 권장, 1~2거래일 내 +5.0% 익절 목표, -4.0% 이탈 시 기계적 손절"
+    elif is_closing_bet:
+        strategy_tag = "주도주 종가배팅 (익일 시초 갭)"
+        tp_pct = 1.5
+        sl_pct = 2.0
+        reason_core = "마감 직전 거래대금 상위 및 윗꼬리 적은 강력한 일봉 캔들 유지"
+        rule_note = "15:20~15:30 종가 매수 후 익일 동시호가~시초가 +1.5% 갭상승 구간에서 전량 차익 실현"
+    elif is_sniper:
+        strategy_tag = "스나이퍼 고확신 (눌림목 반등)"
+        tp_pct = 1.2
+        sl_pct = 2.0
+        reason_core = "20일 이동평균선 지지 반등 및 과매도 해소 구간"
+        rule_note = "09:00 시초가 직후 15분봉 지지 확인 후 진입, 목표가 도달 시 즉시 분할 익절"
+    elif score >= 70.0:
+        strategy_tag = "고확신 퀀트 모멘텀"
+        tp_pct = 3.5
+        sl_pct = 2.0
+        reason_core = f"종합 퀀트 스코어 {score:.1f}점 우수 구간 (RSI {bk.get('rsi_val', 50):.1f}pt, {bk.get('ma_status', '이평 정배열')})"
+        rule_note = "분할 매수 원칙 준수, 목표가 도달 시 트레일링 스탑 적용"
+    else:
+        strategy_tag = "일반 기술적 진단"
+        tp_pct = 3.0
+        sl_pct = 2.0
+        reason_core = f"현재 기술적 상태: {bk.get('ma_status', '이평 혼조')}, RSI {bk.get('rsi_val', 50):.1f}pt"
+        rule_note = "추세 확인 후 제한적 비중으로 진입 고려, 손절 기준가 엄수"
+
+    tp_price = close * (1.0 + tp_pct / 100.0) if close > 0 else 0.0
+    sl_price = close * (1.0 - sl_pct / 100.0) if close > 0 else 0.0
+    rr_ratio = (tp_pct / max(0.1, sl_pct))
+
+    est_trading_val_krw = close * volume
+    vol_ratio = _safe_float_val(bk.get("vol_ratio"), 1.0)
+    rsi_val = _safe_float_val(bk.get("rsi_val"), 50.0)
+    ma_status = str(bk.get("ma_status", "이평 정배열"))
+    bb_pct = _safe_float_val(bk.get("bb_pct"), 0.5)
+
+    return {
+        "code": clean_code,
+        "name": name,
+        "market": market,
+        "sector": sector,
+        "industry": industry,
+        "close": close,
+        "change_pct": change_pct,
+        "open": open_p,
+        "high": high_p,
+        "low": low_p,
+        "prev_close": prev_close,
+        "open_pct": open_pct,
+        "high_pct": high_pct,
+        "low_pct": low_pct,
+        "volume": volume,
+        "date": date_str,
+        "score": score,
+        "label": label,
+        "strategy_tag": strategy_tag,
+        "tp_pct": tp_pct,
+        "sl_pct": sl_pct,
+        "tp_price": tp_price,
+        "sl_price": sl_price,
+        "rr_ratio": rr_ratio,
+        "vol_ratio": vol_ratio,
+        "rsi": rsi_val,
+        "ma_status": ma_status,
+        "bb_pct": bb_pct,
+        "breakdown": bk,
+        "reason_core": reason_core,
+        "rule_note": rule_note,
+        "est_trading_val_krw": est_trading_val_krw,
+        "is_daytrade": is_daytrade,
+        "is_surge_5pct": is_surge_5pct,
+        "is_sniper": is_sniper,
+        "is_closing_bet": is_closing_bet,
+    }
+
+
+def render_quant_analyst_qa_box(stock_row, key_suffix=""):
+    stock_dict = stock_row.to_dict() if hasattr(stock_row, "to_dict") else dict(stock_row)
+    raw_code = str(stock_dict.get("code") or "000000").strip()
+    code = raw_code.zfill(6) if raw_code.isdigit() else raw_code
+    stock_dict["code"] = code
+    name = str(stock_dict.get("name") or "종목")
+
+    active_q_key = f"quant_active_q_{code}_{key_suffix}"
+    active_ans_key = f"quant_active_ans_{code}_{key_suffix}"
+    cache_key = f"quant_cache_{code}"
+    hist_key = f"quant_hist_{code}_{key_suffix}"
+
+    if cache_key not in st.session_state:
+        st.session_state[cache_key] = {}
+    if hist_key not in st.session_state:
+        st.session_state[hist_key] = []
+
+    quick_queries = {
+        "why": {
+            "label": "왜 급등하나요?",
+            "q": "왜 급등하나요? 거래량과 수급 상승 원인을 정밀 분석해줘."
+        },
+        "buy": {
+            "label": "지금 사도 되나요?",
+            "q": "지금 사도 되나요? 신규 매수 진입 적합도와 손익비를 진단해줘."
+        },
+        "tp": {
+            "label": "목표가 & 손절가",
+            "q": "목표가 & 손절가 알고리즘 권장 익절가와 스탑 가격을 알려줘."
+        },
+        "risk": {
+            "label": "리스크 팩트체크",
+            "q": "리스크 팩트체크 주의해야 할 핵심 투자 위험 요소를 알려줘."
+        },
+        "chart": {
+            "label": "차트 & 지표 진단",
+            "q": "차트 & 지표 진단 이평선과 RSI 기술적 지표를 종합 분석해줘."
+        }
+    }
+
+    # Initial answer initialization
+    if active_q_key not in st.session_state or active_ans_key not in st.session_state:
+        default_label = quick_queries["why"]["label"]
+        default_prompt = quick_queries["why"]["q"]
+        if default_prompt in st.session_state[cache_key]:
+            default_ans = st.session_state[cache_key][default_prompt]
+        else:
+            try:
+                default_ans = generate_quant_expert_answer(stock_dict, default_prompt)
+            except Exception as _e:
+                default_ans = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
+            st.session_state[cache_key][default_prompt] = default_ans
+
+        st.session_state[active_q_key] = default_label
+        st.session_state[active_ans_key] = default_ans
+        if not st.session_state[hist_key]:
+            st.session_state[hist_key].append({"q": default_label, "ans": default_ans})
+
+    with st.container(border=True):
+        hdr_c1, hdr_c2 = st.columns([3.5, 1.5])
+        with hdr_c1:
+            st.markdown(f"**{name} ({code})** 수석 애널리스트 실시간 Q&A 콘솔")
+            score_v = float(stock_dict.get('score') or 0.0)
+            vol_v = float(stock_dict.get('vol_ratio') or 1.0)
+            rsi_v = float(stock_dict.get('rsi') or 50.0)
+            st.caption(f"전략: {stock_dict.get('strategy_tag', '')} | 스코어: {score_v:.1f}점 | 전일비 거래량: {vol_v:.1f}배 | RSI: {rsi_v:.1f}")
+        with hdr_c2:
+            if st.button("질의 초기화", key=f"reset_chat_{code}_{key_suffix}", use_container_width=True):
+                st.session_state[cache_key] = {}
+                st.session_state[hist_key] = []
+                st.session_state.pop(active_q_key, None)
+                st.session_state.pop(active_ans_key, None)
+                st.rerun()
+
+        # Quick Question Buttons (Single-row compact layout)
+        st.markdown('<div class="compact-qa-buttons" style="display:none;"></div>', unsafe_allow_html=True)
+        q_cols = st.columns(5, gap="small")
+
+        curr_active_q = st.session_state.get(active_q_key, quick_queries["why"]["label"])
+
+        clicked_prompt = None
+        clicked_label = None
+
+        with q_cols[0]:
+            b_type = "primary" if curr_active_q == quick_queries["why"]["label"] else "secondary"
+            if st.button(quick_queries["why"]["label"], key=f"btn_quick_why_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                clicked_prompt = quick_queries["why"]["q"]
+                clicked_label = quick_queries["why"]["label"]
+
+        with q_cols[1]:
+            b_type = "primary" if curr_active_q == quick_queries["buy"]["label"] else "secondary"
+            if st.button(quick_queries["buy"]["label"], key=f"btn_quick_buy_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                clicked_prompt = quick_queries["buy"]["q"]
+                clicked_label = quick_queries["buy"]["label"]
+
+        with q_cols[2]:
+            b_type = "primary" if curr_active_q == quick_queries["tp"]["label"] else "secondary"
+            if st.button(quick_queries["tp"]["label"], key=f"btn_quick_tp_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                clicked_prompt = quick_queries["tp"]["q"]
+                clicked_label = quick_queries["tp"]["label"]
+
+        with q_cols[3]:
+            b_type = "primary" if curr_active_q == quick_queries["risk"]["label"] else "secondary"
+            if st.button(quick_queries["risk"]["label"], key=f"btn_quick_risk_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                clicked_prompt = quick_queries["risk"]["q"]
+                clicked_label = quick_queries["risk"]["label"]
+
+        with q_cols[4]:
+            b_type = "primary" if curr_active_q == quick_queries["chart"]["label"] else "secondary"
+            if st.button(quick_queries["chart"]["label"], key=f"btn_quick_chart_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                clicked_prompt = quick_queries["chart"]["q"]
+                clicked_label = quick_queries["chart"]["label"]
+
+        if clicked_prompt and clicked_label:
+            if clicked_prompt in st.session_state[cache_key]:
+                new_ans = st.session_state[cache_key][clicked_prompt]
+            else:
+                with st.spinner(f"AI 퀀트 수석 애널리스트가 '{clicked_label}' 항목을 정밀 분석 중입니다..."):
+                    try:
+                        new_ans = generate_quant_expert_answer(stock_dict, clicked_prompt)
+                    except Exception as _e:
+                        new_ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
+                    st.session_state[cache_key][clicked_prompt] = new_ans
+
+            st.session_state[active_q_key] = clicked_label
+            st.session_state[active_ans_key] = new_ans
+            st.session_state[hist_key].append({"q": clicked_label, "ans": new_ans})
+            st.rerun()
+
+        # Active Answer Display
+        active_q_disp = st.session_state.get(active_q_key, quick_queries["why"]["label"])
+        active_ans_disp = st.session_state.get(active_ans_key, "")
+
+        st.markdown(
+            f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:8px 12px; border-radius:6px; border:1px solid #CBD5E1; margin-top:10px; margin-bottom:10px;'>"
+            f"선택 질의: <span style='color:#0284C7;'>{active_q_disp}</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+        with st.chat_message("assistant"):
+            st.markdown(active_ans_disp)
+
+        # Custom Question Form
+        with st.form(key=f"custom_q_form_{code}_{key_suffix}", clear_on_submit=True):
+            f_c1, f_c2 = st.columns([4, 1])
+            with f_c1:
+                user_custom_input = st.text_input(
+                    "질문 입력",
+                    placeholder=f"{name}에 대해 궁금한 점을 직접 질문하세요 (예: 내일 시초가에 어떻게 대응해야 하나요?)",
+                    label_visibility="collapsed",
+                    key=f"input_q_text_{code}_{key_suffix}"
+                )
+            with f_c2:
+                submitted = st.form_submit_button("질문 전송", type="primary", use_container_width=True)
+
+            if submitted and user_custom_input.strip():
+                c_prompt = user_custom_input.strip()
+                with st.spinner("퀀트 전문가 답변 생성 중..."):
+                    try:
+                        ans = generate_quant_expert_answer(stock_dict, c_prompt)
+                    except Exception as _e:
+                        ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
+                st.session_state[active_q_key] = f"직접 질문: {c_prompt}"
+                st.session_state[active_ans_key] = ans
+                st.session_state[hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
+                st.rerun()
+
+        # Past Question History Expander
+        if len(st.session_state[hist_key]) > 1:
+            with st.expander(f"이전 질의응답 기록 ({len(st.session_state[hist_key])}건)", expanded=False):
+                for h_idx, h in enumerate(reversed(st.session_state[hist_key][:-1])):
+                    st.markdown(f"**[질문] {h['q']}**")
+                    st.markdown(h['ans'])
+                    if h_idx < len(st.session_state[hist_key]) - 2:
+                        st.divider()
+
+
+def render_analyst_factsheet_and_qa_tab():
+    st.markdown('<div class="office-subheading">수석 애널리스트 팩트시트 & Q&A 콘솔</div>', unsafe_allow_html=True)
+    st.caption("KRX 상장 전 종목에 대해 퀀트 지표, 목표가/손절가, 실시간 수급을 한눈에 확인하고 수석 애널리스트와 대화형 Q&A를 진행합니다.")
+
+    # 1. State initialization for selected stock
+    if "qa_console_target_code" not in st.session_state:
+        def_code = "005930"
+        if "screened_results_df" in st.session_state and st.session_state["screened_results_df"] is not None and not st.session_state["screened_results_df"].empty:
+            def_code = str(st.session_state["screened_results_df"].iloc[0]["code"]).zfill(6)
+        st.session_state["qa_console_target_code"] = def_code
+
+    curr_target_code = str(st.session_state["qa_console_target_code"]).strip().zfill(6)
+
+    # 2. Quick Preset Chips Bar
+    screened_chips = []
+    if "screened_results_df" in st.session_state and st.session_state["screened_results_df"] is not None and not st.session_state["screened_results_df"].empty:
+        for _, sr in st.session_state["screened_results_df"].head(4).iterrows():
+            c = str(sr.get("code", "")).strip().zfill(6)
+            n = str(sr.get("name", c))
+            screened_chips.append((c, n, "스크리닝"))
+
+    watchlist_chips = []
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT code, name FROM watchlist ORDER BY added_at DESC LIMIT 4")
+            for r in cur.fetchall():
+                c = str(r["code"]).strip().zfill(6)
+                if not any(x[0] == c for x in screened_chips):
+                    watchlist_chips.append((c, str(r["name"]), "관심종목"))
+    except Exception:
+        pass
+
+    market_rep_chips = [
+        ("005930", "삼성전자", "대표주"),
+        ("000660", "SK하이닉스", "대표주"),
+        ("005380", "현대차", "대표주"),
+        ("196170", "알테오젠", "대표주"),
+        ("035420", "NAVER", "대표주"),
+    ]
+
+    combined_chips = screened_chips + watchlist_chips + [x for x in market_rep_chips if not any(y[0] == x[0] for y in (screened_chips + watchlist_chips))]
+    top_chips = combined_chips[:8]
+
+    st.markdown("<div style='font-size:0.8rem; font-weight:700; color:#475569; margin-bottom:4px;'>빠른 종목 선택 칩:</div>", unsafe_allow_html=True)
+    chip_cols = st.columns(len(top_chips) or 1)
+    for idx, (chip_c, chip_n, chip_src) in enumerate(top_chips):
+        with chip_cols[idx]:
+            is_active_chip = (chip_c == curr_target_code)
+            btn_style = "primary" if is_active_chip else "secondary"
+            btn_txt = f"{chip_n}"
+            if st.button(btn_txt, key=f"chip_qa_{chip_c}_{idx}", type=btn_style, use_container_width=True, help=f"[{chip_src}] {chip_n} ({chip_c})"):
+                st.session_state["qa_console_target_code"] = chip_c
+                st.rerun()
+
+    st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+
+    # 3. Search & Select Toolbar
+    universe_opts = get_cached_universe_options()
+    code_to_display = {u["code"]: u["display"] for u in universe_opts}
+    display_to_code = {u["display"]: u["code"] for u in universe_opts}
+    all_displays = [u["display"] for u in universe_opts]
+
+    curr_display = code_to_display.get(curr_target_code)
+    if not curr_display:
+        curr_display = f"종목 ({curr_target_code})"
+        all_displays.insert(0, curr_display)
+        display_to_code[curr_display] = curr_target_code
+
+    cur_idx = 0
+    if curr_display in all_displays:
+        cur_idx = all_displays.index(curr_display)
+
+    sel_c1, sel_c2, sel_c3 = st.columns([3.6, 1.6, 0.8])
+    with sel_c1:
+        chosen_disp = st.selectbox(
+            "종목 전체 검색 & 선택 (종목명/코드 입력 시 자동 필터링)",
+            all_displays,
+            index=cur_idx,
+            key="qa_stock_search_selectbox"
+        )
+        new_sel_code = display_to_code.get(chosen_disp, curr_target_code)
+        if new_sel_code != curr_target_code:
+            st.session_state["qa_console_target_code"] = new_sel_code
+            st.rerun()
+
+    with sel_c2:
+        direct_input = st.text_input(
+            "직접 검색 (종목명 / 6자리 코드)",
+            placeholder="예: 카카오, 035720",
+            key="qa_direct_search_input"
+        )
+        if direct_input.strip():
+            kw = direct_input.strip()
+            matched_code = None
+            if kw.isdigit() and len(kw) == 6 and kw in code_to_display:
+                matched_code = kw
+            else:
+                matches = search_ticker(kw, limit=1)
+                if matches:
+                    matched_code = matches[0]["code"]
+            if matched_code and matched_code != curr_target_code:
+                st.session_state["qa_console_target_code"] = matched_code
+                st.rerun()
+
+    with sel_c3:
+        st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+        if st.button("새로고침", key="btn_refresh_qa_console", use_container_width=True, help="실시간 시세 및 지표 최신화"):
+            st.cache_data.clear()
+            st.rerun()
+
+    # 4. Load Stock Analysis Payload
+    with st.spinner(f"수석 애널리스트가 [{curr_target_code}] 실시간 시세 및 퀀트 지표를 분석 중입니다..."):
+        payload = get_stock_factsheet_payload(curr_target_code)
+
+    name = payload["name"]
+    code = payload["code"]
+    market = payload["market"]
+    sector = payload["sector"]
+    close = payload["close"]
+    change_pct = payload["change_pct"]
+    open_p = payload["open"]
+    high_p = payload["high"]
+    low_p = payload["low"]
+    prev_close = payload["prev_close"]
+    open_pct = payload["open_pct"]
+    high_pct = payload["high_pct"]
+    low_pct = payload["low_pct"]
+    volume = payload["volume"]
+    score = payload["score"]
+    label = payload["label"]
+    strategy_tag = payload["strategy_tag"]
+    tp_pct = payload["tp_pct"]
+    sl_pct = payload["sl_pct"]
+    tp_price = payload["tp_price"]
+    sl_price = payload["sl_price"]
+    rr_ratio = payload["rr_ratio"]
+    vol_ratio = payload["vol_ratio"]
+    rsi = payload["rsi"]
+    ma_status = payload["ma_status"]
+    bb_pct = payload["bb_pct"]
+    reason_core = payload["reason_core"]
+    rule_note = payload["rule_note"]
+    est_val_억 = payload["est_trading_val_krw"] / 100_000_000
+
+    # 5. Render Factsheet Header Bar
+    chg_color = "#DC2626" if change_pct > 0 else ("#2563EB" if change_pct < 0 else "#475569")
+    chg_sign = "+" if change_pct > 0 else ""
+    diff_val = close - prev_close
+
+    st.markdown(
+        f"""
+        <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:12px 16px; margin:8px 0 12px 0;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap;">
+                <div>
+                    <span style="font-size:0.8rem; background:#E2E8F0; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{market}</span>
+                    <span style="font-size:1.35rem; font-weight:800; color:#0F172A; margin-left:6px;">{name}</span>
+                    <span style="font-size:0.95rem; color:#64748B; font-weight:600; margin-left:4px;">({code})</span>
+                    <span style="font-size:0.85rem; color:#0284C7; font-weight:600; margin-left:8px;">{sector}</span>
+                </div>
+                <div>
+                    <span style="font-size:1.45rem; font-weight:800; color:{chg_color};">{close:,.0f}원</span>
+                    <span style="font-size:1.05rem; font-weight:700; color:{chg_color}; margin-left:6px;">({chg_sign}{change_pct:.2f}% · {diff_val:+,.0f}원)</span>
+                </div>
+            </div>
+            <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; font-size:0.82rem; color:#475569; border-top:1px dashed #CBD5E1; padding-top:6px;">
+                <span>시가: <strong>{open_p:,.0f}원</strong> ({open_pct:+.2f}%)</span>
+                <span>고가: <strong>{high_p:,.0f}원</strong> ({high_pct:+.2f}%)</span>
+                <span>저가: <strong>{low_p:,.0f}원</strong> ({low_pct:+.2f}%)</span>
+                <span>거래량: <strong>{volume:,}주</strong> (전일비 <strong>{vol_ratio:.1f}배</strong>)</span>
+                <span>추정 거래대금: <strong>약 {est_val_억:,.0f}억원</strong></span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 6. Four Core Quant Fact Cards
+    q_c1, q_c2, q_c3, q_c4 = st.columns(4)
+    with q_c1:
+        with st.container(border=True):
+            st.caption("종합 퀀트 스코어")
+            st.metric(
+                label="스코어 및 신호",
+                value=f"{score:.1f}점",
+                delta=f"{label} (100점 만점)",
+                delta_color="normal" if score >= 65 else "off"
+            )
+            score_bar_val = min(1.0, max(0.0, score / 100.0))
+            st.progress(score_bar_val)
+            st.caption(f"신뢰도: {'고확신' if score>=75 else ('우수' if score>=65 else '중립')}")
+
+    with q_c2:
+        with st.container(border=True):
+            st.caption("가격 전략 & 손익비")
+            st.metric(
+                label="1차 목표 / 원칙 손절",
+                value=f"{tp_price:,.0f}원",
+                delta=f"+{tp_pct:.1f}% 익절",
+                delta_color="normal"
+            )
+            st.markdown(f"<div style='font-size:0.75rem; color:#64748B;'>손절선: <strong>{sl_price:,.0f}원</strong> (-{sl_pct:.1f}%)</div>", unsafe_allow_html=True)
+            st.caption(f"목표 손익비(R/R): {rr_ratio:.2f} : 1")
+
+    with q_c3:
+        with st.container(border=True):
+            st.caption("수급 및 거래량 폭발력")
+            st.metric(
+                label="전일대비 거래량",
+                value=f"{vol_ratio:.1f}배",
+                delta=f"{'대량 수급 유입' if vol_ratio>=2.0 else ('양호' if vol_ratio>=1.0 else '거래 소강')}",
+                delta_color="normal" if vol_ratio>=1.5 else "off"
+            )
+            st.markdown(f"<div style='font-size:0.75rem; color:#64748B;'>누적: <strong>{volume:,}주</strong></div>", unsafe_allow_html=True)
+            st.caption(f"추정 대금: 약 {est_val_억:,.0f}억원")
+
+    with q_c4:
+        with st.container(border=True):
+            st.caption("기술적 지표 & 이평선")
+            st.metric(
+                label="RSI(14) 모멘텀",
+                value=f"{rsi:.1f}pt",
+                delta=f"{'과열 진입' if rsi>=75 else ('탄력 상승' if rsi>=55 else ('침체' if rsi<=35 else '중립'))}",
+                delta_color="normal" if 50<=rsi<=72 else "off"
+            )
+            st.markdown(f"<div style='font-size:0.75rem; color:#64748B;'>이평: <strong>{ma_status}</strong></div>", unsafe_allow_html=True)
+            st.caption(f"볼린저밴드 %b: {bb_pct:.2f}")
+
+    # 7. Chief Analyst Strategy Memo Container
+    with st.container(border=True):
+        m_c1, m_c2 = st.columns([1.5, 4.5])
+        with m_c1:
+            st.markdown("<div style='font-size:0.85rem; font-weight:700; color:#1E293B;'>수석 애널리스트 전략 메모</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='margin-top:6px;'><span style='background:#EDE9FE; color:#6D28D9; padding:3px 8px; border-radius:4px; font-weight:700; font-size:0.8rem;'>{strategy_tag}</span></div>", unsafe_allow_html=True)
+        with m_c2:
+            st.markdown(f"**발굴 및 진단 근거**: {reason_core}")
+            st.markdown(f"**매매 체결 원칙**: {rule_note}")
+
+    # 8. Action Toolbar (Watchlist, Backtest, Screener)
+    act_c1, act_c2, act_c3, act_c4 = st.columns([2.0, 2.0, 2.0, 4.0])
+    is_in_watchlist = False
+    try:
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT 1 FROM watchlist WHERE code = ?", (code,))
+            is_in_watchlist = bool(cur.fetchone())
+    except Exception:
+        pass
+
+    with act_c1:
+        if is_in_watchlist:
+            if st.button("관심종목에서 해제", key=f"btn_tab2_del_wl_{code}", use_container_width=True):
+                with get_db_connection() as conn:
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM watchlist WHERE code = ?", (code,))
+                    conn.commit()
+                st.cache_data.clear()
+                st.toast(f"{name} 관심종목에서 삭제되었습니다.")
+                st.rerun()
+        else:
+            if st.button("관심종목에 추가", type="primary", key=f"btn_tab2_add_wl_{code}", use_container_width=True):
+                batch_add_to_watchlist([code])
+                st.cache_data.clear()
+                st.toast(f"{name} 관심종목에 등록되었습니다!")
+                st.rerun()
+
+    with act_c2:
+        if st.button("4번 5년 백테스트 검증", key=f"btn_tab2_to_bt_{code}", use_container_width=True):
+            st.session_state["target_backtest_code"] = code
+            st.session_state["verif_pipeline_mode_sel"] = "과거 5년 워크포워드 & KODEX 200 벤치마크 검증 (종목별 95% 신뢰구간 시뮬레이션)"
+            st.session_state["main_active_tab_nav"] = main_tab_names[3]
+            st.toast(f"{name} 백테스트 설정 완료! 4번 통합 성과 검증 탭을 확인하세요.")
+            st.rerun()
+
+    with act_c3:
+        if st.button("3번 관심종목 탭으로 이동", key=f"btn_tab2_to_wl_{code}", use_container_width=True):
+            st.session_state["main_active_tab_nav"] = main_tab_names[2]
+            st.rerun()
+
+    with act_c4:
+        st.caption("※ 시세 및 퀀트 지표는 실시간 장중 호가와 내장 알고리즘으로 동기화됩니다.")
+
+    st.markdown("---")
+
+    # 9. Interactive Q&A Console
+    st.markdown(f"#### **{name} ({code})** 수석 애널리스트 실시간 Q&A 콘솔")
+    render_quant_analyst_qa_box(payload, key_suffix="console")
+
+
 main_tab_names = [
     "1. 시장 전체 익일 상승 후보 & 고확신 스크리너",
-    "2. 관심종목 실시간 스코어보드",
-    "3. 통합 성과 검증 & AI 자가최적화 센터",
+    "2. 수석 애널리스트 팩트시트 & Q&A 콘솔",
+    "3. 관심종목 실시간 스코어보드",
+    "4. 통합 성과 검증 & AI 자가최적화 센터",
 ]
 
 if "main_active_tab_nav" in st.session_state:
     _cur_nav = str(st.session_state["main_active_tab_nav"])
     if _cur_nav not in main_tab_names:
-        if any(w in _cur_nav for w in ["3", "4", "5", "검증", "최적화", "다이어리", "워크포워드"]):
+        if any(w in _cur_nav for w in ["4", "5", "검증", "최적화", "다이어리", "워크포워드"]):
+            st.session_state["main_active_tab_nav"] = main_tab_names[3]
+        elif any(w in _cur_nav for w in ["3", "관심", "스코어보드"]):
             st.session_state["main_active_tab_nav"] = main_tab_names[2]
+        elif any(w in _cur_nav for w in ["2", "애널리스트", "팩트시트", "Q&A"]):
+            st.session_state["main_active_tab_nav"] = main_tab_names[1]
         else:
             st.session_state["main_active_tab_nav"] = main_tab_names[0]
 
-tab1, tab2, tab3 = st.tabs(main_tab_names, key="main_active_tab_nav")
+tab1, tab2, tab3, tab4 = st.tabs(main_tab_names, key="main_active_tab_nav")
 
 
 # =========================================================
@@ -1865,182 +2571,6 @@ with tab1:
                 unsafe_allow_html=True
             )
 
-    def render_quant_analyst_qa_box(stock_row, key_suffix=""):
-        stock_dict = stock_row.to_dict() if hasattr(stock_row, "to_dict") else dict(stock_row)
-        raw_code = str(stock_dict.get("code") or "000000").strip()
-        code = raw_code.zfill(6) if raw_code.isdigit() else raw_code
-        stock_dict["code"] = code
-        name = str(stock_dict.get("name") or "종목")
-
-        active_q_key = f"quant_active_q_{code}_{key_suffix}"
-        active_ans_key = f"quant_active_ans_{code}_{key_suffix}"
-        cache_key = f"quant_cache_{code}"
-        hist_key = f"quant_hist_{code}_{key_suffix}"
-
-        if cache_key not in st.session_state:
-            st.session_state[cache_key] = {}
-        if hist_key not in st.session_state:
-            st.session_state[hist_key] = []
-
-        quick_queries = {
-            "why": {
-                "label": "왜 급등하나요?",
-                "q": "왜 급등하나요? 거래량과 수급 상승 원인을 정밀 분석해줘."
-            },
-            "buy": {
-                "label": "지금 사도 되나요?",
-                "q": "지금 사도 되나요? 신규 매수 진입 적합도와 손익비를 진단해줘."
-            },
-            "tp": {
-                "label": "목표가 & 손절가",
-                "q": "목표가 & 손절가 알고리즘 권장 익절가와 스탑 가격을 알려줘."
-            },
-            "risk": {
-                "label": "리스크 팩트체크",
-                "q": "리스크 팩트체크 주의해야 할 핵심 투자 위험 요소를 알려줘."
-            },
-            "chart": {
-                "label": "차트 & 지표 진단",
-                "q": "차트 & 지표 진단 이평선과 RSI 기술적 지표를 종합 분석해줘."
-            }
-        }
-
-        # Initial answer initialization
-        if active_q_key not in st.session_state or active_ans_key not in st.session_state:
-            default_label = quick_queries["why"]["label"]
-            default_prompt = quick_queries["why"]["q"]
-            if default_prompt in st.session_state[cache_key]:
-                default_ans = st.session_state[cache_key][default_prompt]
-            else:
-                try:
-                    default_ans = generate_quant_expert_answer(stock_dict, default_prompt)
-                except Exception as _e:
-                    default_ans = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
-                st.session_state[cache_key][default_prompt] = default_ans
-
-            st.session_state[active_q_key] = default_label
-            st.session_state[active_ans_key] = default_ans
-            if not st.session_state[hist_key]:
-                st.session_state[hist_key].append({"q": default_label, "ans": default_ans})
-
-        with st.container(border=True):
-            hdr_c1, hdr_c2 = st.columns([3.5, 1.5])
-            with hdr_c1:
-                st.markdown(f"**{name} ({code})** 수석 애널리스트 팩트시트 & Q&A 콘솔")
-                score_v = float(stock_dict.get('score') or 0.0)
-                vol_v = float(stock_dict.get('vol_ratio') or 1.0)
-                rsi_v = float(stock_dict.get('rsi') or 50.0)
-                st.caption(f"전략: {stock_dict.get('strategy_tag', '')} | 스코어: {score_v:.1f}점 | 전일비 거래량: {vol_v:.1f}배 | RSI: {rsi_v:.1f}")
-            with hdr_c2:
-                if st.button("질의 초기화", key=f"reset_chat_{code}_{key_suffix}", use_container_width=True):
-                    st.session_state[cache_key] = {}
-                    st.session_state[hist_key] = []
-                    st.session_state.pop(active_q_key, None)
-                    st.session_state.pop(active_ans_key, None)
-                    st.rerun()
-
-            # Quick Question Buttons (Single-row compact layout)
-            st.markdown('<div class="compact-qa-buttons" style="display:none;"></div>', unsafe_allow_html=True)
-            q_cols = st.columns(5, gap="small")
-
-            curr_active_q = st.session_state.get(active_q_key, quick_queries["why"]["label"])
-
-            clicked_prompt = None
-            clicked_label = None
-
-            with q_cols[0]:
-                b_type = "primary" if curr_active_q == quick_queries["why"]["label"] else "secondary"
-                if st.button(quick_queries["why"]["label"], key=f"btn_quick_why_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                    clicked_prompt = quick_queries["why"]["q"]
-                    clicked_label = quick_queries["why"]["label"]
-
-            with q_cols[1]:
-                b_type = "primary" if curr_active_q == quick_queries["buy"]["label"] else "secondary"
-                if st.button(quick_queries["buy"]["label"], key=f"btn_quick_buy_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                    clicked_prompt = quick_queries["buy"]["q"]
-                    clicked_label = quick_queries["buy"]["label"]
-
-            with q_cols[2]:
-                b_type = "primary" if curr_active_q == quick_queries["tp"]["label"] else "secondary"
-                if st.button(quick_queries["tp"]["label"], key=f"btn_quick_tp_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                    clicked_prompt = quick_queries["tp"]["q"]
-                    clicked_label = quick_queries["tp"]["label"]
-
-            with q_cols[3]:
-                b_type = "primary" if curr_active_q == quick_queries["risk"]["label"] else "secondary"
-                if st.button(quick_queries["risk"]["label"], key=f"btn_quick_risk_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                    clicked_prompt = quick_queries["risk"]["q"]
-                    clicked_label = quick_queries["risk"]["label"]
-
-            with q_cols[4]:
-                b_type = "primary" if curr_active_q == quick_queries["chart"]["label"] else "secondary"
-                if st.button(quick_queries["chart"]["label"], key=f"btn_quick_chart_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                    clicked_prompt = quick_queries["chart"]["q"]
-                    clicked_label = quick_queries["chart"]["label"]
-
-            if clicked_prompt and clicked_label:
-                if clicked_prompt in st.session_state[cache_key]:
-                    new_ans = st.session_state[cache_key][clicked_prompt]
-                else:
-                    with st.spinner(f"AI 퀀트 수석 애널리스트가 '{clicked_label}' 항목을 정밀 분석 중입니다..."):
-                        try:
-                            new_ans = generate_quant_expert_answer(stock_dict, clicked_prompt)
-                        except Exception as _e:
-                            new_ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
-                        st.session_state[cache_key][clicked_prompt] = new_ans
-
-                st.session_state[active_q_key] = clicked_label
-                st.session_state[active_ans_key] = new_ans
-                st.session_state[hist_key].append({"q": clicked_label, "ans": new_ans})
-                st.rerun()
-
-            # Active Answer Display
-            active_q_disp = st.session_state.get(active_q_key, quick_queries["why"]["label"])
-            active_ans_disp = st.session_state.get(active_ans_key, "")
-
-            st.markdown(
-                f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:8px 12px; border-radius:6px; border:1px solid #CBD5E1; margin-top:10px; margin-bottom:10px;'>"
-                f"선택 질의: <span style='color:#0284C7;'>{active_q_disp}</span>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-
-            with st.chat_message("assistant"):
-                st.markdown(active_ans_disp)
-
-            # Custom Question Form
-            with st.form(key=f"custom_q_form_{code}_{key_suffix}", clear_on_submit=True):
-                f_c1, f_c2 = st.columns([4, 1])
-                with f_c1:
-                    user_custom_input = st.text_input(
-                        "질문 입력",
-                        placeholder=f"{name}에 대해 궁금한 점을 직접 질문하세요 (예: 내일 시초가에 어떻게 대응해야 하나요?)",
-                        label_visibility="collapsed",
-                        key=f"input_q_text_{code}_{key_suffix}"
-                    )
-                with f_c2:
-                    submitted = st.form_submit_button("질문 전송", type="primary", use_container_width=True)
-
-                if submitted and user_custom_input.strip():
-                    c_prompt = user_custom_input.strip()
-                    with st.spinner("퀀트 전문가 답변 생성 중..."):
-                        try:
-                            ans = generate_quant_expert_answer(stock_dict, c_prompt)
-                        except Exception as _e:
-                            ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
-                    st.session_state[active_q_key] = f"직접 질문: {c_prompt}"
-                    st.session_state[active_ans_key] = ans
-                    st.session_state[hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
-                    st.rerun()
-
-            # Past Question History Expander
-            if len(st.session_state[hist_key]) > 1:
-                with st.expander(f"이전 질의응답 기록 ({len(st.session_state[hist_key])}건)", expanded=False):
-                    for h_idx, h in enumerate(reversed(st.session_state[hist_key][:-1])):
-                        st.markdown(f"**[질문] {h['q']}**")
-                        st.markdown(h['ans'])
-                        if h_idx < len(st.session_state[hist_key]) - 2:
-                            st.divider()
 
     # Display Persistent Screened Results like Watchlist
     if "screened_results_df" in st.session_state and st.session_state["screened_results_df"] is not None and not st.session_state["screened_results_df"].empty:
@@ -2334,15 +2864,15 @@ with tab1:
                     if st.button(f"{sel_sc['name']} 7년 백테스트 실행", type="primary", key=f"bt_sc_btn_{sel_sc['code']}", use_container_width=True):
                         st.session_state["target_backtest_code"] = sel_sc["code"]
                         st.session_state["verif_pipeline_mode_sel"] = "과거 5년 워크포워드 & KODEX 200 벤치마크 검증 (종목별 95% 신뢰구간 시뮬레이션)"
-                        st.session_state["main_active_tab_nav"] = main_tab_names[2]
-                        st.toast(f"{sel_sc['name']} 백테스트 설정 완료! 3번 통합 검증 탭을 확인하세요.")
+                        st.session_state["main_active_tab_nav"] = main_tab_names[3]
+                        st.toast(f"{sel_sc['name']} 백테스트 설정 완료! 4번 통합 성과 검증 탭을 확인하세요.")
                         st.rerun()
                 with insp_btn2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    if st.button("관심종목 추가", key=f"add_sc_insp_{sel_sc['code']}", use_container_width=True):
-                        batch_add_to_watchlist([sel_sc["code"]])
-                        st.cache_data.clear()
-                        st.toast(f"{sel_sc['name']} 관심종목에 추가 완료!")
+                    if st.button("2번 애널리스트 콘솔 이동", key=f"btn_insp_to_tab2_{sel_sc['code']}", use_container_width=True):
+                        st.session_state["qa_console_target_code"] = sel_sc["code"]
+                        st.session_state["main_active_tab_nav"] = main_tab_names[1]
+                        st.toast(f"{sel_sc['name']} 2번 수석 애널리스트 콘솔로 이동합니다.")
                         st.rerun()
 
                 # 4. Technical Indicator Breakdown Cards
@@ -2408,13 +2938,14 @@ with tab1:
                             if st.button("백테스트", key=f"card_bt_sc_{srow['code']}_{i}", use_container_width=True):
                                 st.session_state["target_backtest_code"] = srow["code"]
                                 st.session_state["verif_pipeline_mode_sel"] = "과거 5년 워크포워드 & KODEX 200 벤치마크 검증 (종목별 95% 신뢰구간 시뮬레이션)"
-                                st.session_state["main_active_tab_nav"] = main_tab_names[2]
-                                st.toast(f"{srow['name']} 백테스트 설정 완료! 3번 통합 검증 탭을 확인하세요.")
+                                st.session_state["main_active_tab_nav"] = main_tab_names[3]
+                                st.toast(f"{srow['name']} 백테스트 설정 완료! 4번 통합 성과 검증 탭을 확인하세요.")
                                 st.rerun()
                         with c_b3:
-                            if st.button("퀀트 Q&A", key=f"card_qa_sc_{srow['code']}_{i}", use_container_width=True):
-                                st.session_state["qa_selected_stock_code"] = srow["code"]
-                                st.toast(f"{srow['name']} Q&A 활성화! 하단 퀀트 애널리스트 허브를 확인하세요.")
+                            if st.button("수석 애널리스트 Q&A", key=f"card_qa_sc_{srow['code']}_{i}", use_container_width=True):
+                                st.session_state["qa_console_target_code"] = srow["code"]
+                                st.session_state["main_active_tab_nav"] = main_tab_names[1]
+                                st.toast(f"{srow['name']} 2번 수석 애널리스트 콘솔로 이동합니다.")
                                 st.rerun()
 
         # -------------------------------------------------
@@ -2476,9 +3007,16 @@ with tab1:
                     render_quant_analyst_qa_box(qa_stock_row, key_suffix="hub")
 
 # =========================================================
-# TAB 2: 관심종목 실시간 스코어보드 & 관리
+# TAB 2: 수석 애널리스트 팩트시트 & Q&A 콘솔
 # =========================================================
 with tab2:
+    render_analyst_factsheet_and_qa_tab()
+
+
+# =========================================================
+# TAB 3: 관심종목 실시간 스코어보드 & 관리
+# =========================================================
+with tab3:
     # 1. Load Watchlist from DB & Render Summary KPIs Row (상단 KPI 카드)
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -2869,7 +3407,7 @@ with tab2:
                                 st.rerun()
 
                 # 2. Key Metrics & Action Buttons
-                insp_c1, insp_c2, insp_c3, insp_c4, insp_btn1, insp_btn2 = st.columns([2, 2, 2, 2, 2.5, 1.5])
+                insp_c1, insp_c2, insp_c3, insp_c4, insp_btn1, insp_btn2, insp_btn3 = st.columns([1.8, 1.8, 1.8, 1.8, 2.2, 2.0, 1.2])
                 with insp_c1:
                     st.metric("익일 스코어", f"{sel_row['score']:.1f}점", delta=sel_row['label'])
                 with insp_c2:
@@ -2884,10 +3422,17 @@ with tab2:
                     if st.button(f"{sel_row['name']} 7년 백테스트 실행", type="primary", key=f"bt_wl_btn_{sel_row['code']}", use_container_width=True):
                         st.session_state["target_backtest_code"] = sel_row["code"]
                         st.session_state["verif_pipeline_mode_sel"] = "과거 5년 워크포워드 & KODEX 200 벤치마크 검증 (종목별 95% 신뢰구간 시뮬레이션)"
-                        st.session_state["main_active_tab_nav"] = main_tab_names[2]
-                        st.toast(f"{sel_row['name']} 백테스트 설정 완료! 3번 통합 검증 탭을 확인하세요.")
+                        st.session_state["main_active_tab_nav"] = main_tab_names[3]
+                        st.toast(f"{sel_row['name']} 백테스트 설정 완료! 4번 통합 성과 검증 탭을 확인하세요.")
                         st.rerun()
                 with insp_btn2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.button("2번 애널리스트 Q&A", key=f"btn_wl_to_qa_{sel_row['code']}", use_container_width=True):
+                        st.session_state["qa_console_target_code"] = sel_row["code"]
+                        st.session_state["main_active_tab_nav"] = main_tab_names[1]
+                        st.toast(f"{sel_row['name']} 2번 수석 애널리스트 콘솔로 이동합니다.")
+                        st.rerun()
+                with insp_btn3:
                     st.markdown("<br>", unsafe_allow_html=True)
                     if st.button("삭제", key=f"del_sel_{sel_row['code']}", use_container_width=True):
                         with get_db_connection() as conn:
@@ -2955,8 +3500,8 @@ with tab2:
                             if st.button("백테스트", key=f"bt_card_{item['code']}", use_container_width=True):
                                 st.session_state["target_backtest_code"] = item["code"]
                                 st.session_state["verif_pipeline_mode_sel"] = "과거 5년 워크포워드 & KODEX 200 벤치마크 검증 (종목별 95% 신뢰구간 시뮬레이션)"
-                                st.session_state["main_active_tab_nav"] = main_tab_names[2]
-                                st.toast(f"{item['name']} 백테스트 설정됨! 3번 통합 검증 탭을 확인하세요.")
+                                st.session_state["main_active_tab_nav"] = main_tab_names[3]
+                                st.toast(f"{item['name']} 백테스트 설정됨! 4번 통합 성과 검증 탭을 확인하세요.")
                                 st.rerun()
                         with btn_c2:
                             if st.button("삭제", key=f"del_card_{item['code']}", use_container_width=True):
@@ -3864,9 +4409,9 @@ def render_live_forward_and_tuning_section():
 
 
 # =========================================================
-# TAB 3: 통합 성과 검증 & AI 자가최적화 센터 (All-in-One)
+# TAB 4: 통합 성과 검증 & AI 자가최적화 센터 (All-in-One)
 # =========================================================
-with tab3:
+with tab4:
     st.caption("실거래 체결 정산부터 AI 실패 원인 진단, 스크리너 원클릭 최적화, 과거 5년 벤치마크 검증까지 하나의 파이프라인으로 일원화된 올인원 검증 센터입니다.")
 
     verif_pipeline_mode = st.radio(
