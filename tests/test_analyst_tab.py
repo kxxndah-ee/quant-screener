@@ -77,7 +77,7 @@ class TestAnalystTab(unittest.TestCase):
             content = f.read()
 
         self.assertIn('"1. 시장 전체 익일 상승 후보 & 고확신 스크리너"', content)
-        self.assertIn('"2. 수석 애널리스트 팩트시트 & Q&A 콘솔"', content)
+        self.assertIn('"2. Q&A"', content)
         self.assertIn('"3. 관심종목 실시간 스코어보드"', content)
         self.assertIn('"4. 통합 성과 검증 & AI 자가최적화 센터"', content)
         self.assertIn("tab1, tab2, tab3, tab4 = st.tabs(main_tab_names", content)
@@ -86,6 +86,28 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn("with tab2:", content)
         self.assertIn("with tab3:", content)
         self.assertIn("with tab4:", content)
+
+        # Tab 2 structure assertions:
+        # 1. Direct search only (no quick chips, no dropdown)
+        self.assertIn("qa_direct_search_kw", content)
+        self.assertNotIn("빠른 종목 선택 칩", content)
+        self.assertNotIn("qa_stock_search_selectbox", content)
+
+        # 2. Compact metrics present
+        self.assertIn("종합 퀀트 스코어", content)
+        self.assertIn("가격 전략 & 손익비", content)
+        self.assertIn("수급 및 거래량 폭발력", content)
+        self.assertIn("기술적 지표 & 이평선", content)
+
+        # 3. Console 1: 목표가&손절가, 리스크 팩트체크, 차트&지표진단
+        self.assertIn("btn_diag_tp_", content)
+        self.assertIn("btn_diag_risk_", content)
+        self.assertIn("btn_diag_chart_", content)
+
+        # 4. Console 2: 왜 급등하나요?, 지금 사도 되나요? + 질문칸
+        self.assertIn("btn_qa_why_", content)
+        self.assertIn("btn_qa_buy_", content)
+        self.assertIn("qa_custom_form_", content)
 
 
 if __name__ == "__main__":

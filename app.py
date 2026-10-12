@@ -1527,8 +1527,8 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
 
 
 def render_analyst_factsheet_and_qa_tab():
-    st.markdown('<div class="office-subheading">수석 애널리스트 팩트시트 & Q&A 콘솔</div>', unsafe_allow_html=True)
-    st.caption("KRX 상장 전 종목에 대해 퀀트 지표, 목표가/손절가, 실시간 수급을 한눈에 확인하고 수석 애널리스트와 대화형 Q&A를 진행합니다.")
+    st.markdown('<div class="office-subheading">Q&A</div>', unsafe_allow_html=True)
+    st.caption("종목 직접 검색을 통해 실시간 퀀트 팩트시트를 확인하고, 핵심 정밀 진단 및 수석 애널리스트 Q&A를 수행합니다.")
 
     # 1. State initialization for selected stock
     if "qa_console_target_code" not in st.session_state:
@@ -1539,105 +1539,50 @@ def render_analyst_factsheet_and_qa_tab():
 
     curr_target_code = str(st.session_state["qa_console_target_code"]).strip().zfill(6)
 
-    # 2. Quick Preset Chips Bar
-    screened_chips = []
-    if "screened_results_df" in st.session_state and st.session_state["screened_results_df"] is not None and not st.session_state["screened_results_df"].empty:
-        for _, sr in st.session_state["screened_results_df"].head(4).iterrows():
-            c = str(sr.get("code", "")).strip().zfill(6)
-            n = str(sr.get("name", c))
-            screened_chips.append((c, n, "스크리닝"))
-
-    watchlist_chips = []
-    try:
-        with get_db_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT code, name FROM watchlist ORDER BY added_at DESC LIMIT 4")
-            for r in cur.fetchall():
-                c = str(r["code"]).strip().zfill(6)
-                if not any(x[0] == c for x in screened_chips):
-                    watchlist_chips.append((c, str(r["name"]), "관심종목"))
-    except Exception:
-        pass
-
-    market_rep_chips = [
-        ("005930", "삼성전자", "대표주"),
-        ("000660", "SK하이닉스", "대표주"),
-        ("005380", "현대차", "대표주"),
-        ("196170", "알테오젠", "대표주"),
-        ("035420", "NAVER", "대표주"),
-    ]
-
-    combined_chips = screened_chips + watchlist_chips + [x for x in market_rep_chips if not any(y[0] == x[0] for y in (screened_chips + watchlist_chips))]
-    top_chips = combined_chips[:8]
-
-    st.markdown("<div style='font-size:0.8rem; font-weight:700; color:#475569; margin-bottom:4px;'>빠른 종목 선택 칩:</div>", unsafe_allow_html=True)
-    chip_cols = st.columns(len(top_chips) or 1)
-    for idx, (chip_c, chip_n, chip_src) in enumerate(top_chips):
-        with chip_cols[idx]:
-            is_active_chip = (chip_c == curr_target_code)
-            btn_style = "primary" if is_active_chip else "secondary"
-            btn_txt = f"{chip_n}"
-            if st.button(btn_txt, key=f"chip_qa_{chip_c}_{idx}", type=btn_style, use_container_width=True, help=f"[{chip_src}] {chip_n} ({chip_c})"):
-                st.session_state["qa_console_target_code"] = chip_c
-                st.rerun()
-
-    st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
-
-    # 3. Search & Select Toolbar
-    universe_opts = get_cached_universe_options()
-    code_to_display = {u["code"]: u["display"] for u in universe_opts}
-    display_to_code = {u["display"]: u["code"] for u in universe_opts}
-    all_displays = [u["display"] for u in universe_opts]
-
-    curr_display = code_to_display.get(curr_target_code)
-    if not curr_display:
-        curr_display = f"종목 ({curr_target_code})"
-        all_displays.insert(0, curr_display)
-        display_to_code[curr_display] = curr_target_code
-
-    cur_idx = 0
-    if curr_display in all_displays:
-        cur_idx = all_displays.index(curr_display)
-
-    sel_c1, sel_c2, sel_c3 = st.columns([3.6, 1.6, 0.8])
-    with sel_c1:
-        chosen_disp = st.selectbox(
-            "종목 전체 검색 & 선택 (종목명/코드 입력 시 자동 필터링)",
-            all_displays,
-            index=cur_idx,
-            key="qa_stock_search_selectbox"
+    # 2. Direct Search Toolbar ONLY (Quick preset chips & full dropdown deleted)
+    s_c1, s_c2, s_c3 = st.columns([4.2, 1.0, 1.0])
+    with s_c1:
+        direct_kw = st.text_input(
+            "종목 직접 검색",
+            placeholder="종목명 또는 6자리 종목코드 입력 (예: 삼성전자, 카카오, 현대차, 005930)",
+            key="qa_direct_search_kw",
+            label_visibility="collapsed"
         )
-        new_sel_code = display_to_code.get(chosen_disp, curr_target_code)
-        if new_sel_code != curr_target_code:
-            st.session_state["qa_console_target_code"] = new_sel_code
-            st.rerun()
+    with s_c2:
+        search_btn = st.button("종목 검색", type="primary", key="btn_qa_direct_search", use_container_width=True)
+    with s_c3:
+        sync_btn = st.button("시세 동기화", key="btn_qa_sync_market", use_container_width=True, help="실시간 시세 및 퀀트 지표 동기화")
 
-    with sel_c2:
-        direct_input = st.text_input(
-            "직접 검색 (종목명 / 6자리 코드)",
-            placeholder="예: 카카오, 035720",
-            key="qa_direct_search_input"
-        )
-        if direct_input.strip():
-            kw = direct_input.strip()
-            matched_code = None
-            if kw.isdigit() and len(kw) == 6 and kw in code_to_display:
-                matched_code = kw
-            else:
-                matches = search_ticker(kw, limit=1)
-                if matches:
-                    matched_code = matches[0]["code"]
-            if matched_code and matched_code != curr_target_code:
+    if sync_btn:
+        st.cache_data.clear()
+        st.rerun()
+
+    last_kw_key = "qa_direct_last_searched_kw"
+    kw_to_check = direct_kw.strip()
+    should_search = False
+    if search_btn and kw_to_check:
+        should_search = True
+    elif kw_to_check and kw_to_check != st.session_state.get(last_kw_key, ""):
+        should_search = True
+
+    if should_search:
+        st.session_state[last_kw_key] = kw_to_check
+        matched_code = None
+        if kw_to_check.isdigit() and len(kw_to_check) == 6:
+            matched_code = kw_to_check
+        else:
+            matches = search_ticker(kw_to_check, limit=1)
+            if matches:
+                matched_code = matches[0]["code"]
+
+        if matched_code:
+            if matched_code != curr_target_code:
                 st.session_state["qa_console_target_code"] = matched_code
                 st.rerun()
+        else:
+            st.warning(f"'{kw_to_check}' 검색 결과가 없습니다. 올바른 종목명 또는 6자리 종목코드를 입력하세요.")
 
-    with sel_c3:
-        st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-        if st.button("새로고침", key="btn_refresh_qa_console", use_container_width=True, help="실시간 시세 및 지표 최신화"):
-            st.cache_data.clear()
-            st.rerun()
-
-    # 4. Load Stock Analysis Payload
+    # 3. Load Stock Analysis Payload
     with st.spinner(f"수석 애널리스트가 [{curr_target_code}] 실시간 시세 및 퀀트 지표를 분석 중입니다..."):
         payload = get_stock_factsheet_payload(curr_target_code)
 
@@ -1671,98 +1616,252 @@ def render_analyst_factsheet_and_qa_tab():
     rule_note = payload["rule_note"]
     est_val_억 = payload["est_trading_val_krw"] / 100_000_000
 
-    # 5. Render Factsheet Header Bar
+    # 4. Render Factsheet Header Bar
     chg_color = "#DC2626" if change_pct > 0 else ("#2563EB" if change_pct < 0 else "#475569")
     chg_sign = "+" if change_pct > 0 else ""
     diff_val = close - prev_close
 
     st.markdown(
         f"""
-        <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:12px 16px; margin:8px 0 12px 0;">
+        <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:10px 14px; margin:4px 0 8px 0;">
             <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap;">
                 <div>
                     <span style="font-size:0.8rem; background:#E2E8F0; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{market}</span>
-                    <span style="font-size:1.35rem; font-weight:800; color:#0F172A; margin-left:6px;">{name}</span>
-                    <span style="font-size:0.95rem; color:#64748B; font-weight:600; margin-left:4px;">({code})</span>
+                    <span style="font-size:1.3rem; font-weight:800; color:#0F172A; margin-left:6px;">{name}</span>
+                    <span style="font-size:0.9rem; color:#64748B; font-weight:600; margin-left:4px;">({code})</span>
                     <span style="font-size:0.85rem; color:#0284C7; font-weight:600; margin-left:8px;">{sector}</span>
                 </div>
                 <div>
-                    <span style="font-size:1.45rem; font-weight:800; color:{chg_color};">{close:,.0f}원</span>
-                    <span style="font-size:1.05rem; font-weight:700; color:{chg_color}; margin-left:6px;">({chg_sign}{change_pct:.2f}% · {diff_val:+,.0f}원)</span>
+                    <span style="font-size:1.35rem; font-weight:800; color:{chg_color};">{close:,.0f}원</span>
+                    <span style="font-size:1.0rem; font-weight:700; color:{chg_color}; margin-left:6px;">({chg_sign}{change_pct:.2f}% · {diff_val:+,.0f}원)</span>
                 </div>
             </div>
-            <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; font-size:0.82rem; color:#475569; border-top:1px dashed #CBD5E1; padding-top:6px;">
+            <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:6px; font-size:0.8rem; color:#475569; border-top:1px dashed #CBD5E1; padding-top:6px;">
                 <span>시가: <strong>{open_p:,.0f}원</strong> ({open_pct:+.2f}%)</span>
                 <span>고가: <strong>{high_p:,.0f}원</strong> ({high_pct:+.2f}%)</span>
                 <span>저가: <strong>{low_p:,.0f}원</strong> ({low_pct:+.2f}%)</span>
                 <span>거래량: <strong>{volume:,}주</strong> (전일비 <strong>{vol_ratio:.1f}배</strong>)</span>
-                <span>추정 거래대금: <strong>약 {est_val_억:,.0f}억원</strong></span>
+                <span>추정 대금: <strong>약 {est_val_억:,.0f}억원</strong></span>
             </div>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # 6. Four Core Quant Fact Cards
-    q_c1, q_c2, q_c3, q_c4 = st.columns(4)
-    with q_c1:
-        with st.container(border=True):
-            st.caption("종합 퀀트 스코어")
-            st.metric(
-                label="스코어 및 신호",
-                value=f"{score:.1f}점",
-                delta=f"{label} (100점 만점)",
-                delta_color="normal" if score >= 65 else "off"
-            )
-            score_bar_val = min(1.0, max(0.0, score / 100.0))
-            st.progress(score_bar_val)
-            st.caption(f"신뢰도: {'고확신' if score>=75 else ('우수' if score>=65 else '중립')}")
+    # 5. Compact 4 Core Metric Cards (Vertical space minimized)
+    score_color = "#DC2626" if score >= 75 else ("#D97706" if score >= 65 else "#475569")
+    score_conf = "고확신" if score >= 75 else ("우수" if score >= 65 else "중립")
+    vol_tag = "폭발" if vol_ratio >= 2.0 else ("양호" if vol_ratio >= 1.0 else "소강")
+    rsi_tag = "과열" if rsi >= 75 else ("상승" if rsi >= 55 else ("침체" if rsi <= 35 else "중립"))
 
-    with q_c2:
-        with st.container(border=True):
-            st.caption("가격 전략 & 손익비")
-            st.metric(
-                label="1차 목표 / 원칙 손절",
-                value=f"{tp_price:,.0f}원",
-                delta=f"+{tp_pct:.1f}% 익절",
-                delta_color="normal"
-            )
-            st.markdown(f"<div style='font-size:0.75rem; color:#64748B;'>손절선: <strong>{sl_price:,.0f}원</strong> (-{sl_pct:.1f}%)</div>", unsafe_allow_html=True)
-            st.caption(f"목표 손익비(R/R): {rr_ratio:.2f} : 1")
+    st.markdown(
+        f"""
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:12px;">
+            <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                <div style="font-size:0.75rem; color:#64748B; font-weight:700;">종합 퀀트 스코어</div>
+                <div style="font-size:1.05rem; font-weight:800; color:{score_color}; margin:2px 0;">{score:.1f}점 <span style="font-size:0.8rem; font-weight:600; color:#334155;">({label})</span></div>
+                <div style="font-size:0.72rem; color:#64748B;">신뢰도: {score_conf}</div>
+            </div>
+            <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                <div style="font-size:0.75rem; color:#64748B; font-weight:700;">가격 전략 & 손익비</div>
+                <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:2px 0;">+{tp_pct:.1f}% <span style="font-size:0.75rem; font-weight:600; color:#DC2626;">/ -{sl_pct:.1f}%</span></div>
+                <div style="font-size:0.72rem; color:#64748B;">목표 {tp_price:,.0f}원 | 손절 {sl_price:,.0f}원 (R/R {rr_ratio:.2f})</div>
+            </div>
+            <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                <div style="font-size:0.75rem; color:#64748B; font-weight:700;">수급 및 거래량 폭발력</div>
+                <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:2px 0;">전일비 {vol_ratio:.1f}배 <span style="font-size:0.75rem; font-weight:600; color:#2563EB;">({vol_tag})</span></div>
+                <div style="font-size:0.72rem; color:#64748B;">{volume:,}주 | 약 {est_val_억:,.0f}억원</div>
+            </div>
+            <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                <div style="font-size:0.75rem; color:#64748B; font-weight:700;">기술적 지표 & 이평선</div>
+                <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:2px 0;">RSI {rsi:.1f}pt <span style="font-size:0.75rem; font-weight:600; color:#475569;">({rsi_tag})</span></div>
+                <div style="font-size:0.72rem; color:#64748B;">{ma_status} | BB %b {bb_pct:.2f}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    with q_c3:
-        with st.container(border=True):
-            st.caption("수급 및 거래량 폭발력")
-            st.metric(
-                label="전일대비 거래량",
-                value=f"{vol_ratio:.1f}배",
-                delta=f"{'대량 수급 유입' if vol_ratio>=2.0 else ('양호' if vol_ratio>=1.0 else '거래 소강')}",
-                delta_color="normal" if vol_ratio>=1.5 else "off"
-            )
-            st.markdown(f"<div style='font-size:0.75rem; color:#64748B;'>누적: <strong>{volume:,}주</strong></div>", unsafe_allow_html=True)
-            st.caption(f"추정 대금: 약 {est_val_억:,.0f}억원")
+    # Shared answer cache per stock
+    cache_key = f"qa_ans_cache_{code}"
+    if cache_key not in st.session_state:
+        st.session_state[cache_key] = {}
 
-    with q_c4:
-        with st.container(border=True):
-            st.caption("기술적 지표 & 이평선")
-            st.metric(
-                label="RSI(14) 모멘텀",
-                value=f"{rsi:.1f}pt",
-                delta=f"{'과열 진입' if rsi>=75 else ('탄력 상승' if rsi>=55 else ('침체' if rsi<=35 else '중립'))}",
-                delta_color="normal" if 50<=rsi<=72 else "off"
-            )
-            st.markdown(f"<div style='font-size:0.75rem; color:#64748B;'>이평: <strong>{ma_status}</strong></div>", unsafe_allow_html=True)
-            st.caption(f"볼린저밴드 %b: {bb_pct:.2f}")
+    # 6. Console 1 (아래 콘솔): 목표가&손절가, 리스크 팩트체크, 차트&지표진단
+    diag_menus = {
+        "tp": {
+            "label": "목표가 & 손절가",
+            "q": "목표가 & 손절가 알고리즘 권장 익절가와 스탑 가격을 알려줘."
+        },
+        "risk": {
+            "label": "리스크 팩트체크",
+            "q": "리스크 팩트체크 주의해야 할 핵심 투자 위험 요소를 알려줘."
+        },
+        "chart": {
+            "label": "차트 & 지표 진단",
+            "q": "차트 & 지표 진단 이평선과 RSI 기술적 지표를 종합 분석해줘."
+        }
+    }
 
-    # 7. Chief Analyst Strategy Memo Container
+    diag_sel_key = f"diag_active_sel_{code}"
+    if diag_sel_key not in st.session_state:
+        st.session_state[diag_sel_key] = "tp"
+
     with st.container(border=True):
-        m_c1, m_c2 = st.columns([1.5, 4.5])
-        with m_c1:
-            st.markdown("<div style='font-size:0.85rem; font-weight:700; color:#1E293B;'>수석 애널리스트 전략 메모</div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='margin-top:6px;'><span style='background:#EDE9FE; color:#6D28D9; padding:3px 8px; border-radius:4px; font-weight:700; font-size:0.8rem;'>{strategy_tag}</span></div>", unsafe_allow_html=True)
-        with m_c2:
-            st.markdown(f"**발굴 및 진단 근거**: {reason_core}")
-            st.markdown(f"**매매 체결 원칙**: {rule_note}")
+        st.markdown(f"**{name} ({code})** 핵심 정밀 진단 콘솔")
+        d_c1, d_c2, d_c3 = st.columns(3, gap="small")
+        clicked_diag = None
+
+        with d_c1:
+            is_active = (st.session_state[diag_sel_key] == "tp")
+            if st.button(diag_menus["tp"]["label"], key=f"btn_diag_tp_{code}", type="primary" if is_active else "secondary", use_container_width=True):
+                clicked_diag = "tp"
+        with d_c2:
+            is_active = (st.session_state[diag_sel_key] == "risk")
+            if st.button(diag_menus["risk"]["label"], key=f"btn_diag_risk_{code}", type="primary" if is_active else "secondary", use_container_width=True):
+                clicked_diag = "risk"
+        with d_c3:
+            is_active = (st.session_state[diag_sel_key] == "chart")
+            if st.button(diag_menus["chart"]["label"], key=f"btn_diag_chart_{code}", type="primary" if is_active else "secondary", use_container_width=True):
+                clicked_diag = "chart"
+
+        if clicked_diag and clicked_diag != st.session_state[diag_sel_key]:
+            st.session_state[diag_sel_key] = clicked_diag
+            st.rerun()
+
+        active_diag_choice = st.session_state[diag_sel_key]
+        active_diag_q = diag_menus[active_diag_choice]["q"]
+        active_diag_label = diag_menus[active_diag_choice]["label"]
+
+        if active_diag_q not in st.session_state[cache_key]:
+            with st.spinner(f"AI 퀀트 수석 애널리스트가 '{active_diag_label}' 항목을 분석 중입니다..."):
+                try:
+                    diag_ans = generate_quant_expert_answer(payload, active_diag_q)
+                except Exception as _e:
+                    diag_ans = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
+                st.session_state[cache_key][active_diag_q] = diag_ans
+        else:
+            diag_ans = st.session_state[cache_key][active_diag_q]
+
+        st.markdown(
+            f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:6px 12px; border-radius:6px; border:1px solid #CBD5E1; margin:8px 0 6px 0;'>"
+            f"진단 항목: <span style='color:#0284C7;'>{active_diag_label}</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+        st.markdown(diag_ans)
+
+    # 7. Console 2 (그 아래 콘솔): 왜 급등하나요?, 지금 사도 되나요? + 질문칸
+    qa_menus = {
+        "why": {
+            "label": "왜 급등하나요?",
+            "q": "왜 급등하나요? 핵심 상승 원인과 수급 특징을 설명해줘."
+        },
+        "buy": {
+            "label": "지금 사도 되나요?",
+            "q": "지금 사도 되나요? 현재 가격대 진입 적합성과 손익비를 알려줘."
+        }
+    }
+
+    qa_active_q_key = f"qa_active_q_{code}"
+    qa_active_ans_key = f"qa_active_ans_{code}"
+    qa_hist_key = f"qa_hist_{code}"
+
+    if qa_active_q_key not in st.session_state:
+        st.session_state[qa_active_q_key] = "why"
+    if qa_hist_key not in st.session_state:
+        st.session_state[qa_hist_key] = []
+
+    with st.container(border=True):
+        h_c1, h_c2 = st.columns([3.5, 1.5])
+        with h_c1:
+            st.markdown(f"**{name} ({code})** 수석 애널리스트 실시간 Q&A 콘솔")
+        with h_c2:
+            if st.button("질의 초기화", key=f"reset_chat_{code}_tab2", use_container_width=True):
+                st.session_state[cache_key] = {}
+                st.session_state[qa_hist_key] = []
+                st.session_state[qa_active_q_key] = "why"
+                st.session_state.pop(qa_active_ans_key, None)
+                st.rerun()
+
+        qa_b1, qa_b2, _ = st.columns([1.5, 1.5, 3.0], gap="small")
+        clicked_qa = None
+
+        with qa_b1:
+            is_active = (st.session_state[qa_active_q_key] == "why")
+            if st.button(qa_menus["why"]["label"], key=f"btn_qa_why_{code}", type="primary" if is_active else "secondary", use_container_width=True):
+                clicked_qa = "why"
+        with qa_b2:
+            is_active = (st.session_state[qa_active_q_key] == "buy")
+            if st.button(qa_menus["buy"]["label"], key=f"btn_qa_buy_{code}", type="primary" if is_active else "secondary", use_container_width=True):
+                clicked_qa = "buy"
+
+        if clicked_qa and clicked_qa != st.session_state[qa_active_q_key]:
+            st.session_state[qa_active_q_key] = clicked_qa
+            st.rerun()
+
+        curr_choice = st.session_state[qa_active_q_key]
+        if curr_choice in qa_menus:
+            q_label = qa_menus[curr_choice]["label"]
+            q_prompt = qa_menus[curr_choice]["q"]
+            if q_prompt not in st.session_state[cache_key]:
+                with st.spinner(f"AI 퀀트 수석 애널리스트가 '{q_label}' 항목을 분석 중입니다..."):
+                    try:
+                        q_ans = generate_quant_expert_answer(payload, q_prompt)
+                    except Exception as _e:
+                        q_ans = f"답변 생성 중 일시적인 오류가 발생했습니다: {_e}"
+                    st.session_state[cache_key][q_prompt] = q_ans
+            else:
+                q_ans = st.session_state[cache_key][q_prompt]
+            st.session_state[qa_active_ans_key] = q_ans
+            disp_title = q_label
+        else:
+            disp_title = curr_choice
+            q_ans = st.session_state.get(qa_active_ans_key, "")
+
+        st.markdown(
+            f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:6px 12px; border-radius:6px; border:1px solid #CBD5E1; margin:8px 0 6px 0;'>"
+            f"선택 질문: <span style='color:#0284C7;'>{disp_title}</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+        with st.chat_message("assistant"):
+            st.markdown(q_ans)
+
+        # 질문칸 (Custom Question Input Form)
+        with st.form(key=f"qa_custom_form_{code}", clear_on_submit=True):
+            f_c1, f_c2 = st.columns([4.2, 1.0])
+            with f_c1:
+                custom_q_input = st.text_input(
+                    "질문칸",
+                    placeholder=f"{name}에 대해 궁금한 점을 질문하세요 (예: 내일 시초가에 어떻게 대응해야 하나요?)",
+                    label_visibility="collapsed",
+                    key=f"input_qa_custom_{code}"
+                )
+            with f_c2:
+                submitted = st.form_submit_button("질문 전송", type="primary", use_container_width=True)
+
+            if submitted and custom_q_input.strip():
+                c_prompt = custom_q_input.strip()
+                with st.spinner("수석 애널리스트 답변 생성 중..."):
+                    try:
+                        ans = generate_quant_expert_answer(payload, c_prompt)
+                    except Exception as _e:
+                        ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
+                st.session_state[qa_active_q_key] = f"직접 질문: {c_prompt}"
+                st.session_state[qa_active_ans_key] = ans
+                st.session_state[qa_hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
+                st.rerun()
+
+        # Past Question History Expander
+        if len(st.session_state[qa_hist_key]) > 0:
+            with st.expander(f"이전 직접 질문 기록 ({len(st.session_state[qa_hist_key])}건)", expanded=False):
+                for h_idx, h in enumerate(reversed(st.session_state[qa_hist_key])):
+                    st.markdown(f"**[질문] {h['q']}**")
+                    st.markdown(h['ans'])
+                    if h_idx < len(st.session_state[qa_hist_key]) - 1:
+                        st.divider()
 
     # 8. Action Toolbar (Watchlist, Backtest, Screener)
     act_c1, act_c2, act_c3, act_c4 = st.columns([2.0, 2.0, 2.0, 4.0])
@@ -1808,16 +1907,10 @@ def render_analyst_factsheet_and_qa_tab():
     with act_c4:
         st.caption("※ 시세 및 퀀트 지표는 실시간 장중 호가와 내장 알고리즘으로 동기화됩니다.")
 
-    st.markdown("---")
-
-    # 9. Interactive Q&A Console
-    st.markdown(f"#### **{name} ({code})** 수석 애널리스트 실시간 Q&A 콘솔")
-    render_quant_analyst_qa_box(payload, key_suffix="console")
-
 
 main_tab_names = [
     "1. 시장 전체 익일 상승 후보 & 고확신 스크리너",
-    "2. 수석 애널리스트 팩트시트 & Q&A 콘솔",
+    "2. Q&A",
     "3. 관심종목 실시간 스코어보드",
     "4. 통합 성과 검증 & AI 자가최적화 센터",
 ]
@@ -3007,7 +3100,7 @@ with tab1:
                     render_quant_analyst_qa_box(qa_stock_row, key_suffix="hub")
 
 # =========================================================
-# TAB 2: 수석 애널리스트 팩트시트 & Q&A 콘솔
+# TAB 2: Q&A
 # =========================================================
 with tab2:
     render_analyst_factsheet_and_qa_tab()
