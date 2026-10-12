@@ -46,7 +46,7 @@ class TestScreeningWorker(unittest.TestCase):
 
         with patch("src.core.screening_worker.fetch_ohlcv") as mock_ohlcv:
             # Slow down fetch to simulate long task
-            def slow_fetch(code):
+            def slow_fetch(code, *args, **kwargs):
                 time.sleep(0.05)
                 return pd.DataFrame()
 

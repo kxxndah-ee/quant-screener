@@ -61,56 +61,89 @@ def fetch_realtime_quotes(codes: list) -> Dict[str, Dict[str, Any]]:
     result: Dict[str, Dict[str, Any]] = {}
 
     chunk_size = 50
-    for i in range(0, len(unique_codes), chunk_size):
-        chunk = unique_codes[i:i + chunk_size]
+    chunks = [unique_codes[i:i + chunk_size] for i in range(0, len(unique_codes), chunk_size)]
+
+    session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=10, max_retries=2)
+    session.mount("https://", adapter)
+
+    def _fetch_chunk(chunk: list) -> list:
         url = "https://polling.finance.naver.com/api/realtime/domestic/stock/" + ",".join(chunk)
+        for _ in range(2):
+            try:
+                r = session.get(url, verify=False, timeout=4)
+                if r.status_code == 200:
+                    return r.json().get("datas", [])
+            except Exception:
+                pass
+        return []
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(8, len(chunks) or 1)) as executor:
+        chunk_results = list(executor.map(_fetch_chunk, chunks))
+
+    def _safe_float(val, default=0.0) -> float:
         try:
-            r = requests.get(url, verify=False, timeout=5)
-            if r.status_code == 200:
-                data = r.json()
-                for item in data.get("datas", []):
-                    code = item.get("itemCode")
-                    if not code:
-                        continue
-                    close_p = float(item.get("closePriceRaw", 0))
-                    diff_p = float(item.get("compareToPreviousClosePriceRaw", 0))
-                    prev_p = close_p - diff_p if diff_p != 0 else float(item.get("closePriceRaw", 0))
-                    chg_pct = float(item.get("fluctuationsRatioRaw", 0.0))
-                    if prev_p <= 0 and close_p > 0 and chg_pct != 0:
-                        prev_p = close_p / (1.0 + chg_pct / 100.0)
-                    elif prev_p <= 0:
-                        prev_p = close_p
+            if val is None or val == "":
+                return default
+            return float(val)
+        except (ValueError, TypeError):
+            return default
 
-                    open_p = float(item.get("openPriceRaw", close_p))
-                    high_p = float(item.get("highPriceRaw", close_p))
-                    low_p = float(item.get("lowPriceRaw", close_p))
-                    vol_p = int(item.get("accumulatedTradingVolumeRaw", 0))
+    def _safe_int(val, default=0) -> int:
+        try:
+            if val is None or val == "":
+                return default
+            return int(float(val))
+        except (ValueError, TypeError):
+            return default
 
-                    open_pct = ((open_p - prev_p) / prev_p * 100.0) if prev_p > 0 else 0.0
-                    high_pct = ((high_p - prev_p) / prev_p * 100.0) if prev_p > 0 else 0.0
-                    low_pct = ((low_p - prev_p) / prev_p * 100.0) if prev_p > 0 else 0.0
+    now_kst_str = get_now_kst().strftime("%Y-%m-%d")
+    for datas in chunk_results:
+        for item in datas:
+            try:
+                code = item.get("itemCode")
+                if not code:
+                    continue
+                close_p = _safe_float(item.get("closePriceRaw"), 0.0)
+                diff_p = _safe_float(item.get("compareToPreviousClosePriceRaw"), 0.0)
+                prev_p = close_p - diff_p if diff_p != 0 else _safe_float(item.get("closePriceRaw"), 0.0)
+                chg_pct = _safe_float(item.get("fluctuationsRatioRaw"), 0.0)
+                if prev_p <= 0 and close_p > 0 and chg_pct != 0:
+                    prev_p = close_p / (1.0 + chg_pct / 100.0)
+                elif prev_p <= 0:
+                    prev_p = close_p
 
-                    local_time = item.get("localTradedAt", "")
-                    date_str = local_time[:10] if local_time else get_now_kst().strftime("%Y-%m-%d")
+                open_p = _safe_float(item.get("openPriceRaw"), close_p)
+                high_p = _safe_float(item.get("highPriceRaw"), close_p)
+                low_p = _safe_float(item.get("lowPriceRaw"), close_p)
+                vol_p = _safe_int(item.get("accumulatedTradingVolumeRaw"), 0)
 
-                    result[code] = {
-                        "code": code,
-                        "name": item.get("stockName", ""),
-                        "close": close_p,
-                        "open": open_p,
-                        "high": high_p,
-                        "low": low_p,
-                        "prev_close": prev_p,
-                        "change_pct": chg_pct,
-                        "open_pct": open_pct,
-                        "high_pct": high_pct,
-                        "low_pct": low_pct,
-                        "volume": vol_p,
-                        "market_status": item.get("marketStatus", ""),
-                        "date": date_str
-                    }
-        except Exception:
-            pass
+                open_pct = ((open_p - prev_p) / prev_p * 100.0) if prev_p > 0 else 0.0
+                high_pct = ((high_p - prev_p) / prev_p * 100.0) if prev_p > 0 else 0.0
+                low_pct = ((low_p - prev_p) / prev_p * 100.0) if prev_p > 0 else 0.0
+
+                local_time = item.get("localTradedAt", "")
+                date_str = local_time[:10] if local_time else now_kst_str
+
+                result[code] = {
+                    "code": code,
+                    "name": item.get("stockName", ""),
+                    "close": close_p,
+                    "open": open_p,
+                    "high": high_p,
+                    "low": low_p,
+                    "prev_close": prev_p,
+                    "change_pct": chg_pct,
+                    "open_pct": open_pct,
+                    "high_pct": high_pct,
+                    "low_pct": low_pct,
+                    "volume": vol_p,
+                    "market_status": item.get("marketStatus", ""),
+                    "date": date_str
+                }
+            except Exception:
+                continue
 
     return result
 
