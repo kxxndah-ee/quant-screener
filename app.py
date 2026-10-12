@@ -205,6 +205,12 @@ st.markdown("""
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.35rem !important;
     }
+    /* Prevent unwanted inner vertical scrollbars on column containers */
+    div[data-testid="stHorizontalBlock"],
+    div[data-testid="column"],
+    div[data-testid="column"] > div[data-testid="stVerticalBlock"] {
+        overflow: visible !important;
+    }
     hr {
         margin: 0.35rem 0 !important;
     }
@@ -1723,8 +1729,13 @@ with tab1:
             cur_cb_ret = st.session_state.get("sc_min_day_ret_val", 3.0)
             min_day_ret_val = st.slider("당일 최소 주가 상승률 (%)", 2.0, 6.0, value=cur_cb_ret, step=0.5, key="sc_min_day_ret_val")
         with sc_c5:
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.caption("15:20~15:30 권장")
+            st.markdown(
+                '<div style="font-size:0.75rem; color:#64748B; padding-top:20px; line-height:1.35; white-space:nowrap; overflow:hidden;">'
+                '15:20~15:30 종가 매수<br>'
+                '<span style="color:#7C3AED; font-weight:700;">익일 시초 +1.5% 갭 익절</span>'
+                '</div>',
+                unsafe_allow_html=True
+            )
     elif "5% 급등" in sc_mode or "5% 돌파" in sc_mode:
         with sc_c3:
             surge_options = [100, 200, 300, 500]
@@ -1736,8 +1747,13 @@ with tab1:
             cur_s_pct = st.session_state.get("sc_min_day_surge_pct", 8.0)
             min_day_surge_pct = st.slider("당일 최소 주가 상승률 (%)", 5.0, 25.0, value=cur_s_pct, step=1.0, key="sc_min_day_surge_pct")
         with sc_c5:
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.caption("장중 급등·마감 직전 진입 -> TP +5%")
+            st.markdown(
+                '<div style="font-size:0.75rem; color:#64748B; padding-top:20px; line-height:1.35; white-space:nowrap; overflow:hidden;">'
+                '장중 급등·마감 직전 진입<br>'
+                '<span style="color:#D97706; font-weight:700;">익절 +5.0% / 손절 -4.0%</span>'
+                '</div>',
+                unsafe_allow_html=True
+            )
     else:
         with sc_c3:
             cur_score = st.session_state.get("sc_min_screener_score", 65.0)
