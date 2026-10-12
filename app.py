@@ -1749,7 +1749,88 @@ def render_analyst_factsheet_and_qa_tab():
             f"</div>",
             unsafe_allow_html=True
         )
-        st.markdown(diag_ans)
+
+        # 1번 이미지와 동일한 카드 그리드 형식으로 정돈된 진단 카드 렌더링
+        if active_diag_choice == "tp":
+            trailing_trig = min(2.4, tp_pct * 0.7)
+            st.markdown(
+                f"""
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:8px 0;">
+                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">1. 알고리즘 목표 익절가 (Take-Profit)</div>
+                        <div style="font-size:1.05rem; font-weight:800; color:#DC2626; margin:2px 0;">{tp_price:,.0f}원 <span style="font-size:0.8rem; font-weight:600; color:#DC2626;">(+{tp_pct:.1f}%)</span></div>
+                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">실행 원칙: 장중 해당 호가 터치 시 50% 분할 익절, 잔여 물량은 트레일링 스탑(+1.8% 이상 수익 락)으로 극대화</div>
+                    </div>
+                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">2. 원칙 손절 기준가 (Stop-Loss)</div>
+                        <div style="font-size:1.05rem; font-weight:800; color:#2563EB; margin:2px 0;">{sl_price:,.0f}원 <span style="font-size:0.8rem; font-weight:600; color:#2563EB;">(-{sl_pct:.1f}%)</span></div>
+                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">실행 원칙: 종가 또는 장중 해당 가격 하향 이탈 시 미련 없이 전량 손절하여 추가 낙폭(-5%~-10%) 원천 차단</div>
+                    </div>
+                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">3. 트레일링 익절 락 (Trailing Lock)</div>
+                        <div style="font-size:1.05rem; font-weight:800; color:#059669; margin:2px 0;">+1.8% 수익 락 <span style="font-size:0.8rem; font-weight:600; color:#475569;">(+{trailing_trig:.1f}% 도달 시)</span></div>
+                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">실행 원칙: 주가가 +{trailing_trig:.1f}% 이상 상승했다가 되밀릴 경우, 본전 이상인 +1.8% 구간에서 자동 청산하여 수익 보존</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        elif active_diag_choice == "risk":
+            st.markdown(
+                f"""
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:8px 0;">
+                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">1. 시초 갭 & 윗꼬리 차익실현 리스크</div>
+                        <div style="font-size:1.05rem; font-weight:800; color:#D97706; margin:2px 0;">고점 대비 -2% 이탈 주의</div>
+                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">당일 시초 갭상승 종목은 장초반 슈팅 후 기관/외인 차익실현 매물로 긴 윗꼬리를 달고 급락할 위험 상존</div>
+                    </div>
+                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">2. 업종 테마 쏠림 동반 조정 리스크</div>
+                        <div style="font-size:1.05rem; font-weight:800; color:#DC2626; margin:2px 0;">[{sector}] 테마 연동</div>
+                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">현재 섹터 테마에 수급이 쏠려있으므로, 주도 대장주가 꺾일 경우 후발주자도 동반 급락할 수 있으므로 주의</div>
+                    </div>
+                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">3. 거래량 소강 & 호가 공백 리스크</div>
+                        <div style="font-size:1.05rem; font-weight:800; color:#475569; margin:2px 0;">점심시간대(11~13시) 주의</div>
+                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">오후장 점심시간대 거래대금이 급감할 경우 호가 공백으로 인한 일시적인 가격 왜곡 및 변동성 확대 주의</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        elif active_diag_choice == "chart":
+            st.markdown(
+                f"""
+                <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin:8px 0;">
+                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">이동평균선 배열</div>
+                        <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:2px 0;">{ma_status}</div>
+                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">단기 이평선이 중장기 이평선 위에 위치하여 정배열 모멘텀 우위</div>
+                    </div>
+                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">RSI(14) 모멘텀</div>
+                        <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:2px 0;">{rsi:.1f}pt <span style="font-size:0.8rem; font-weight:600; color:#475569;">({rsi_tag})</span></div>
+                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">{'중립 상단 탄력 구간 (상승 추세 지속)' if rsi < 70 else '과열 진입 구간 (단기 슈팅 가능하나 급등락 주의)'}</div>
+                    </div>
+                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">거래량 급증비</div>
+                        <div style="font-size:1.05rem; font-weight:800; color:#2563EB; margin:2px 0;">전일비 {vol_ratio:.2f}배</div>
+                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">신뢰도 높은 거래량 폭발 및 기관/외인 주도 세력 수급 유입</div>
+                    </div>
+                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">종합 퀀트 스코어</div>
+                        <div style="font-size:1.05rem; font-weight:800; color:{score_color}; margin:2px 0;">{score:.1f}점 <span style="font-size:0.8rem; font-weight:600; color:#334155;">({label})</span></div>
+                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">{strategy_tag} 알고리즘 조건식 100% 충족 통과</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(diag_ans)
+
+        with st.expander("상세 진단 리포트 전문 보기", expanded=False):
+            st.markdown(diag_ans)
 
     # 7. Console 2 (그 아래 콘솔): 왜 급등하나요?, 지금 사도 되나요? + 질문칸
     qa_menus = {
@@ -1800,6 +1881,32 @@ def render_analyst_factsheet_and_qa_tab():
             st.session_state[qa_active_q_key] = clicked_qa
             st.rerun()
 
+        # 질문칸 (Custom Question Input Form) - 선택질문 위로 이동
+        with st.form(key=f"qa_custom_form_{code}", clear_on_submit=True):
+            f_c1, f_c2 = st.columns([4.2, 1.0])
+            with f_c1:
+                custom_q_input = st.text_input(
+                    "질문칸",
+                    placeholder=f"{name}에 대해 궁금한 점을 질문하세요 (예: 내일 시초가에 어떻게 대응해야 하나요?)",
+                    label_visibility="collapsed",
+                    key=f"input_qa_custom_{code}"
+                )
+            with f_c2:
+                submitted = st.form_submit_button("질문 전송", type="primary", use_container_width=True)
+
+            if submitted and custom_q_input.strip():
+                c_prompt = custom_q_input.strip()
+                with st.spinner("수석 애널리스트 답변 생성 중..."):
+                    try:
+                        ans = generate_quant_expert_answer(payload, c_prompt)
+                    except Exception as _e:
+                        ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
+                st.session_state[qa_active_q_key] = f"직접 질문: {c_prompt}"
+                st.session_state[qa_active_ans_key] = ans
+                st.session_state[qa_hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
+                st.rerun()
+
+        # 선택 질문 표시 및 답변
         curr_choice = st.session_state[qa_active_q_key]
         if curr_choice in qa_menus:
             q_label = qa_menus[curr_choice]["label"]
@@ -1828,31 +1935,6 @@ def render_analyst_factsheet_and_qa_tab():
 
         with st.chat_message("assistant"):
             st.markdown(q_ans)
-
-        # 질문칸 (Custom Question Input Form)
-        with st.form(key=f"qa_custom_form_{code}", clear_on_submit=True):
-            f_c1, f_c2 = st.columns([4.2, 1.0])
-            with f_c1:
-                custom_q_input = st.text_input(
-                    "질문칸",
-                    placeholder=f"{name}에 대해 궁금한 점을 질문하세요 (예: 내일 시초가에 어떻게 대응해야 하나요?)",
-                    label_visibility="collapsed",
-                    key=f"input_qa_custom_{code}"
-                )
-            with f_c2:
-                submitted = st.form_submit_button("질문 전송", type="primary", use_container_width=True)
-
-            if submitted and custom_q_input.strip():
-                c_prompt = custom_q_input.strip()
-                with st.spinner("수석 애널리스트 답변 생성 중..."):
-                    try:
-                        ans = generate_quant_expert_answer(payload, c_prompt)
-                    except Exception as _e:
-                        ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
-                st.session_state[qa_active_q_key] = f"직접 질문: {c_prompt}"
-                st.session_state[qa_active_ans_key] = ans
-                st.session_state[qa_hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
-                st.rerun()
 
         # Past Question History Expander
         if len(st.session_state[qa_hist_key]) > 0:
