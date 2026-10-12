@@ -1748,7 +1748,6 @@ def render_analyst_factsheet_and_qa_tab():
         st.session_state[diag_sel_key] = "tp"
 
     with st.container(border=True):
-        st.markdown(f"**{name} ({code})** 핵심 정밀 진단 콘솔")
         d_c1, d_c2, d_c3 = st.columns(3, gap="small")
         clicked_diag = None
 
@@ -1783,33 +1782,19 @@ def render_analyst_factsheet_and_qa_tab():
         else:
             diag_ans = st.session_state[cache_key][active_diag_q]
 
-        st.markdown(
-            f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:6px 12px; border-radius:6px; border:1px solid #CBD5E1; margin:8px 0 6px 0;'>"
-            f"진단 항목: <span style='color:#0284C7;'>{active_diag_label}</span>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-
-        # 1번 이미지와 동일한 카드 그리드 형식으로 정돈된 진단 카드 렌더링
+        # 2번 이미지와 동일한 단일 카드 형식 렌더링
         if active_diag_choice == "tp":
-            trailing_trig = min(2.4, tp_pct * 0.7)
             st.markdown(
                 f"""
-                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:8px 0;">
-                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
-                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">1. 알고리즘 목표 익절가 (Take-Profit)</div>
-                        <div style="font-size:1.05rem; font-weight:800; color:#DC2626; margin:2px 0;">{tp_price:,.0f}원 <span style="font-size:0.8rem; font-weight:600; color:#DC2626;">(+{tp_pct:.1f}%)</span></div>
-                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">실행 원칙: 장중 해당 호가 터치 시 50% 분할 익절, 잔여 물량은 트레일링 스탑(+1.8% 이상 수익 락)으로 극대화</div>
+                <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:8px 12px; margin:8px 0 10px 0;">
+                    <div style="font-size:0.75rem; color:#64748B; font-weight:700;">목표가 & 손절가 가격 전략</div>
+                    <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:3px 0;">
+                        목표 <span style="color:#DC2626;">{tp_price:,.0f}원 (+{tp_pct:.1f}%)</span> &nbsp;|&nbsp; 
+                        손절 <span style="color:#2563EB;">{sl_price:,.0f}원 (-{sl_pct:.1f}%)</span> &nbsp;|&nbsp; 
+                        락 <span style="color:#059669;">+1.8%</span>
                     </div>
-                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
-                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">2. 원칙 손절 기준가 (Stop-Loss)</div>
-                        <div style="font-size:1.05rem; font-weight:800; color:#2563EB; margin:2px 0;">{sl_price:,.0f}원 <span style="font-size:0.8rem; font-weight:600; color:#2563EB;">(-{sl_pct:.1f}%)</span></div>
-                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">실행 원칙: 종가 또는 장중 해당 가격 하향 이탈 시 미련 없이 전량 손절하여 추가 낙폭(-5%~-10%) 원천 차단</div>
-                    </div>
-                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
-                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">3. 트레일링 익절 락 (Trailing Lock)</div>
-                        <div style="font-size:1.05rem; font-weight:800; color:#059669; margin:2px 0;">+1.8% 수익 락 <span style="font-size:0.8rem; font-weight:600; color:#475569;">(+{trailing_trig:.1f}% 도달 시)</span></div>
-                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">실행 원칙: 주가가 +{trailing_trig:.1f}% 이상 상승했다가 되밀릴 경우, 본전 이상인 +1.8% 구간에서 자동 청산하여 수익 보존</div>
+                    <div style="font-size:0.75rem; color:#64748B; line-height:1.4;">
+                        목표 손익비: <strong>{rr_ratio:.2f} : 1</strong> &nbsp;·&nbsp; 실행 원칙: 장중 터치 시 50% 분할 익절, 이탈 시 전량 손절하여 낙폭 차단
                     </div>
                 </div>
                 """,
@@ -1818,21 +1803,15 @@ def render_analyst_factsheet_and_qa_tab():
         elif active_diag_choice == "risk":
             st.markdown(
                 f"""
-                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin:8px 0;">
-                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
-                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">1. 시초 갭 & 윗꼬리 차익실현 리스크</div>
-                        <div style="font-size:1.05rem; font-weight:800; color:#D97706; margin:2px 0;">고점 대비 -2% 이탈 주의</div>
-                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">당일 시초 갭상승 종목은 장초반 슈팅 후 기관/외인 차익실현 매물로 긴 윗꼬리를 달고 급락할 위험 상존</div>
+                <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:8px 12px; margin:8px 0 10px 0;">
+                    <div style="font-size:0.75rem; color:#64748B; font-weight:700;">주요 투자 리스크 팩트체크</div>
+                    <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:3px 0;">
+                        <span style="color:#D97706;">고점 -2% 윗꼬리 주의</span> &nbsp;|&nbsp; 
+                        <span style="color:#DC2626;">[{sector}] 테마 연동</span> &nbsp;|&nbsp; 
+                        <span style="color:#475569;">점심(11~13시) 호가 공백</span>
                     </div>
-                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
-                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">2. 업종 테마 쏠림 동반 조정 리스크</div>
-                        <div style="font-size:1.05rem; font-weight:800; color:#DC2626; margin:2px 0;">[{sector}] 테마 연동</div>
-                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">현재 섹터 테마에 수급이 쏠려있으므로, 주도 대장주가 꺾일 경우 후발주자도 동반 급락할 수 있으므로 주의</div>
-                    </div>
-                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
-                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">3. 거래량 소강 & 호가 공백 리스크</div>
-                        <div style="font-size:1.05rem; font-weight:800; color:#475569; margin:2px 0;">점심시간대(11~13시) 주의</div>
-                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">오후장 점심시간대 거래대금이 급감할 경우 호가 공백으로 인한 일시적인 가격 왜곡 및 변동성 확대 주의</div>
+                    <div style="font-size:0.75rem; color:#64748B; line-height:1.4;">
+                        시초 갭상승 후 차익실현 매물 경계, 섹터 대장주 꺾임 시 동반 급락 주의, 점심시간대 거래대금 급감 시 변동성 주의
                     </div>
                 </div>
                 """,
@@ -1841,26 +1820,16 @@ def render_analyst_factsheet_and_qa_tab():
         elif active_diag_choice == "chart":
             st.markdown(
                 f"""
-                <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin:8px 0;">
-                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
-                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">이동평균선 배열</div>
-                        <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:2px 0;">{ma_status}</div>
-                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">단기 이평선이 중장기 이평선 위에 위치하여 정배열 모멘텀 우위</div>
+                <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:8px 12px; margin:8px 0 10px 0;">
+                    <div style="font-size:0.75rem; color:#64748B; font-weight:700;">기술적 지표 & 차트 종합 진단</div>
+                    <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:3px 0;">
+                        <span>{ma_status}</span> &nbsp;|&nbsp; 
+                        RSI <span>{rsi:.1f}pt ({rsi_tag})</span> &nbsp;|&nbsp; 
+                        거래량 <span style="color:#2563EB;">전일비 {vol_ratio:.1f}배</span> &nbsp;|&nbsp; 
+                        스코어 <span style="color:{score_color};">{score:.1f}점</span>
                     </div>
-                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
-                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">RSI(14) 모멘텀</div>
-                        <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:2px 0;">{rsi:.1f}pt <span style="font-size:0.8rem; font-weight:600; color:#475569;">({rsi_tag})</span></div>
-                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">{'중립 상단 탄력 구간 (상승 추세 지속)' if rsi < 70 else '과열 진입 구간 (단기 슈팅 가능하나 급등락 주의)'}</div>
-                    </div>
-                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
-                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">거래량 급증비</div>
-                        <div style="font-size:1.05rem; font-weight:800; color:#2563EB; margin:2px 0;">전일비 {vol_ratio:.2f}배</div>
-                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">신뢰도 높은 거래량 폭발 및 기관/외인 주도 세력 수급 유입</div>
-                    </div>
-                    <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
-                        <div style="font-size:0.75rem; color:#64748B; font-weight:700;">종합 퀀트 스코어</div>
-                        <div style="font-size:1.05rem; font-weight:800; color:{score_color}; margin:2px 0;">{score:.1f}점 <span style="font-size:0.8rem; font-weight:600; color:#334155;">({label})</span></div>
-                        <div style="font-size:0.72rem; color:#64748B; line-height:1.4;">{strategy_tag} 알고리즘 조건식 100% 충족 통과</div>
+                    <div style="font-size:0.75rem; color:#64748B; line-height:1.4;">
+                        신호 신뢰도: <strong>{label}</strong> &nbsp;·&nbsp; {strategy_tag} 알고리즘 전략 조건식 100% 만족 통과
                     </div>
                 </div>
                 """,
@@ -1896,7 +1865,7 @@ def render_analyst_factsheet_and_qa_tab():
     with st.container(border=True):
         h_c1, h_c2 = st.columns([3.5, 1.5])
         with h_c1:
-            st.markdown(f"**{name} ({code})** 수석 애널리스트 실시간 Q&A 콘솔")
+            st.markdown("**수석 애널리스트 실시간 Q&A 콘솔**")
         with h_c2:
             if st.button("질의 초기화", key=f"reset_chat_{code}_tab2", use_container_width=True):
                 st.session_state[cache_key] = {}
