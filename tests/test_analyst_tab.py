@@ -99,10 +99,14 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn("수급 및 거래량 폭발력", content)
         self.assertIn("기술적 지표 & 이평선", content)
 
-        # 3. Console 1: 목표가&손절가, 리스크 팩트체크, 차트&지표진단
-        self.assertIn("btn_diag_tp_", content)
-        self.assertIn("btn_diag_risk_", content)
-        self.assertIn("btn_diag_chart_", content)
+        # 3. Console 1: 목표가&손절가, 리스크 팩트체크, 차트&지표진단 (3열 요약 카드 + 접이식 전문 보기, 선택 버튼 삭제)
+        self.assertNotIn("btn_diag_tp_", content)
+        self.assertNotIn("btn_diag_risk_", content)
+        self.assertNotIn("btn_diag_chart_", content)
+        self.assertIn("목표가 & 손절가", content)
+        self.assertIn("리스크 팩트체크", content)
+        self.assertIn("차트 & 지표 진단", content)
+        self.assertIn("상세 진단 리포트 전문 보기", content)
 
         # 4. Console 2: 왜 급등하나요?, 지금 사도 되나요? + 질문칸
         self.assertIn("btn_qa_why_", content)

@@ -1727,7 +1727,7 @@ def render_analyst_factsheet_and_qa_tab():
     if cache_key not in st.session_state:
         st.session_state[cache_key] = {}
 
-    # 6. Console 1 (아래 콘솔): 목표가&손절가, 리스크 팩트체크, 차트&지표진단
+    # 6. Console 1 (아래 콘솔): 목표가&손절가, 리스크 팩트체크, 차트&지표진단 (상단 요약 카드 스타일 가로 3열 배치)
     diag_menus = {
         "tp": {
             "label": "목표가 & 손절가",
@@ -1743,132 +1743,56 @@ def render_analyst_factsheet_and_qa_tab():
         }
     }
 
-    diag_sel_key = f"diag_active_sel_{code}"
-    if diag_sel_key not in st.session_state:
-        st.session_state[diag_sel_key] = "tp"
+    trailing_trig = min(2.4, tp_pct * 0.7)
+    st.markdown(
+        f"""
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:8px;">
+            <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                <div style="font-size:0.75rem; color:#64748B; font-weight:700;">목표가 & 손절가</div>
+                <div style="font-size:1.05rem; font-weight:800; color:#DC2626; margin:2px 0;">{tp_price:,.0f}원 <span style="font-size:0.8rem; font-weight:600; color:#2563EB;">/ {sl_price:,.0f}원</span></div>
+                <div style="font-size:0.72rem; color:#64748B;">목표 +{tp_pct:.1f}% · 손절 -{sl_pct:.1f}% · 트레일링 락 +1.8% (+{trailing_trig:.1f}% 시)</div>
+            </div>
+            <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                <div style="font-size:0.75rem; color:#64748B; font-weight:700;">리스크 팩트체크</div>
+                <div style="font-size:1.05rem; font-weight:800; color:#D97706; margin:2px 0;">고점 -2% 주의 <span style="font-size:0.8rem; font-weight:600; color:#DC2626;">([{sector}])</span></div>
+                <div style="font-size:0.72rem; color:#64748B;">시초 갭 차익실현 경계 · 11~13시 호가 공백 주의</div>
+            </div>
+            <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:6px 10px;">
+                <div style="font-size:0.75rem; color:#64748B; font-weight:700;">차트 & 지표 진단</div>
+                <div style="font-size:1.05rem; font-weight:800; color:#0F172A; margin:2px 0;">{ma_status} <span style="font-size:0.8rem; font-weight:600; color:#2563EB;">(RSI {rsi:.1f}pt)</span></div>
+                <div style="font-size:0.72rem; color:#64748B;">거래량 전일비 {vol_ratio:.1f}배 · {strategy_tag} 통과</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-    with st.container(border=True):
-        d_c1, d_c2, d_c3 = st.columns(3, gap="small")
-        clicked_diag = None
-
-        with d_c1:
-            is_active = (st.session_state[diag_sel_key] == "tp")
-            if st.button(diag_menus["tp"]["label"], key=f"btn_diag_tp_{code}", type="primary" if is_active else "secondary", use_container_width=True):
-                clicked_diag = "tp"
-        with d_c2:
-            is_active = (st.session_state[diag_sel_key] == "risk")
-            if st.button(diag_menus["risk"]["label"], key=f"btn_diag_risk_{code}", type="primary" if is_active else "secondary", use_container_width=True):
-                clicked_diag = "risk"
-        with d_c3:
-            is_active = (st.session_state[diag_sel_key] == "chart")
-            if st.button(diag_menus["chart"]["label"], key=f"btn_diag_chart_{code}", type="primary" if is_active else "secondary", use_container_width=True):
-                clicked_diag = "chart"
-
-        if clicked_diag and clicked_diag != st.session_state[diag_sel_key]:
-            st.session_state[diag_sel_key] = clicked_diag
-            st.rerun()
-
-        active_diag_choice = st.session_state[diag_sel_key]
-        active_diag_q = diag_menus[active_diag_choice]["q"]
-        active_diag_label = diag_menus[active_diag_choice]["label"]
-
-        if active_diag_q not in st.session_state[cache_key]:
-            with st.spinner(f"AI 퀀트 수석 애널리스트가 '{active_diag_label}' 항목을 분석 중입니다..."):
+    with st.expander("상세 진단 리포트 전문 보기", expanded=False):
+        t_d1, t_d2, t_d3 = st.tabs(["목표가 & 손절가", "리스크 팩트체크", "차트 & 지표 진단"])
+        with t_d1:
+            q_tp = diag_menus["tp"]["q"]
+            if q_tp not in st.session_state[cache_key]:
                 try:
-                    diag_ans = generate_quant_expert_answer(payload, active_diag_q)
+                    st.session_state[cache_key][q_tp] = generate_quant_expert_answer(payload, q_tp)
                 except Exception as _e:
-                    diag_ans = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
-                st.session_state[cache_key][active_diag_q] = diag_ans
-        else:
-            diag_ans = st.session_state[cache_key][active_diag_q]
-
-        # 1번 이미지 스타일의 단일 카드 형식 렌더링 (단일 카드 내 3~4분할 컬럼 구조)
-        if active_diag_choice == "tp":
-            trailing_trig = min(2.4, tp_pct * 0.7)
-            st.markdown(
-                f"""
-                <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:10px 14px; margin:8px 0 10px 0;">
-                    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px;">
-                        <div style="border-right:1px solid #E2E8F0; padding-right:12px;">
-                            <div style="font-size:0.75rem; color:#64748B; font-weight:700;">1차 목표가 (Take-Profit)</div>
-                            <div style="font-size:1.15rem; font-weight:800; color:#DC2626; margin:3px 0;">{tp_price:,.0f}원 <span style="font-size:0.85rem; font-weight:700;">(+{tp_pct:.1f}%)</span></div>
-                            <div style="font-size:0.75rem; color:#64748B;">장중 50% 분할 익절 권장</div>
-                        </div>
-                        <div style="border-right:1px solid #E2E8F0; padding-right:12px;">
-                            <div style="font-size:0.75rem; color:#64748B; font-weight:700;">원칙 손절가 (Stop-Loss)</div>
-                            <div style="font-size:1.15rem; font-weight:800; color:#2563EB; margin:3px 0;">{sl_price:,.0f}원 <span style="font-size:0.85rem; font-weight:700;">(-{sl_pct:.1f}%)</span></div>
-                            <div style="font-size:0.75rem; color:#64748B;">이탈 시 전량 손절 (낙폭 차단)</div>
-                        </div>
-                        <div>
-                            <div style="font-size:0.75rem; color:#64748B; font-weight:700;">트레일링 익절 락 (Trailing Lock)</div>
-                            <div style="font-size:1.15rem; font-weight:800; color:#059669; margin:3px 0;">+1.8% 수익 락 <span style="font-size:0.85rem; font-weight:600; color:#475569;">(+{trailing_trig:.1f}% 시)</span></div>
-                            <div style="font-size:0.75rem; color:#64748B;">되밀림 시 본전 이상 자동 청산</div>
-                        </div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        elif active_diag_choice == "risk":
-            st.markdown(
-                f"""
-                <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:10px 14px; margin:8px 0 10px 0;">
-                    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px;">
-                        <div style="border-right:1px solid #E2E8F0; padding-right:12px;">
-                            <div style="font-size:0.75rem; color:#64748B; font-weight:700;">1. 시초 갭 & 윗꼬리 차익실현</div>
-                            <div style="font-size:1.15rem; font-weight:800; color:#D97706; margin:3px 0;">고점 대비 -2% 주의</div>
-                            <div style="font-size:0.75rem; color:#64748B;">장초반 슈팅 후 급락 위험 상존</div>
-                        </div>
-                        <div style="border-right:1px solid #E2E8F0; padding-right:12px;">
-                            <div style="font-size:0.75rem; color:#64748B; font-weight:700;">2. 업종 테마 쏠림 동반 조정</div>
-                            <div style="font-size:1.15rem; font-weight:800; color:#DC2626; margin:3px 0;">[{sector}] 테마 연동</div>
-                            <div style="font-size:0.75rem; color:#64748B;">주도 대장주 꺾임 시 동반 급락 주의</div>
-                        </div>
-                        <div>
-                            <div style="font-size:0.75rem; color:#64748B; font-weight:700;">3. 거래량 소강 & 호가 공백</div>
-                            <div style="font-size:1.15rem; font-weight:800; color:#475569; margin:3px 0;">점심(11~13시) 변동성</div>
-                            <div style="font-size:0.75rem; color:#64748B;">거래대금 급감 시 일시적 가격 왜곡</div>
-                        </div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        elif active_diag_choice == "chart":
-            st.markdown(
-                f"""
-                <div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:6px; padding:10px 14px; margin:8px 0 10px 0;">
-                    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
-                        <div style="border-right:1px solid #E2E8F0; padding-right:10px;">
-                            <div style="font-size:0.75rem; color:#64748B; font-weight:700;">이동평균선 배열</div>
-                            <div style="font-size:1.15rem; font-weight:800; color:#0F172A; margin:3px 0;">{ma_status}</div>
-                            <div style="font-size:0.75rem; color:#64748B;">단기 이평 정배열 모멘텀 우위</div>
-                        </div>
-                        <div style="border-right:1px solid #E2E8F0; padding-right:10px;">
-                            <div style="font-size:0.75rem; color:#64748B; font-weight:700;">RSI(14) 모멘텀</div>
-                            <div style="font-size:1.15rem; font-weight:800; color:#0F172A; margin:3px 0;">{rsi:.1f}pt <span style="font-size:0.85rem; font-weight:600; color:#475569;">({rsi_tag})</span></div>
-                            <div style="font-size:0.75rem; color:#64748B;">{'중립 상단 탄력 구간' if rsi < 70 else '과열 진입 구간 (급등락 주의)'}</div>
-                        </div>
-                        <div style="border-right:1px solid #E2E8F0; padding-right:10px;">
-                            <div style="font-size:0.75rem; color:#64748B; font-weight:700;">거래량 급증비</div>
-                            <div style="font-size:1.15rem; font-weight:800; color:#2563EB; margin:3px 0;">전일비 {vol_ratio:.1f}배</div>
-                            <div style="font-size:0.75rem; color:#64748B;">기관/외인 주도 수급 유입</div>
-                        </div>
-                        <div>
-                            <div style="font-size:0.75rem; color:#64748B; font-weight:700;">종합 퀀트 스코어</div>
-                            <div style="font-size:1.15rem; font-weight:800; color:{score_color}; margin:3px 0;">{score:.1f}점 <span style="font-size:0.85rem; font-weight:600; color:#334155;">({label})</span></div>
-                            <div style="font-size:0.75rem; color:#64748B;">{strategy_tag} 조건식 100% 통과</div>
-                        </div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.markdown(diag_ans)
-
-        with st.expander("상세 진단 리포트 전문 보기", expanded=False):
-            st.markdown(diag_ans)
+                    st.session_state[cache_key][q_tp] = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
+            st.markdown(st.session_state[cache_key][q_tp])
+        with t_d2:
+            q_risk = diag_menus["risk"]["q"]
+            if q_risk not in st.session_state[cache_key]:
+                try:
+                    st.session_state[cache_key][q_risk] = generate_quant_expert_answer(payload, q_risk)
+                except Exception as _e:
+                    st.session_state[cache_key][q_risk] = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
+            st.markdown(st.session_state[cache_key][q_risk])
+        with t_d3:
+            q_chart = diag_menus["chart"]["q"]
+            if q_chart not in st.session_state[cache_key]:
+                try:
+                    st.session_state[cache_key][q_chart] = generate_quant_expert_answer(payload, q_chart)
+                except Exception as _e:
+                    st.session_state[cache_key][q_chart] = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
+            st.markdown(st.session_state[cache_key][q_chart])
 
     # 7. Console 2 (그 아래 콘솔): 왜 급등하나요?, 지금 사도 되나요? + 질문칸
     qa_menus = {
