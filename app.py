@@ -1987,10 +1987,10 @@ def render_analyst_factsheet_and_qa_tab():
 
 
 main_tab_names = [
-    "1. 시장 전체 익일 상승 후보 & 고확신 스크리너",
+    "1. 스크리너",
     "2. Q&A",
-    "3. 관심종목 실시간 스코어보드",
-    "4. 통합 성과 검증 & AI 자가최적화 센터",
+    "3. 관심종목",
+    "4. 검증 및 최적화",
 ]
 
 if "main_active_tab_nav" in st.session_state:
@@ -2302,9 +2302,14 @@ with tab1:
     cur_strat_slot_id = f"{sc_mode}_{rec_time['slot_id']}"
 
     # Auto-sync session state when strategy mode or time slot changes or sync is triggered
+    if not st.session_state.get("sc_default_full_universe_v1"):
+        st.session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"
+        st.session_state["sc_default_full_universe_v1"] = True
+
     if "sc_last_applied_strat_slot" not in st.session_state or st.session_state.get("sc_trigger_time_sync") or st.session_state.get("sc_last_applied_strat_slot") != cur_strat_slot_id:
         for _k, _v in rec_time["params"].items():
             st.session_state[f"sc_{_k}"] = _v
+        st.session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"
         st.session_state["sc_last_applied_strat_slot"] = cur_strat_slot_id
         st.session_state["sc_trigger_time_sync"] = False
 
@@ -2508,139 +2513,143 @@ with tab1:
             else:
                 st.caption("Point-in-Time 스코어링 엔진으로 전체 상장 유니버스를 일괄 스크리닝하고 테마 집중 위험을 감지합니다. (권장: 최소 스코어 65점↑, 거래량 급증 1.5배↑)")
 
-    # 2) 전 전략 모드 공통 스크리너 필터 파라미터 툴바
-    f_hdr_c1, f_hdr_c2 = st.columns([4.2, 1.3])
-    with f_hdr_c1:
-        st.markdown(
-            f'<div style="display:flex; align-items:center; gap:8px; padding-top:4px;">'
-            f'<span class="office-subheading" style="margin:0 !important;">스크리너 필터 설정</span>'
-            f'<span style="background:#F1F5F9; color:#1E293B; font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;">{now_str} {rec_time["slot_name"]}</span>'
-            f'<span style="color:#64748B; font-size:0.75rem;">({rec_time["badge_desc"]} 자동 세팅됨)</span>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-    with f_hdr_c2:
-        if st.button("현재시간 권장값 재적용", key="btn_reapply_auto_time", use_container_width=True):
-            for _k, _v in rec_time["params"].items():
-                st.session_state[f"sc_{_k}"] = _v
-            st.session_state["sc_trigger_time_sync"] = True
-            st.toast(f"현재 시각({now_str}) {sc_mode} 권장 설정이 자동 적용되었습니다.")
-            st.rerun()
+    # 2) 전 전략 모드 공통 스크리너 필터 파라미터 툴바 (전 상장사 전수조사 기본 세팅 & 접기 적용)
+    with st.expander(f"[스크리너 필터 설정] 전 상장사 전수조사 · {now_str} {rec_time['slot_name']} ({rec_time['badge_desc']} 자동 세팅됨)", expanded=False):
+        f_hdr_c1, f_hdr_c2 = st.columns([4.2, 1.3])
+        with f_hdr_c1:
+            st.markdown(
+                f'<div style="display:flex; align-items:center; gap:8px; padding-top:4px;">'
+                f'<span class="office-subheading" style="margin:0 !important;">스크리너 필터 설정</span>'
+                f'<span style="background:#F1F5F9; color:#1E293B; font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;">{now_str} {rec_time["slot_name"]}</span>'
+                f'<span style="color:#64748B; font-size:0.75rem;">({rec_time["badge_desc"]} 자동 세팅됨)</span>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+        with f_hdr_c2:
+            if st.button("현재시간 권장값 재적용", key="btn_reapply_auto_time", use_container_width=True):
+                for _k, _v in rec_time["params"].items():
+                    st.session_state[f"sc_{_k}"] = _v
+                st.session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"
+                st.session_state["sc_trigger_time_sync"] = True
+                st.toast(f"현재 시각({now_str}) {sc_mode} 권장 설정이 자동 적용되었습니다.")
+                st.rerun()
 
-    sc_c1, sc_c2, sc_c3, sc_c4, sc_c5 = st.columns([1.1, 1.4, 1.2, 1.2, 1.1])
+        sc_c1, sc_c2, sc_c3, sc_c4, sc_c5 = st.columns([1.1, 1.4, 1.2, 1.2, 1.1])
 
-    with sc_c1:
-        target_market = st.selectbox(
-            "시장 구분",
-            ["전체", "KOSPI", "KOSDAQ"],
-            index=0,
-            key="sc_target_market"
-        )
-    with sc_c2:
-        sc_scope = st.selectbox(
-            "탐색 대상 범위",
-            [
+        with sc_c1:
+            target_market = st.selectbox(
+                "시장 구분",
+                ["전체", "KOSPI", "KOSDAQ"],
+                index=0,
+                key="sc_target_market"
+            )
+        with sc_c2:
+            scope_options = [
+                "전 상장사 전수조사 (약 2,700개)",
                 "실시간 급등·주도주 300선 (상승률+거래대금 상위 / 강력 권장)",
-                "내 관심종목 138선 (초고속)",
-                "전 상장사 전수조사 (약 2,700개)"
-            ],
-            index=0,
-            key="sc_scope_sel"
-        )
+                "내 관심종목 138선 (초고속)"
+            ]
+            if st.session_state.get("sc_scope_sel") not in scope_options:
+                st.session_state["sc_scope_sel"] = scope_options[0]
+            sc_scope = st.selectbox(
+                "탐색 대상 범위",
+                scope_options,
+                key="sc_scope_sel"
+            )
 
-    if "당일 단타" in sc_mode:
-        with sc_c3:
-            val_options = [50, 100, 150, 200, 300]
-            cur_val = st.session_state.get("sc_min_daytrade_val", rec_time.get("val", 100))
-            if cur_val not in val_options:
-                cur_val = 100
-            min_daytrade_val_b = st.selectbox(
-                "당일 최소 거래대금",
-                val_options,
-                index=val_options.index(cur_val),
-                format_func=lambda x: f"{x}억 원 이상",
-                key="sc_min_daytrade_val"
-            )
-        with sc_c4:
-            cur_gain = st.session_state.get("sc_intraday_gain_range", rec_time.get("gain", (2.5, 12.0)))
-            intraday_gain_range = st.slider(
-                "시초가 대비 상승률 구간 (%)",
-                1.0, 25.0,
-                value=cur_gain,
-                step=0.5,
-                help="권장 설정: 골든타임(09:40~11:00) 3.0%~12.0% | 장초반 2.5%~10.0% | 급등주 최대 25.0%",
-                key="sc_intraday_gain_range"
-            )
-        with sc_c5:
-            cur_vol = st.session_state.get("sc_min_daytrade_vol_ratio", rec_time.get("vol", 0.5))
-            min_daytrade_vol_ratio = st.slider(
-                "전일대비 거래량 비율",
-                0.3, 1.5,
-                value=cur_vol,
-                step=0.1,
-                format="%.1f배 이상",
-                help="권장 설정: 최소 0.5배(50%) 이상 | 거래량 폭발 대장주 0.8배 이상",
-                key="sc_min_daytrade_vol_ratio"
-            )
-    elif "스나이퍼" in sc_mode or "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode:
-        with sc_c3:
-            cur_snp_val = st.session_state.get("sc_min_val_krw_b", 100)
-            snp_options = [50, 100, 150, 200, 300]
-            if cur_snp_val not in snp_options:
-                cur_snp_val = 100
-            min_val_krw_b = st.selectbox("최소 20일 평균 거래대금", snp_options, index=snp_options.index(cur_snp_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_val_krw_b")
-        with sc_c4:
-            cur_disp = st.session_state.get("sc_max_disparity_val", 103.5)
-            max_disparity_val = st.slider("20일선 최대 이격도 (%)", 100.0, 105.0, value=cur_disp, step=0.5, key="sc_max_disparity_val")
-        with sc_c5:
-            cur_ign = st.session_state.get("sc_ignore_market_filter", False)
-            ignore_market_filter = st.checkbox("시장 하락장 무시", value=cur_ign, key="sc_ignore_market_filter")
-    elif "종가배팅" in sc_mode:
-        with sc_c3:
-            cb_options = [100, 200, 300, 500]
-            cur_cb_val = st.session_state.get("sc_min_today_val_b", 200)
-            if cur_cb_val not in cb_options:
-                cur_cb_val = 200
-            min_today_val_b = st.selectbox("당일 최소 거래대금", cb_options, index=cb_options.index(cur_cb_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_today_val_b")
-        with sc_c4:
-            cur_cb_ret = st.session_state.get("sc_min_day_ret_val", 3.0)
-            min_day_ret_val = st.slider("당일 최소 주가 상승률 (%)", 2.0, 6.0, value=cur_cb_ret, step=0.5, key="sc_min_day_ret_val")
-        with sc_c5:
-            st.markdown(
-                '<div style="font-size:0.75rem; color:#64748B; padding-top:20px; line-height:1.35; white-space:nowrap; overflow:hidden;">'
-                '15:20~15:30 종가 매수<br>'
-                '<span style="color:#7C3AED; font-weight:700;">익일 시초 +1.5% 갭 익절</span>'
-                '</div>',
-                unsafe_allow_html=True
-            )
-    elif "5% 급등" in sc_mode or "5% 돌파" in sc_mode:
-        with sc_c3:
-            surge_options = [100, 200, 300, 500]
-            cur_s_val = st.session_state.get("sc_min_surge_val_b", 200)
-            if cur_s_val not in surge_options:
-                cur_s_val = 200
-            min_surge_val_b = st.selectbox("당일 최소 거래대금", surge_options, index=surge_options.index(cur_s_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_surge_val_b")
-        with sc_c4:
-            cur_s_pct = st.session_state.get("sc_min_day_surge_pct", 8.0)
-            min_day_surge_pct = st.slider("당일 최소 주가 상승률 (%)", 5.0, 25.0, value=cur_s_pct, step=1.0, key="sc_min_day_surge_pct")
-        with sc_c5:
-            st.markdown(
-                '<div style="font-size:0.75rem; color:#64748B; padding-top:20px; line-height:1.35; white-space:nowrap; overflow:hidden;">'
-                '장중 급등·마감 직전 진입<br>'
-                '<span style="color:#D97706; font-weight:700;">익절 +5.0% / 손절 -4.0%</span>'
-                '</div>',
-                unsafe_allow_html=True
-            )
-    else:
-        with sc_c3:
-            cur_score = st.session_state.get("sc_min_screener_score", 65.0)
-            min_screener_score = st.slider("최소 스코어 기준", 50.0, 90.0, value=cur_score, step=5.0, key="sc_min_screener_score")
-        with sc_c4:
-            cur_vol_s = st.session_state.get("sc_min_vol_surge", 1.5)
-            min_vol_surge = st.slider("거래량 급증 비율 (20일선 대비)", 1.0, 3.0, value=cur_vol_s, step=0.2, key="sc_min_vol_surge")
-        with sc_c5:
-            cur_ma = st.session_state.get("sc_require_ma_align", True)
-            require_ma_align = st.checkbox("이평 정배열/골든 필수", value=cur_ma, key="sc_require_ma_align")
+        if "당일 단타" in sc_mode:
+            with sc_c3:
+                val_options = [50, 100, 150, 200, 300]
+                cur_val = st.session_state.get("sc_min_daytrade_val", rec_time.get("val", 100))
+                if cur_val not in val_options:
+                    cur_val = 100
+                min_daytrade_val_b = st.selectbox(
+                    "당일 최소 거래대금",
+                    val_options,
+                    index=val_options.index(cur_val),
+                    format_func=lambda x: f"{x}억 원 이상",
+                    key="sc_min_daytrade_val"
+                )
+            with sc_c4:
+                cur_gain = st.session_state.get("sc_intraday_gain_range", rec_time.get("gain", (2.5, 12.0)))
+                intraday_gain_range = st.slider(
+                    "시초가 대비 상승률 구간 (%)",
+                    1.0, 25.0,
+                    value=cur_gain,
+                    step=0.5,
+                    help="권장 설정: 골든타임(09:40~11:00) 3.0%~12.0% | 장초반 2.5%~10.0% | 급등주 최대 25.0%",
+                    key="sc_intraday_gain_range"
+                )
+            with sc_c5:
+                cur_vol = st.session_state.get("sc_min_daytrade_vol_ratio", rec_time.get("vol", 0.5))
+                min_daytrade_vol_ratio = st.slider(
+                    "전일대비 거래량 비율",
+                    0.3, 1.5,
+                    value=cur_vol,
+                    step=0.1,
+                    format="%.1f배 이상",
+                    help="권장 설정: 최소 0.5배(50%) 이상 | 거래량 폭발 대장주 0.8배 이상",
+                    key="sc_min_daytrade_vol_ratio"
+                )
+        elif "스나이퍼" in sc_mode or "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode:
+            with sc_c3:
+                cur_snp_val = st.session_state.get("sc_min_val_krw_b", 100)
+                snp_options = [50, 100, 150, 200, 300]
+                if cur_snp_val not in snp_options:
+                    cur_snp_val = 100
+                min_val_krw_b = st.selectbox("최소 20일 평균 거래대금", snp_options, index=snp_options.index(cur_snp_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_val_krw_b")
+            with sc_c4:
+                cur_disp = st.session_state.get("sc_max_disparity_val", 103.5)
+                max_disparity_val = st.slider("20일선 최대 이격도 (%)", 100.0, 105.0, value=cur_disp, step=0.5, key="sc_max_disparity_val")
+            with sc_c5:
+                cur_ign = st.session_state.get("sc_ignore_market_filter", False)
+                ignore_market_filter = st.checkbox("시장 하락장 무시", value=cur_ign, key="sc_ignore_market_filter")
+        elif "종가배팅" in sc_mode:
+            with sc_c3:
+                cb_options = [100, 200, 300, 500]
+                cur_cb_val = st.session_state.get("sc_min_today_val_b", 200)
+                if cur_cb_val not in cb_options:
+                    cur_cb_val = 200
+                min_today_val_b = st.selectbox("당일 최소 거래대금", cb_options, index=cb_options.index(cur_cb_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_today_val_b")
+            with sc_c4:
+                cur_cb_ret = st.session_state.get("sc_min_day_ret_val", 3.0)
+                min_day_ret_val = st.slider("당일 최소 주가 상승률 (%)", 2.0, 6.0, value=cur_cb_ret, step=0.5, key="sc_min_day_ret_val")
+            with sc_c5:
+                st.markdown(
+                    '<div style="font-size:0.75rem; color:#64748B; padding-top:20px; line-height:1.35; white-space:nowrap; overflow:hidden;">'
+                    '15:20~15:30 종가 매수<br>'
+                    '<span style="color:#7C3AED; font-weight:700;">익일 시초 +1.5% 갭 익절</span>'
+                    '</div>',
+                    unsafe_allow_html=True
+                )
+        elif "5% 급등" in sc_mode or "5% 돌파" in sc_mode:
+            with sc_c3:
+                surge_options = [100, 200, 300, 500]
+                cur_s_val = st.session_state.get("sc_min_surge_val_b", 200)
+                if cur_s_val not in surge_options:
+                    cur_s_val = 200
+                min_surge_val_b = st.selectbox("당일 최소 거래대금", surge_options, index=surge_options.index(cur_s_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_surge_val_b")
+            with sc_c4:
+                cur_s_pct = st.session_state.get("sc_min_day_surge_pct", 8.0)
+                min_day_surge_pct = st.slider("당일 최소 주가 상승률 (%)", 5.0, 25.0, value=cur_s_pct, step=1.0, key="sc_min_day_surge_pct")
+            with sc_c5:
+                st.markdown(
+                    '<div style="font-size:0.75rem; color:#64748B; padding-top:20px; line-height:1.35; white-space:nowrap; overflow:hidden;">'
+                    '장중 급등·마감 직전 진입<br>'
+                    '<span style="color:#D97706; font-weight:700;">익절 +5.0% / 손절 -4.0%</span>'
+                    '</div>',
+                    unsafe_allow_html=True
+                )
+        else:
+            with sc_c3:
+                cur_score = st.session_state.get("sc_min_screener_score", 65.0)
+                min_screener_score = st.slider("최소 스코어 기준", 50.0, 90.0, value=cur_score, step=5.0, key="sc_min_screener_score")
+            with sc_c4:
+                cur_vol_s = st.session_state.get("sc_min_vol_surge", 1.5)
+                min_vol_surge = st.slider("거래량 급증 비율 (20일선 대비)", 1.0, 3.0, value=cur_vol_s, step=0.2, key="sc_min_vol_surge")
+            with sc_c5:
+                cur_ma = st.session_state.get("sc_require_ma_align", True)
+                require_ma_align = st.checkbox("이평 정배열/골든 필수", value=cur_ma, key="sc_require_ma_align")
 
     worker_st = sc_worker.get_status()
     is_worker_running = sc_worker.is_running()

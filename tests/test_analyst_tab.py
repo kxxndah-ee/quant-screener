@@ -76,16 +76,18 @@ class TestAnalystTab(unittest.TestCase):
         with open(app_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        self.assertIn('"1. 시장 전체 익일 상승 후보 & 고확신 스크리너"', content)
+        self.assertIn('"1. 스크리너"', content)
         self.assertIn('"2. Q&A"', content)
-        self.assertIn('"3. 관심종목 실시간 스코어보드"', content)
-        self.assertIn('"4. 통합 성과 검증 & AI 자가최적화 센터"', content)
+        self.assertIn('"3. 관심종목"', content)
+        self.assertIn('"4. 검증 및 최적화"', content)
         self.assertIn("tab1, tab2, tab3, tab4 = st.tabs(main_tab_names", content)
         self.assertIn("render_analyst_factsheet_and_qa_tab()", content)
         self.assertIn("with tab1:", content)
         self.assertIn("with tab2:", content)
         self.assertIn("with tab3:", content)
         self.assertIn("with tab4:", content)
+        self.assertIn('st.session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"', content)
+        self.assertIn('[스크리너 필터 설정] 전 상장사 전수조사', content)
 
         # Tab 2 structure assertions:
         # 1. Direct search only (no quick chips, no dropdown)
