@@ -477,3 +477,158 @@ def _built_in_quant_reasoning(
 
     return ans
 
+
+_UNIVERSE_CACHE: Optional[List[tuple]] = None
+
+_QUESTION_STOPWORDS = {
+    "지금", "오늘", "내일", "매수", "매도", "대상", "목표", "손절", "차트", "지표",
+    "분석", "추천", "종목", "시장", "수급", "거래", "가격", "비중", "전략", "홀딩",
+    "익절", "진입", "상승", "하락", "급등", "대응", "보유", "신규", "단타", "스윙",
+    "얼마", "언제", "어떻", "어떤", "무슨", "이유", "원인", "현재", "전망", "의견",
+}
+
+
+def _load_universe_pairs() -> List[tuple]:
+    """Loads (code, name) pairs from universe table sorted by name length descending."""
+    global _UNIVERSE_CACHE
+    if _UNIVERSE_CACHE is not None:
+        return _UNIVERSE_CACHE
+    try:
+        from src.database.models import get_db_connection
+        with get_db_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT code, name FROM universe WHERE is_active = 1 ORDER BY LENGTH(name) DESC"
+            )
+            rows = cur.fetchall()
+            _UNIVERSE_CACHE = [(str(r[0]).strip().zfill(6), str(r[1]).strip()) for r in rows if r[0] and r[1]]
+            return _UNIVERSE_CACHE
+    except Exception as e:
+        logger.warning(f"Failed to load universe cache in quant_analyst: {e}")
+        return []
+
+
+def extract_stock_and_question_from_query(
+    raw_query: str,
+    current_code: str = "005930",
+    fallback_top_code: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Parses a user's question-first input (e.g., '삼성전자 지금 사도 되나요?', '000660 내일 시초가 대응',
+    '지금 매수할 만한 종목은?', or '목표가 얼마인가요?') and resolves:
+      - code: 6-digit stock code to analyze
+      - question: question prompt to pass to generate_quant_expert_answer
+      - matched_by: 'code' | 'name' | 'recommend' | 'context'
+      - is_stock_only: True if user only entered a stock name/code without a specific question
+    """
+    import re
+
+    default_code = str(current_code or "005930").strip().zfill(6)
+    default_q = "지금 사도 되나요? 현재 가격대 진입 적합성과 손익비를 알려줘."
+    q = (raw_query or "").strip()
+
+    if not q:
+        return {
+            "code": default_code,
+            "question": default_q,
+            "matched_by": "context",
+            "is_stock_only": True,
+        }
+
+    # 1. Check for 6-digit stock code
+    m_code = re.search(r"(?<!\d)(\d{6})(?!\d)", q)
+    if m_code:
+        matched_code = m_code.group(1)
+        rem = (q[:m_code.start()] + " " + q[m_code.end():]).strip()
+        rem = re.sub(r"^(은|는|이|가|을|를|의|에|도|만|로|으로)\b", "", rem).strip(" ?.,!·-")
+        if len(rem) >= 2:
+            return {
+                "code": matched_code,
+                "question": q,
+                "matched_by": "code",
+                "is_stock_only": False,
+            }
+        return {
+            "code": matched_code,
+            "question": default_q,
+            "matched_by": "code",
+            "is_stock_only": True,
+        }
+
+    # 2. Match stock name from active universe
+    universe_pairs = _load_universe_pairs()
+    name_to_pair = {name.lower(): (code, name) for code, name in universe_pairs}
+
+    q_lower = q.lower()
+    matched_pair = None
+
+    # 2a. Exact match on full query
+    if q_lower in name_to_pair:
+        matched_pair = name_to_pair[q_lower]
+    else:
+        # 2b. Substring match for 3+ char stock names (longest first)
+        for code, name in universe_pairs:
+            if len(name) >= 3 and name.lower() in q_lower:
+                matched_pair = (code, name)
+                break
+
+        # 2c. Token match for 2-char stock names (stripping Korean particles)
+        if matched_pair is None:
+            tokens = re.findall(r"[가-힣A-Za-z0-9&]+", q)
+            particles = ("에서", "으로", "은", "는", "이", "가", "을", "를", "의", "에", "도", "만", "로", "과", "와")
+            for tok in tokens:
+                candidates = [tok]
+                for p in particles:
+                    if tok.endswith(p) and len(tok) > len(p):
+                        candidates.append(tok[:-len(p)])
+                for cand in candidates:
+                    cand_low = cand.lower()
+                    if cand not in _QUESTION_STOPWORDS and cand_low in name_to_pair:
+                        matched_pair = name_to_pair[cand_low]
+                        break
+                if matched_pair is not None:
+                    break
+
+    if matched_pair is not None:
+        m_code_str, m_name_str = matched_pair
+        pattern = re.compile(re.escape(m_name_str), re.IGNORECASE)
+        rem = pattern.sub("", q, count=1).strip()
+        rem = re.sub(r"^(은|는|이|가|을|를|의|에|에서|도|만|로|으로)(?=\s|$|\?)", "", rem).strip(" ?.,!·-")
+        if len(rem) >= 2:
+            return {
+                "code": m_code_str,
+                "question": q,
+                "matched_by": "name",
+                "is_stock_only": False,
+            }
+        return {
+            "code": m_code_str,
+            "question": default_q,
+            "matched_by": "name",
+            "is_stock_only": True,
+        }
+
+    # 3. Check if general stock recommendation / screening question
+    rec_keywords = [
+        "매수할 만한 종목", "매수할만한 종목", "살 만한 종목", "살만한 종목",
+        "종목 추천", "추천 종목", "어떤 종목", "무슨 종목", "급등주 추천",
+        "지금 매수할 만한", "지금 매수할만한", "오늘 살 만한", "오늘 매수할"
+    ]
+    if any(rk in q_lower for rk in rec_keywords):
+        rec_code = str(fallback_top_code or default_code).strip().zfill(6)
+        return {
+            "code": rec_code,
+            "question": q,
+            "matched_by": "recommend",
+            "is_stock_only": False,
+        }
+
+    # 4. Follow-up or general question for current active stock
+    return {
+        "code": default_code,
+        "question": q,
+        "matched_by": "context",
+        "is_stock_only": False,
+    }
+
+

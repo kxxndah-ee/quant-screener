@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.database.models import get_db_connection
 from src.collectors.market_data import get_latest_market_info, fetch_ohlcv
 from src.core.scoring import evaluate_stock_latest
-from src.core.quant_analyst import generate_quant_expert_answer
+from src.core.quant_analyst import generate_quant_expert_answer, extract_stock_and_question_from_query
 
 
 class TestAnalystTab(unittest.TestCase):
@@ -108,11 +108,45 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn("차트 & 지표 진단", content)
         self.assertIn("상세 진단 리포트 전문 보기", content)
 
-        # 4. Console 2: 지금 사도 되나요?, 왜 급등하나요? 순서 + 질문칸
-        self.assertIn("btn_qa_buy_", content)
-        self.assertIn("btn_qa_why_", content)
-        self.assertLess(content.index("btn_qa_buy_"), content.index("btn_qa_why_"))
-        self.assertIn("qa_custom_form_", content)
+        # 4. Question-First Layout: 통합 질문 콘솔(qa_custom_form_, btn_qa_buy_, btn_qa_why_)이 종목 분석 카드(종합 퀀트 스코어)보다 먼저 배치
+        tab2_fn_text = content[content.index("def render_analyst_factsheet_and_qa_tab():"):content.index("main_tab_names =")]
+        self.assertIn("btn_qa_buy_", tab2_fn_text)
+        self.assertIn("btn_qa_why_", tab2_fn_text)
+        self.assertLess(tab2_fn_text.index("btn_qa_buy_"), tab2_fn_text.index("btn_qa_why_"))
+        self.assertIn("qa_custom_form_", tab2_fn_text)
+        self.assertLess(tab2_fn_text.index("qa_custom_form_"), tab2_fn_text.index("종합 퀀트 스코어"))
+        self.assertLess(tab2_fn_text.index("btn_qa_buy_"), tab2_fn_text.index("종합 퀀트 스코어"))
+
+    def test_question_first_stock_and_question_extraction(self):
+        # 1. Stock name + question
+        res1 = extract_stock_and_question_from_query("삼성전자 지금 사도 되나요?", current_code="000660")
+        self.assertEqual(res1["code"], "005930")
+        self.assertEqual(res1["matched_by"], "name")
+        self.assertFalse(res1["is_stock_only"])
+        self.assertIn("지금 사도 되나요", res1["question"])
+
+        # 2. 6-digit stock code + question
+        res2 = extract_stock_and_question_from_query("000660 내일 시초가에 어떻게 대응해야 하나요?", current_code="005930")
+        self.assertEqual(res2["code"], "000660")
+        self.assertEqual(res2["matched_by"], "code")
+        self.assertFalse(res2["is_stock_only"])
+
+        # 3. General market recommendation query
+        res3 = extract_stock_and_question_from_query("지금 매수할 만한 종목은?", current_code="005930", fallback_top_code="035420")
+        self.assertEqual(res3["code"], "035420")
+        self.assertEqual(res3["matched_by"], "recommend")
+        self.assertFalse(res3["is_stock_only"])
+
+        # 4. Follow-up question without stock name keeps current_code
+        res4 = extract_stock_and_question_from_query("목표가와 손절가는 얼마인가요?", current_code="005380")
+        self.assertEqual(res4["code"], "005380")
+        self.assertEqual(res4["matched_by"], "context")
+        self.assertFalse(res4["is_stock_only"])
+
+        # 5. Stock name only triggers default entry suitability question
+        res5 = extract_stock_and_question_from_query("삼성전자", current_code="000660")
+        self.assertEqual(res5["code"], "005930")
+        self.assertTrue(res5["is_stock_only"])
 
     def test_custom_questions_produce_distinct_quant_results(self):
         sample = {
