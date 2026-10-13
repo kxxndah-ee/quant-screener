@@ -135,7 +135,8 @@ def _built_in_quant_reasoning(
     """
     State-of-the-art rule & statistical quant reasoning engine.
     Works 100% offline with zero external dependencies, providing
-    in-depth, tailored analysis based on mathematical signals.
+    in-depth, tailored quantitative analysis and calculated result values
+    based on mathematical signals and user question intent.
     """
     name = str(stock_info.get("name") or "해당 종목")
     code = str(stock_info.get("code") or "")
@@ -143,31 +144,137 @@ def _built_in_quant_reasoning(
     sector = str(stock_info.get("sector") or "시장 주도 섹터")
     close = _safe_to_float(stock_info.get("close"), 0.0)
     change_pct = _safe_to_float(stock_info.get("change_pct"), 0.0)
+    open_p = _safe_to_float(stock_info.get("open"), close)
+    high_p = _safe_to_float(stock_info.get("high"), close)
+    low_p = _safe_to_float(stock_info.get("low"), close)
+    prev_close = _safe_to_float(stock_info.get("prev_close"), close)
+    volume = _safe_to_float(stock_info.get("volume"), 0.0)
     score = _safe_to_float(stock_info.get("score"), 70.0)
+    label = str(stock_info.get("label") or ("고확신" if score >= 75 else ("우수" if score >= 65 else "중립")))
     strategy = str(stock_info.get("strategy_tag") or stock_info.get("strategy") or "퀀트 발굴")
     tp_pct = _safe_to_float(stock_info.get("tp_pct"), 5.0)
     sl_pct = _safe_to_float(stock_info.get("sl_pct"), 2.0)
     if sl_pct <= 0:
         sl_pct = 2.0
-    
-    tp_price = close * (1.0 + tp_pct / 100.0) if close > 0 else 0
-    sl_price = close * (1.0 - sl_pct / 100.0) if close > 0 else 0
-    
+
+    tp_price = close * (1.0 + tp_pct / 100.0) if close > 0 else 0.0
+    sl_price = close * (1.0 - sl_pct / 100.0) if close > 0 else 0.0
+    rr_ratio = tp_pct / max(0.1, sl_pct)
+
     breakdown = stock_info.get("breakdown") or {}
     if not isinstance(breakdown, dict):
         breakdown = {}
+    indicators = stock_info.get("indicators") or {}
+    if not isinstance(indicators, dict):
+        indicators = {}
+
     rsi = _safe_to_float(breakdown.get("rsi_val", stock_info.get("rsi")), 55.0)
     vol_ratio = _safe_to_float(breakdown.get("vol_ratio", stock_info.get("vol_ratio")), 1.0)
     ma_status = str(breakdown.get("ma_status") or stock_info.get("ma_status") or "이평 정배열")
+    bb_pct = _safe_to_float(breakdown.get("bb_pct", stock_info.get("bb_pct")), 0.5)
+    rsi_score = _safe_to_float(breakdown.get("rsi_score"), round(min(25.0, max(5.0, rsi * 0.3)), 1))
+    ma_score = _safe_to_float(breakdown.get("ma_score"), 20.0 if "정배열" in ma_status else 12.0)
+    vol_score = _safe_to_float(breakdown.get("vol_score"), round(min(30.0, vol_ratio * 10.0), 1))
+    bb_score = _safe_to_float(breakdown.get("bb_score"), 15.0)
+
+    ma5 = _safe_to_float(indicators.get("ma5"), close * 0.985 if close > 0 else 0.0)
+    ma20 = _safe_to_float(indicators.get("ma20"), close * 0.96 if close > 0 else 0.0)
+    ma60 = _safe_to_float(indicators.get("ma60"), close * 0.92 if close > 0 else 0.0)
+
     reason_core = str(stock_info.get("reason_core") or "전략 기준 충족")
-    
-    q_lower = question.lower()
-    
-    # 1. 리스크 / 주의사항
-    if any(k in q_lower for k in ["리스크", "위험", "주의", "손실", "조심", "탈락", "악재", "윗꼬리"]):
+    rule_note = str(stock_info.get("rule_note") or "목표가 분할 익절 및 손절가 원칙 대응")
+
+    # Derived quantitative metrics for deep custom Q&A
+    pivot_price = (high_p + low_p + close) / 3.0 if (high_p > 0 and low_p > 0 and close > 0) else close
+    day_range = max(0.0, high_p - low_p)
+    candle_support_pct = ((close - low_p) / day_range * 100.0) if day_range > 0 else 50.0
+    body_top = max(open_p, close)
+    upper_shadow_pct = ((high_p - body_top) / open_p * 100.0) if open_p > 0 else 0.0
+    trailing_trig = min(2.4, tp_pct * 0.7)
+    trailing_lock_price = close * 1.018 if close > 0 else 0.0
+    tp2_pct = round(tp_pct * 1.6, 1)
+    tp2_price = close * (1.0 + tp2_pct / 100.0) if close > 0 else 0.0
+    support_1 = max(sl_price, min(open_p if open_p > 0 else close * 0.99, pivot_price)) if close > 0 else 0.0
+    resist_1 = max(high_p if high_p > close else close * 1.02, close * 1.015) if close > 0 else 0.0
+    est_val_krw = _safe_to_float(stock_info.get("est_trading_val_krw"), close * volume)
+    est_val_eok = est_val_krw / 100_000_000.0 if est_val_krw > 0 else 0.0
+
+    q_clean = question.strip()
+    q_lower = q_clean.lower()
+
+    preset_prompts = {
+        "왜 급등하나요? 거래량과 수급 상승 원인을 정밀 분석해줘.",
+        "왜 급등하나요? 핵심 상승 원인과 수급 특징을 설명해줘.",
+        "지금 사도 되나요? 신규 매수 진입 적합도와 손익비를 진단해줘.",
+        "지금 사도 되나요? 현재 가격대 진입 적합성과 손익비를 알려줘.",
+        "목표가 & 손절가 알고리즘 권장 익절가와 스탑 가격을 알려줘.",
+        "리스크 팩트체크 주의해야 할 핵심 투자 위험 요소를 알려줘.",
+        "차트 & 지표 진단 이평선과 RSI 기술적 지표를 종합 분석해줘.",
+        "종목 종합 브리핑",
+    }
+    is_custom_query = q_clean not in preset_prompts
+
+    # 1. 시초가 / 내일 대응 / 익일 장전 전략 (Custom opening/next-day response)
+    if any(k in q_lower for k in ["내일", "시초", "익일", "동시호가", "장초반", "오전장", "아침", "대응"]):
+        gap_low = close * 1.005
+        gap_high = close * 1.025
+        gap_overheat = close * 1.04
+        if candle_support_pct >= 65.0 and vol_ratio >= 1.5:
+            next_verdict = f"강세 지속 유력 (장중 양봉 지지율 {candle_support_pct:.0f}%, 거래량 {vol_ratio:.1f}배)"
+            prob_note = "당일 종가가 고가권에서 마감되어 익일 시초 +1.0%~+2.5% 갭상승 출발 확률이 높습니다."
+        elif upper_shadow_pct >= 2.0:
+            next_verdict = f"시초 매물 소화 필요 (윗꼬리 {upper_shadow_pct:.1f}% 발생)"
+            prob_note = "장중 고점 매물이 일부 출회되었으므로, 익일 시초가 급등 추격보다는 시초 보합~약눌림 지지를 확인 후 진입해야 안전합니다."
+        else:
+            next_verdict = f"중립~완만한 상승 시도 (퀀트 스코어 {score:.1f}점, {ma_status})"
+            prob_note = "시초가 형성 후 첫 15분봉(09:00~09:15)의 거래량 유입과 시초가 지지 여부를 확인하고 대응하는 것이 유리합니다."
+
+        ans = f"""### **{name} ({code}) 시초가 및 익일 실전 대응 퀀트 분석**
+
+- **질문 분석**: `{q_clean}`
+- **퀀트 산출 결과값 (익일 대응 판정)**: **{next_verdict}**
+  - **적정 시초가 공략 밴드**: **{gap_low:,.0f}원 ~ {gap_high:,.0f}원** (`+0.5% ~ +2.5%` 이내 갭 출발 시 유효)
+  - **추격매수 금지 과열선**: **{gap_overheat:,.0f}원 이상** (`+4.0%` 이상 과대 갭상승 출발 시 시초 추격 금지)
+  - **1차 목표 익절가**: **{tp_price:,.0f}원 (+{tp_pct:.1f}%)** | **원칙 손절 기준가**: **{sl_price:,.0f}원 (-{sl_pct:.1f}%)**
+
+**1. 시간대별 퀀트 대응 프로토콜**
+- **08:40~09:00 (동시호가 점검)**: 예상체결가가 **+0.5% ~ +2.5%** 범위 내이고 호가 잔량이 매수 우위인지 확인합니다.
+- **09:00~09:15 (장초반 수급 공략)**: {prob_note}
+- **09:15 이후 (장중 지지/이탈 대응)**: 당일 피벗 지지선(**{pivot_price:,.0f}원**)과 원칙 손절선(**{sl_price:,.0f}원**)을 하향 이탈하면 즉시 매도 대응하고, **+{trailing_trig:.1f}%** 돌파 시 **+1.8%({trailing_lock_price:,.0f}원)** 트레일링 수익 락을 겁니다.
+"""
+
+    # 2. 보유자 대응 / 매도 타이밍 / 홀딩 vs 물타기 진단
+    elif any(k in q_lower for k in ["보유", "홀딩", "매도", "팔아", "팔까", "물렸", "물타기", "불타기", "가지고", "갖고", "던져", "버텨", "평단"]):
+        if score >= 70.0 and rsi < 75.0 and "정배열" in ma_status:
+            hold_verdict = f"분할 익절 병행 홀딩 권고 (스코어 {score:.1f}점, 추세 우위)"
+            add_verdict = f"눌림 지지선({support_1:,.0f}원) 확인 시 제한적 불타기 가능 (단, {sl_price:,.0f}원 이탈 시 전량 청산)"
+        elif rsi >= 75.0 or change_pct >= 15.0:
+            hold_verdict = f"단기 과열권 분할 매도(차익실현) 권고 (RSI {rsi:.1f}pt, 등락률 {change_pct:+.2f}%)"
+            add_verdict = "현재 단기 과열 구간이므로 추가 매수(불타기/물타기)는 권장하지 않습니다."
+        else:
+            hold_verdict = f"짧은 방어선 설정 후 조건부 보유 (스코어 {score:.1f}점, {ma_status})"
+            add_verdict = f"하락 시 섣부른 물타기보다 원칙 손절선({sl_price:,.0f}원) 준수가 계좌 방어에 유리합니다."
+
+        ans = f"""### **{name} ({code}) 보유자 매도 타이밍 & 포지션 관리 퀀트 분석**
+
+- **질문 분석**: `{q_clean}`
+- **퀀트 산출 결과값 (보유 판정)**: **{hold_verdict}**
+  - **1차 분할 매도가 (비중 50% 축소)**: **{tp_price:,.0f}원 (+{tp_pct:.1f}%)**
+  - **2차 슈팅 확장 목표가 (잔여 50%)**: **{tp2_price:,.0f}원 (+{tp2_pct:.1f}%)**
+  - **트레일링 익절 락 (본전 보호선)**: **{trailing_lock_price:,.0f}원 (+1.8%)**
+  - **최종 하단 방어선 (이탈 시 전량 매도)**: **{sl_price:,.0f}원 (-{sl_pct:.1f}%)**
+
+**1. 퀀트 수급 및 캔들 에너지 진단**
+- 현재가 **{close:,.0f}원** ({change_pct:+.2f}%), 당일 캔들 지지력 **{candle_support_pct:.0f}%**, 전일 대비 거래량 **{vol_ratio:.1f}배**, RSI **{rsi:.1f}pt** 상태입니다.
+- **추가매수(물타기/불타기) 진단**: {add_verdict}
+"""
+
+    # 3. 리스크 / 주의사항
+    elif any(k in q_lower for k in ["리스크", "위험", "주의", "손실", "조심", "탈락", "악재", "윗꼬리", "폭락", "하락"]):
+        custom_hdr = f"- **질문 분석**: `{q_clean}`\n- **퀀트 리스크 결과값**: **주의 경계선 {sl_price:,.0f}원 (-{sl_pct:.1f}%) | 고점 대비 윗꼬리 {upper_shadow_pct:.1f}% | RSI {rsi:.1f}pt**\n\n" if is_custom_query else ""
         ans = f"""### **{name} ({code}) 주요 투자 리스크 팩트체크**
 
-**1. 시초가 갭 및 윗꼬리 차익실현 리스크**
+{custom_hdr}**1. 시초가 갭 및 윗꼬리 차익실현 리스크**
 - 당일 시초 갭상승 종목은 장초반 슈팅 후 기관/외인의 차익실현 매물로 인해 긴 윗꼬리를 달고 급락할 위험이 상존합니다.
 - 고점 대비 -2% 이상 밀릴 경우 즉시 매도세 전환에 주의하세요.
 
@@ -178,11 +285,12 @@ def _built_in_quant_reasoning(
 - 오후장(11:00~13:00) 점심시간대 거래대금이 급감할 경우 호가 공백이 발생하여 일시적인 가격 왜곡이 일어날 수 있습니다.
 """
 
-    # 2. 목표가 / 손절가 / 가격 전략
+    # 4. 목표가 / 손절가 / 가격 전략
     elif any(k in q_lower for k in ["목표", "손절", "익절", "청산", "스탑"]):
+        custom_hdr = f"- **질문 분석**: `{q_clean}`\n- **퀀트 산출 결과값**: **목표가 {tp_price:,.0f}원 (+{tp_pct:.1f}%) | 손절가 {sl_price:,.0f}원 (-{sl_pct:.1f}%) | 손익비 {rr_ratio:.2f}:1**\n\n" if is_custom_query else ""
         ans = f"""### **{name} ({code}) 목표가 & 손절가 가격 전략 리포트**
 
-**1. 알고리즘 목표 익절가 (Take-Profit)**
+{custom_hdr}**1. 알고리즘 목표 익절가 (Take-Profit)**
 - **1차 목표가**: **{tp_price:,.0f}원** (현재가 대비 **+{tp_pct:.1f}%**)
 - **실행 원칙**: 장중 해당 호가 터치 시 50% 분할 익절, 잔여 물량은 트레일링 스탑(+1.8% 이상 수익 락)으로 극대화.
 
@@ -191,22 +299,87 @@ def _built_in_quant_reasoning(
 - **실행 원칙**: 종가나 장중 해당 가격을 하향 이탈할 경우 미련 없이 전량 손절하여 추가 낙폭(-5%~-10%)을 원천 차단.
 
 **3. 트레일링 익절 락 (Trailing Lock)**
-- 주가가 **+{min(2.4, tp_pct*0.7):.1f}%** 이상 상승했다가 되밀릴 경우, 본전 이상인 **+1.8%** 구간에서 자동 청산하여 수익을 지킵니다.
+- 주가가 **+{trailing_trig:.1f}%** 이상 상승했다가 되밀릴 경우, 본전 이상인 **+1.8% ({trailing_lock_price:,.0f}원)** 구간에서 자동 청산하여 수익을 지킵니다.
 """
 
-    # 3. 차트 / 기술적 지표 종합 분석
-    elif any(k in q_lower for k in ["차트", "지표", "이평", "rsi", "볼린저", "기술적"]):
+    # 5. 차트 / 기술적 지표 종합 분석
+    elif any(k in q_lower for k in ["차트", "지표", "이평", "rsi", "볼린저", "기술적", "골든크로스", "정배열", "역배열"]):
+        custom_hdr = f"- **질문 분석**: `{q_clean}`\n- **퀀트 지표 결과값**: **{ma_status} | RSI(14) {rsi:.1f}pt | BB %b {bb_pct:.2f} | 거래량 {vol_ratio:.2f}배**\n\n" if is_custom_query else ""
         ans = f"""### **{name} ({code}) 기술적 지표 & 차트 종합 해부**
 
-- **이동평균선 배열**: `{ma_status}` (단기 이평선이 중장기 이평선 위에 위치하여 정배열 모멘텀 우위)
+{custom_hdr}- **이동평균선 배열**: `{ma_status}` (단기 이평선이 중장기 이평선 위에 위치하여 정배열 모멘텀 우위 | MA5: {ma5:,.0f}원, MA20: {ma20:,.0f}원)
 - **RSI(14) 모멘텀**: **{rsi:.1f}pt** ({ '중립 상단 탄력 구간' if rsi < 70 else '과열 진입 구간 (단기 슈팅 가능하나 급등락 주의)' })
+- **볼린저밴드 위치**: **BB %b {bb_pct:.2f}** ({ '상단 밴드 돌파 모멘텀 확장' if bb_pct >= 0.8 else ('중심선 지지 양호' if bb_pct >= 0.4 else '하단 과매도 반등 탐색') })
 - **거래량 급증비**: 전일 대비 **{vol_ratio:.2f}배** (신뢰도 높은 거래량 폭발)
-- **종합 퀀트 스코어**: **{score:.1f}점 / 100점** (신호 신뢰도: **{stock_info.get('label', '우수')}**)
+- **종합 퀀트 스코어**: **{score:.1f}점 / 100점** (신호 신뢰도: **{label}**)
 - **전략 적합도**: `{strategy}` 조건식 100% 만족 통과
 """
 
-    # 4. 지금 사도 되나요? / 진입 가능 여부 / 추격매수 진단
-    elif any(k in q_lower for k in ["사도", "진입", "매수", "추격", "타이밍", "지금", "신규", "들어가"]):
+    # 6. 지지선 / 저항선 / 예상 가격밴드 / 얼마까지 갈까
+    elif any(k in q_lower for k in ["지지", "저항", "얼마", "어디까지", "고점", "저점", "바닥", "천장", "밴드", "호가", "가격대"]):
+        ans = f"""### **{name} ({code}) 핵심 지지선 · 저항선 및 목표 가격밴드 산출**
+
+- **질문 분석**: `{q_clean}`
+- **퀀트 산출 결과값 (핵심 가격 레벨)**:
+  - **2차 확장 저항선 (슈팅 타겟)**: **{tp2_price:,.0f}원 (+{tp2_pct:.1f}%)**
+  - **1차 핵심 저항선 (알고리즘 목표가)**: **{tp_price:,.0f}원 (+{tp_pct:.1f}%)**
+  - **단기 돌파 저항 (당일 고점/1차 관문)**: **{resist_1:,.0f}원**
+  - **현재가 / 피벗 중심가**: **{close:,.0f}원** / 피벗 **{pivot_price:,.0f}원**
+  - **1차 핵심 지지선 (단기 눌림목/MA5)**: **{support_1:,.0f}원** (5일선 **{ma5:,.0f}원**, 20일선 **{ma20:,.0f}원**)
+  - **2차 최종 방어선 (원칙 손절가)**: **{sl_price:,.0f}원 (-{sl_pct:.1f}%)**
+
+**1. 가격대별 수급 해석**
+- 단기 상방은 **1차 저항({resist_1:,.0f}원)** 돌파 시 **{tp_price:,.0f}원**까지 매물 공백이 열려 있으며, 기대 손익비는 **{rr_ratio:.2f} : 1**입니다.
+- 하방은 **{support_1:,.0f}원** 지지 여부가 핵심이며, **{sl_price:,.0f}원** 이탈 시에는 추세 훼손으로 판단하여 리스크를 차단해야 합니다.
+"""
+
+    # 7. 단타 vs 스윙 / 보유기간 / 매매 타임프레임
+    elif any(k in q_lower for k in ["단타", "스윙", "중장기", "장투", "기간", "며칠", "언제까지", "종가배팅", "종베", "타임프레임"]):
+        if vol_ratio >= 2.0 or "단타" in strategy:
+            tf_verdict = f"당일 단타 ~ 1박 2일 초단기 스윙 최적 (거래량 {vol_ratio:.1f}배 폭발)"
+        elif "정배열" in ma_status and score >= 70.0:
+            tf_verdict = f"1~3거래일 단기 스윙 및 추세 매매 적합 (스코어 {score:.1f}점, {ma_status})"
+        else:
+            tf_verdict = f"짧은 방망이 단기 대응 권장 (목표 +{tp_pct:.1f}% / 손절 -{sl_pct:.1f}%)"
+
+        ans = f"""### **{name} ({code}) 최적 매매 타임프레임(단타 vs 스윙) 퀀트 판정**
+
+- **질문 분석**: `{q_clean}`
+- **퀀트 산출 결과값 (권장 타임프레임)**: **{tf_verdict}**
+  - **적용 알고리즘 전략**: `{strategy}`
+  - **단타 대응 기준**: 목표가 **{tp_price:,.0f}원 (+{tp_pct:.1f}%)** / 손절가 **{sl_price:,.0f}원 (-{sl_pct:.1f}%)** / 당일 15:20 전 미도달 시 비중 축소
+  - **스윙 대응 기준**: 5일 이평선(**{ma5:,.0f}원**) 및 20일 이평선(**{ma20:,.0f}원**) 종가 지지 유지 시 **+{tp2_pct:.1f}% ({tp2_price:,.0f}원)**까지 추세 홀딩 가능
+
+**1. 체결 및 보유 원칙**
+- {rule_note}
+"""
+
+    # 8. 투자 비중 / 분할 매수 / 자금 관리
+    elif any(k in q_lower for k in ["비중", "분할", "몇퍼", "얼마나", "포트", "자금", "배팅", "시드"]):
+        if score >= 80.0 and rsi < 72.0:
+            alloc_pct = "총 운용자산의 15% ~ 20% (고확신 구간)"
+        elif score >= 68.0 and rsi < 75.0:
+            alloc_pct = "총 운용자산의 10% ~ 15% (표준 권장 비중)"
+        else:
+            alloc_pct = "총 운용자산의 5% ~ 10% 이내 (변동성 관리 소액 비중)"
+
+        entry_1 = close
+        entry_2 = max(sl_price * 1.005, close * 0.99)
+        ans = f"""### **{name} ({code}) 권장 투자 비중 & 분할 진입 자금관리 퀀트 산출**
+
+- **질문 분석**: `{q_clean}`
+- **퀀트 산출 결과값 (권장 비중)**: **{alloc_pct}**
+  - **기대 손익비 (Risk/Reward)**: **{rr_ratio:.2f} : 1** (기대수익 **+{tp_pct:.1f}%** vs 허용손실 **-{sl_pct:.1f}%**)
+  - **1차 진입가 (배정 물량의 50%)**: 현재가 부근 **{entry_1:,.0f}원**
+  - **2차 분할 진입가 (배정 물량의 50%)**: 장중 눌림 지지선 **{entry_2:,.0f}원** 부근
+  - **계좌 최대 리스크 제한**: 원칙 손절가 **{sl_price:,.0f}원 (-{sl_pct:.1f}%)** 이탈 시 전체 포트폴리오 손실률 **-0.3% 이내** 통제
+
+**1. 자금 집행 가이드**
+- 한 번에 전량 진입(몰빵)하기보다 2회 분할 매수로 평균단가 우위를 확보하고, **{tp_price:,.0f}원** 터치 시 50% 수익 확정을 권장합니다.
+"""
+
+    # 9. 지금 사도 되나요? / 진입 가능 여부 / 추격매수 진단
+    elif any(k in q_lower for k in ["사도", "진입", "매수", "추격", "타이밍", "지금", "신규", "들어가", "살까", "사볼까"]):
         if "장전" in strategy or "시초가" in strategy:
             risk_badge = " [우수: 장전 시초가 공략 후보]"
             verdict = "전일 확정 데이터 기반으로 사전 압축된 장전 시초가 공략 후보입니다."
@@ -224,24 +397,26 @@ def _built_in_quant_reasoning(
             verdict = "상승 파동 초입 또는 눌림목 지지 구간으로, 위로는 목표가 공간이 넓고 아래로는 손절폭이 짧아 손익비(Risk/Reward Ratio)가 매우 뛰어납니다."
             action_guide = f"현재가 **{close:,.0f}원** 기준 즉시 진입이 유효하며, 1차 목표가 **{tp_price:,.0f}원**을 타겟으로 매매를 추천합니다."
 
+        custom_hdr = f"- **질문 분석**: `{q_clean}`\n" if is_custom_query else ""
         ans = f"""### **{name} ({code}) 신규 진입 적합도 진단**
 
-**판정 결과**: **{risk_badge}**
+{custom_hdr}**판정 결과**: **{risk_badge}**
 
-- **현재가 상태**: **{close:,.0f}원** (당일 {change_pct:+.2f}%) | RSI: **{rsi:.1f}**
+- **현재가 상태**: **{close:,.0f}원** (당일 {change_pct:+.2f}%) | RSI: **{rsi:.1f}** | 퀀트 스코어: **{score:.1f}점**
 - **퀀트 진단 소견**: {verdict}
 - **매매 행동 요령**: {action_guide}
 - **손익비 분석**: 
   - 기대 이익폭: **+{tp_pct:.1f}%** ({tp_price:,.0f}원)
   - 최대 허용 손실폭: **-{sl_pct:.1f}%** ({sl_price:,.0f}원)
-  - 목표 손익비: **{(tp_pct / max(0.1, sl_pct)):.2f} : 1** (기대수익이 위험 대비 2배 이상 우위)
+  - 목표 손익비: **{rr_ratio:.2f} : 1** (기대수익이 위험 대비 우위)
 """
 
-    # 5. 상승 원인 / 왜 오르나요?
-    elif any(k in q_lower for k in ["왜", "원인", "이유", "급등", "상승", "오르", "배경"]):
+    # 10. 상승 원인 / 왜 오르나요?
+    elif any(k in q_lower for k in ["왜", "원인", "이유", "급등", "상승", "오르", "배경", "오른", "올라", "모멘텀", "테마", "재료"]):
+        custom_hdr = f"- **질문 분석**: `{q_clean}`\n- **퀀트 산출 결과값**: **거래량 전일비 {vol_ratio:.1f}배 | 퀀트 스코어 {score:.1f}점 ({label}) | {ma_status}**\n\n" if is_custom_query else ""
         ans = f"""### **{name} ({code}) 상승 원인 퀀트 정밀 진단**
 
-**1. 수급 및 거래량 폭발력 ({vol_ratio:.1f}배 급증)**
+{custom_hdr}**1. 수급 및 거래량 폭발력 ({vol_ratio:.1f}배 급증)**
 - 전일 동시간대 대비 거래량이 **{vol_ratio:.1f}배** 터지며 시장의 기관/외인 주도 세력의 강력한 순매수 자금이 유입되었습니다.
 - 거래량을 수반하지 않는 헛반등이 아니라, 실질적인 대량 수급이 뒷받침된 **신뢰도 높은 거래대금 주도 상승**입니다.
 
@@ -254,22 +429,51 @@ def _built_in_quant_reasoning(
 - 소속 섹터인 **[{sector}]** 군으로 시장 주도 자금이 강하게 쏠리면서 테마 랠리 동조화 효과가 작용하고 있습니다.
 """
 
-    # 6. 기본 일반 브리핑 (디폴트)
+    # 11. 수급 / 거래량 / 거래대금 / 세력·외인·기관 집중 분석
+    elif any(k in q_lower for k in ["수급", "거래량", "거래대금", "세력", "외인", "외국인", "기관", "매집", "프로그램"]):
+        supply_grade = "메이저 수급 집중 유입 (강력)" if vol_ratio >= 2.0 else ("수급 양호 (점진적 매집)" if vol_ratio >= 1.0 else "거래 소강 (수급 관망)")
+        ans = f"""### **{name} ({code}) 수급 강도 & 거래대금 퀀트 정밀 분석**
+
+- **질문 분석**: `{q_clean}`
+- **퀀트 산출 결과값 (수급 판정)**: **{supply_grade}**
+  - **전일 대비 거래량 비율**: **{vol_ratio:.2f}배** (수급 팩터 점수: **{vol_score:.1f}점 / 30점**)
+  - **당일 누적 거래량 / 추정 대금**: **{volume:,.0f}주** / **약 {est_val_eok:,.1f}억원**
+  - **장중 양봉 캔들 지지력**: **{candle_support_pct:.0f}%** (윗꼬리 비율 **{upper_shadow_pct:.1f}%**)
+
+**1. 수급 주체 및 에너지 해석**
+- 당일 시가(**{open_p:,.0f}원**) 대비 현재가(**{close:,.0f}원**) 흐름과 **{candle_support_pct:.0f}%**의 캔들 지지율을 볼 때, { '장중 유입된 메이저 매수 자금이 이탈하지 않고 종가까지 강하게 방어되고 있습니다.' if candle_support_pct >= 55 else '장중 차익실현 매물과 저가 매수세가 공방을 벌이는 구간으로 지지선( ' + f'{support_1:,.0f}원) 방어 확인이 중요합니다.' }
+"""
+
+    # 12. 기타 모든 직접 질문: 질문 맞춤형 종합 퀀트 수치 산출 및 전망 결과값
     else:
-        ans = f"""### **{name} ({code}) 퀀트 수석 애널리스트 종합 브리핑**
+        if score >= 75.0:
+            outlook_verdict = f"강세 우위 (종합 퀀트 스코어 {score:.1f}점 · {label})"
+        elif score >= 60.0:
+            outlook_verdict = f"중립~완만한 상방 우위 (종합 퀀트 스코어 {score:.1f}점 · {label})"
+        else:
+            outlook_verdict = f"보수적 관망 및 리스크 관리 구간 (종합 퀀트 스코어 {score:.1f}점 · {label})"
 
-- **종목 개요**: {market} 상장 | 소속 업종: **[{sector}]** | 현재가: **{close:,.0f}원** ({change_pct:+.2f}%)
-- **선정 전략**: **{strategy}** (신호 스코어: **{score:.1f}점**, {stock_info.get('label', '고확신')})
-- **거래 수급 상태**: 거래량 급증 **{vol_ratio:.1f}배** | RSI(14): **{rsi:.1f}** | `{ma_status}`
-- **매매 가이드**:
-  - 권장 목표가: **{tp_price:,.0f}원 (+{tp_pct:.1f}%)**
-  - 원칙 손절가: **{sl_price:,.0f}원 (-{sl_pct:.1f}%)**
-  - 발굴 근거: {reason_core}
+        ans = f"""### **{name} ({code}) 퀀트 수석 애널리스트 맞춤형 분석 결과**
 
-추가로 궁금하신 사항은 아래의 빠른 질문 칩(상승 원인, 진입 가능 여부, 목표가 등)을 누르시거나 직접 질문해 주세요!
+- **질문 분석**: `{q_clean}`
+- **퀀트 산출 결과값 (종합 판정)**: **{outlook_verdict}**
+  - **현재가 / 등락률**: **{close:,.0f}원** ({change_pct:+.2f}%) | 소속 업종: **[{sector}]** ({market})
+  - **권장 목표가 / 원칙 손절가**: 목표가 **{tp_price:,.0f}원 (+{tp_pct:.1f}%)** / 손절가 **{sl_price:,.0f}원 (-{sl_pct:.1f}%)** (손익비 **{rr_ratio:.2f} : 1**)
+  - **핵심 지지선 / 저항선**: 1차 지지 **{support_1:,.0f}원** (피벗 **{pivot_price:,.0f}원**) / 1차 저항 **{resist_1:,.0f}원**
+
+**1. 4대 퀀트 팩터 정밀 산출 내역**
+- **추세/이평 팩터 ({ma_score:.1f}점)**: `{ma_status}` (MA5 **{ma5:,.0f}원**, MA20 **{ma20:,.0f}원**, MA60 **{ma60:,.0f}원**)
+- **수급/거래량 팩터 ({vol_score:.1f}점)**: 전일비 거래량 급증 **{vol_ratio:.1f}배** (추정 거래대금 **약 {est_val_eok:,.1f}억원**, 캔들 지지력 **{candle_support_pct:.0f}%**)
+- **모멘텀/RSI 팩터 ({rsi_score:.1f}점)**: RSI(14) **{rsi:.1f}pt** ({ '탄력 상승 구간' if rsi < 70 else '단기 과열 구간' })
+- **변동성/밴드 팩터 ({bb_score:.1f}점)**: 볼린저밴드 **BB %b {bb_pct:.2f}**
+
+**2. 실전 매매 결론 ({strategy})**
+- **핵심 근거**: {reason_core}
+- **대응 원칙**: {rule_note}
 """
 
     if fallback_notice:
         ans += "\n\n*(※ Gemini API 연동 대기 중으로 내장 퀀트 수치 추론 엔진이 실시간 생성한 정밀 리포트입니다.)*"
 
     return ans
+

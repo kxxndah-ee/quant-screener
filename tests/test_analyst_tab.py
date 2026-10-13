@@ -108,10 +108,59 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn("차트 & 지표 진단", content)
         self.assertIn("상세 진단 리포트 전문 보기", content)
 
-        # 4. Console 2: 왜 급등하나요?, 지금 사도 되나요? + 질문칸
-        self.assertIn("btn_qa_why_", content)
+        # 4. Console 2: 지금 사도 되나요?, 왜 급등하나요? 순서 + 질문칸
         self.assertIn("btn_qa_buy_", content)
+        self.assertIn("btn_qa_why_", content)
+        self.assertLess(content.index("btn_qa_buy_"), content.index("btn_qa_why_"))
         self.assertIn("qa_custom_form_", content)
+
+    def test_custom_questions_produce_distinct_quant_results(self):
+        sample = {
+            "name": "삼성전자",
+            "code": "005930",
+            "market": "KOSPI",
+            "sector": "전기/전자",
+            "close": 75000,
+            "open": 73500,
+            "high": 76200,
+            "low": 73100,
+            "prev_close": 72500,
+            "volume": 15000000,
+            "change_pct": 3.45,
+            "score": 80.0,
+            "label": "우수",
+            "strategy_tag": "고확신 퀀트 모멘텀",
+            "tp_pct": 5.0,
+            "sl_pct": 2.5,
+            "vol_ratio": 2.5,
+            "rsi": 62.0,
+            "ma_status": "이평 정배열",
+            "bb_pct": 0.72,
+            "reason_core": "거래량 2.5배 폭발 및 정배열 모멘텀",
+            "rule_note": "목표가 도달 시 50% 분할 익절",
+            "breakdown": {
+                "rsi_val": 62.0,
+                "vol_ratio": 2.5,
+                "ma_status": "이평 정배열",
+                "bb_pct": 0.72
+            }
+        }
+        custom_questions = [
+            "내일 시초가에 어떻게 대응해야 하나요?",
+            "보유 중인데 언제 매도할까요?",
+            "지지선과 저항선이 어디인가요?",
+            "수급이랑 거래량 상태는 어때?",
+            "비중은 얼마나 들어가면 될까요?",
+            "단타가 좋나요 스윙이 좋나요?",
+            "앞으로 전반적인 주가 전망이 어때요?"
+        ]
+        answers = []
+        for q in custom_questions:
+            ans = generate_quant_expert_answer(sample, q)
+            self.assertIn(q, ans)
+            self.assertIn("퀀트 산출 결과값", ans)
+            answers.append(ans)
+        self.assertEqual(len(set(answers)), len(custom_questions))
 
 
 if __name__ == "__main__":

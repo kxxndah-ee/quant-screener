@@ -1270,6 +1270,7 @@ def get_stock_factsheet_payload(code: str) -> Dict[str, Any]:
         "bb_score": 10.0
     }
 
+    indicators = {}
     if df is not None and not df.empty and len(df) >= 20:
         try:
             score_info = evaluate_stock_latest(df)
@@ -1279,6 +1280,7 @@ def get_stock_factsheet_payload(code: str) -> Dict[str, Any]:
                 tp_pct = score_info["tp_pct"]
                 sl_pct = score_info["sl_pct"]
                 bk = score_info["breakdown"]
+                indicators = score_info.get("indicators", {})
         except Exception as e:
             logger.warning(f"Failed to evaluate scoring for {clean_code}: {e}")
 
@@ -1378,6 +1380,7 @@ def get_stock_factsheet_payload(code: str) -> Dict[str, Any]:
         "ma_status": ma_status,
         "bb_pct": bb_pct,
         "breakdown": bk,
+        "indicators": indicators,
         "reason_core": reason_core,
         "rule_note": rule_note,
         "est_trading_val_krw": est_trading_val_krw,
@@ -1794,15 +1797,15 @@ def render_analyst_factsheet_and_qa_tab():
                     st.session_state[cache_key][q_chart] = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
             st.markdown(st.session_state[cache_key][q_chart])
 
-    # 7. Console 2 (그 아래 콘솔): 왜 급등하나요?, 지금 사도 되나요? + 질문칸
+    # 7. Console 2 (그 아래 콘솔): 지금 사도 되나요?, 왜 급등하나요? + 질문칸
     qa_menus = {
-        "why": {
-            "label": "왜 급등하나요?",
-            "q": "왜 급등하나요? 핵심 상승 원인과 수급 특징을 설명해줘."
-        },
         "buy": {
             "label": "지금 사도 되나요?",
             "q": "지금 사도 되나요? 현재 가격대 진입 적합성과 손익비를 알려줘."
+        },
+        "why": {
+            "label": "왜 급등하나요?",
+            "q": "왜 급등하나요? 핵심 상승 원인과 수급 특징을 설명해줘."
         }
     }
 
@@ -1811,7 +1814,7 @@ def render_analyst_factsheet_and_qa_tab():
     qa_hist_key = f"qa_hist_{code}"
 
     if qa_active_q_key not in st.session_state:
-        st.session_state[qa_active_q_key] = "why"
+        st.session_state[qa_active_q_key] = "buy"
     if qa_hist_key not in st.session_state:
         st.session_state[qa_hist_key] = []
 
@@ -1823,7 +1826,7 @@ def render_analyst_factsheet_and_qa_tab():
             if st.button("질의 초기화", key=f"reset_chat_{code}_tab2", use_container_width=True):
                 st.session_state[cache_key] = {}
                 st.session_state[qa_hist_key] = []
-                st.session_state[qa_active_q_key] = "why"
+                st.session_state[qa_active_q_key] = "buy"
                 st.session_state.pop(qa_active_ans_key, None)
                 st.rerun()
 
@@ -1831,19 +1834,19 @@ def render_analyst_factsheet_and_qa_tab():
         clicked_qa = None
 
         with qa_b1:
-            is_active = (st.session_state[qa_active_q_key] == "why")
-            if st.button(qa_menus["why"]["label"], key=f"btn_qa_why_{code}", type="primary" if is_active else "secondary", use_container_width=True):
-                clicked_qa = "why"
-        with qa_b2:
             is_active = (st.session_state[qa_active_q_key] == "buy")
             if st.button(qa_menus["buy"]["label"], key=f"btn_qa_buy_{code}", type="primary" if is_active else "secondary", use_container_width=True):
                 clicked_qa = "buy"
+        with qa_b2:
+            is_active = (st.session_state[qa_active_q_key] == "why")
+            if st.button(qa_menus["why"]["label"], key=f"btn_qa_why_{code}", type="primary" if is_active else "secondary", use_container_width=True):
+                clicked_qa = "why"
 
         if clicked_qa and clicked_qa != st.session_state[qa_active_q_key]:
             st.session_state[qa_active_q_key] = clicked_qa
             st.rerun()
 
-        # 질문칸 (Custom Question Input Form) - 선택질문 위로 이동
+        # 질문칸 (Custom Question Input Form) - 선택질문 위로 배치
         with st.form(key=f"qa_custom_form_{code}", clear_on_submit=True):
             f_c1, f_c2 = st.columns([4.2, 1.0])
             with f_c1:
@@ -1856,9 +1859,10 @@ def render_analyst_factsheet_and_qa_tab():
             with f_c2:
                 submitted = st.form_submit_button("질문 전송", type="primary", use_container_width=True)
 
-            if submitted and custom_q_input.strip():
-                c_prompt = custom_q_input.strip()
-                with st.spinner("수석 애널리스트 답변 생성 중..."):
+        if submitted:
+            c_prompt = (custom_q_input or "").strip()
+            if c_prompt:
+                with st.spinner("수석 애널리스트가 질문을 퀀트 분석 중입니다..."):
                     try:
                         ans = generate_quant_expert_answer(payload, c_prompt)
                     except Exception as _e:
@@ -1867,6 +1871,8 @@ def render_analyst_factsheet_and_qa_tab():
                 st.session_state[qa_active_ans_key] = ans
                 st.session_state[qa_hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
                 st.rerun()
+            else:
+                st.warning("질문 내용을 입력해 주세요.")
 
         # 선택 질문 표시 및 답변
         curr_choice = st.session_state[qa_active_q_key]
@@ -1887,6 +1893,10 @@ def render_analyst_factsheet_and_qa_tab():
         else:
             disp_title = curr_choice
             q_ans = st.session_state.get(qa_active_ans_key, "")
+            if not q_ans and curr_choice.startswith("직접 질문:"):
+                raw_q = curr_choice.replace("직접 질문:", "", 1).strip()
+                q_ans = generate_quant_expert_answer(payload, raw_q)
+                st.session_state[qa_active_ans_key] = q_ans
 
         st.markdown(
             f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:6px 12px; border-radius:6px; border:1px solid #CBD5E1; margin:8px 0 6px 0;'>"
