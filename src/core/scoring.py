@@ -97,6 +97,7 @@ def calculate_score_for_row(row: pd.Series, weights: Optional[Dict[str, float]] 
     vol_ratio = float(row.get("VolRatio", 1.0))
     bb_pct = float(row.get("BB_PctB", 0.5))
     close = float(row.get("Close", 0.0))
+    change_pct = float(row.get("change_pct", row.get("Change", 0.0)))
 
     # 1. RSI Score (Base 0~1 multiplier * w_rsi)
     # 45~65: momentum/pullback rebound zone -> 100%
@@ -189,11 +190,21 @@ def calculate_score_for_row(row: pd.Series, weights: Optional[Dict[str, float]] 
         tp_pct = 1.0
     sl_pct = 2.0
 
+    analyzed_gain_pct = calculate_analyzed_rise_rate(
+        total_score=total_score,
+        vol_ratio=vol_ratio,
+        rsi_val=rsi_val,
+        ma_status=ma_status,
+        change_pct=change_pct,
+        bb_pct=bb_pct
+    )
+
     return {
         "score": total_score,
         "label": label,
         "tp_pct": tp_pct,
         "sl_pct": sl_pct,
+        "analyzed_gain_pct": analyzed_gain_pct,
         "breakdown": {
             "rsi_score": round(rsi_score, 1),
             "rsi_val": round(rsi_val, 1),
@@ -214,6 +225,48 @@ def calculate_score_for_row(row: pd.Series, weights: Optional[Dict[str, float]] 
             "bb_pct": round(bb_pct, 2),
         }
     }
+
+
+def calculate_analyzed_rise_rate(
+    total_score: float,
+    vol_ratio: float = 1.0,
+    rsi_val: float = 50.0,
+    ma_status: str = "보통",
+    change_pct: float = 0.0,
+    strategy_tag: str = "",
+    bb_pct: float = 0.5
+) -> float:
+    """
+    Computes the quant analyst's modeled expected upside potential / surge rate (분석 상승률, %).
+    Grounded in multi-factor momentum and statistical expectations:
+    - Base expected surge derived from composite quant score: 1.0% + (total_score * 0.05)
+      (e.g., 80점 -> 1.0 + 4.0 = 5.0%, 60점 -> 1.0 + 3.0 = 4.0%, 40점 -> 1.0 + 2.0 = 3.0%)
+    - Volume surge velocity: additional upside for high volume explosion:
+      min(2.5, max(0.0, (vol_ratio - 1.0) * 0.8))
+    - Moving average alignment bonus:
+      +0.8% for 정배열, +0.3% for 수렴/밀집, -0.6% for 역배열
+    - RSI sweet spot bonus (48~68pt: +0.6%), overbought penalty (>75pt: -0.7%)
+    - High-conviction strategy floor:
+      if '당일단타' or '5%타겟' in strategy_tag: floor of 5.0%
+      elif '스나이퍼' in strategy_tag: target +1.5% ~ +4.5%
+      elif '종가배팅' in strategy_tag: target +1.8% ~ +4.8%
+    Result is rounded to 1 decimal place, constrained between +1.0% and +12.0%.
+    """
+    base_gain = 1.0 + (float(total_score) * 0.05)
+    vol_boost = min(2.5, max(0.0, (float(vol_ratio) - 1.0) * 0.8))
+    ma_boost = 0.8 if "정배열" in ma_status else (0.3 if any(w in ma_status for w in ["수렴", "밀집"]) else (-0.6 if "역배열" in ma_status else 0.0))
+    rsi_boost = 0.6 if 48.0 <= float(rsi_val) <= 68.0 else (-0.7 if float(rsi_val) > 75.0 else 0.0)
+
+    est_gain = base_gain + vol_boost + ma_boost + rsi_boost
+
+    if any(k in strategy_tag for k in ["당일단타", "5%타겟", "5% 급등"]):
+        est_gain = max(5.0, est_gain)
+    elif "스나이퍼" in strategy_tag:
+        est_gain = max(1.5, min(4.5, est_gain * 0.7))
+    elif "종가배팅" in strategy_tag:
+        est_gain = max(1.8, min(4.8, est_gain * 0.8))
+
+    return round(max(1.0, min(12.0, est_gain)), 1)
 
 
 def evaluate_intraday_outlook(row_today: pd.Series, prev_close: float = 0.0) -> Dict[str, Any]:

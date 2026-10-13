@@ -54,7 +54,12 @@ from src.collectors.krx_universe import (
     clear_watchlist,
     normalize_sector
 )
-from src.core.scoring import evaluate_stock_latest, compute_point_in_time_indicators, calculate_score_for_row
+from src.core.scoring import (
+    evaluate_stock_latest,
+    compute_point_in_time_indicators,
+    calculate_score_for_row,
+    calculate_analyzed_rise_rate
+)
 from src.core.high_winrate_strategies import (
     evaluate_market_regime,
     evaluate_sniper_candidate,
@@ -944,6 +949,16 @@ def load_all_watchlist_metrics(codes_tuple):
         else:
             strat_tag = "-"
 
+        analyzed_gain = calculate_analyzed_rise_rate(
+            total_score=score,
+            vol_ratio=bk.get("vol_ratio", 1.0),
+            rsi_val=bk.get("rsi_val", 50.0),
+            ma_status=bk.get("ma_status", "-"),
+            change_pct=price_info.get("change_pct", 0.0),
+            strategy_tag=strat_tag,
+            bb_pct=bk.get("bb_pct", 0.5)
+        )
+
         results.append({
             "code": code,
             "name": name,
@@ -968,6 +983,7 @@ def load_all_watchlist_metrics(codes_tuple):
             "is_high_conviction": is_sniper or is_surge_5pct or is_daytrade,
             "tp_pct": tp,
             "sl_pct": sl,
+            "analyzed_gain_pct": analyzed_gain,
             "rsi": bk.get("rsi_val", 50.0),
             "vol_ratio": bk.get("vol_ratio", 1.0),
             "ma_status": bk.get("ma_status", "-"),
@@ -1362,6 +1378,16 @@ def get_stock_factsheet_payload(code: str) -> Dict[str, Any]:
     ma_status = str(bk.get("ma_status", "이평 정배열"))
     bb_pct = _safe_float_val(bk.get("bb_pct"), 0.5)
 
+    analyzed_gain_pct = calculate_analyzed_rise_rate(
+        total_score=score,
+        vol_ratio=vol_ratio,
+        rsi_val=rsi_val,
+        ma_status=ma_status,
+        change_pct=change_pct,
+        strategy_tag=strategy_tag,
+        bb_pct=bb_pct
+    )
+
     return {
         "code": clean_code,
         "name": name,
@@ -1384,6 +1410,7 @@ def get_stock_factsheet_payload(code: str) -> Dict[str, Any]:
         "strategy_tag": strategy_tag,
         "tp_pct": tp_pct,
         "sl_pct": sl_pct,
+        "analyzed_gain_pct": analyzed_gain_pct,
         "tp_price": tp_price,
         "sl_price": sl_price,
         "rr_ratio": rr_ratio,
@@ -3468,7 +3495,7 @@ with tab3:
         with t_col4:
             sort_by = st.selectbox(
                 "정렬 기준",
-                ["익일 스코어 높은 순", "전일대비 등락률 높은 순", "시초가대비 등락률 높은 순", "거래량 많은 순", "목표 익절가 높은 순", "종목명 가나다순"],
+                ["익일 스코어 높은 순", "전일대비 등락률 높은 순", "시초가대비 등락률 높은 순", "거래량 많은 순", "분석 상승률 높은 순", "종목명 가나다순"],
                 index=0,
                 key="wl_sort_by"
             )
@@ -3516,8 +3543,9 @@ with tab3:
             df_filtered = df_filtered.sort_values("intraday_open_pct", ascending=False)
         elif sort_by == "거래량 많은 순":
             df_filtered = df_filtered.sort_values("volume", ascending=False)
-        elif sort_by == "목표 익절가 높은 순":
-            df_filtered = df_filtered.sort_values("tp_pct", ascending=False)
+        elif sort_by == "분석 상승률 높은 순":
+            sort_col = "analyzed_gain_pct" if "analyzed_gain_pct" in df_filtered.columns else "tp_pct"
+            df_filtered = df_filtered.sort_values(sort_col, ascending=False)
         elif sort_by == "종목명 가나다순":
             df_filtered = df_filtered.sort_values("name", ascending=True)
 
@@ -3534,7 +3562,7 @@ with tab3:
 
             disp_table = df_filtered[[
                 "code", "name", "group_name", "market", "sector", "strategy_tag", "close", "change_pct",
-                "intraday_tag", "nextday_tag", "tp_pct", "sl_pct", "vol_ratio", "rsi", "ma_status", "verified_badge"
+                "intraday_tag", "nextday_tag", "analyzed_gain_pct", "sl_pct", "vol_ratio", "rsi", "ma_status", "verified_badge"
             ]].copy()
 
             grid_event = st.dataframe(
@@ -3550,7 +3578,7 @@ with tab3:
                     "change_pct": st.column_config.NumberColumn("전일대비", format="%+.2f%%"),
                     "intraday_tag": st.column_config.TextColumn("당일 전망 (장중)", width="medium"),
                     "nextday_tag": st.column_config.TextColumn("익일 전망 (스윙)", width="medium"),
-                    "tp_pct": st.column_config.NumberColumn("목표익절", format="+%.1f%%"),
+                    "analyzed_gain_pct": st.column_config.NumberColumn("분석 상승률", format="+%.1f%%", help="수석 애널리스트 복합 팩터 분석 기대 상승률"),
                     "sl_pct": st.column_config.NumberColumn("손절기준", format="-%.1f%%"),
                     "vol_ratio": st.column_config.NumberColumn("거래량 급증비", format="%.1f배"),
                     "rsi": st.column_config.NumberColumn("RSI(14)", format="%.1f"),
@@ -3668,7 +3696,8 @@ with tab3:
                 with insp_c3:
                     st.metric("시초가대비 등락", f"{sel_row.get('intraday_open_pct', 0.0):+.2f}%", help="오늘 시초가 대비 현재가 변동률")
                 with insp_c4:
-                    st.metric("목표 / 손절", f"+{sel_row['tp_pct']:.1f}% / -{sel_row['sl_pct']:.1f}%")
+                    ana_gain = sel_row.get("analyzed_gain_pct", sel_row.get("tp_pct", 0.0))
+                    st.metric("분석 상승률 / 손절", f"+{ana_gain:.1f}% / -{sel_row['sl_pct']:.1f}%")
 
                 with insp_btn1:
                     st.markdown("<br>", unsafe_allow_html=True)
@@ -3712,7 +3741,8 @@ with tab3:
                         st.caption(f"{sel_row.get('nextday_desc', '')}")
                         st.markdown(f"- **익일 퀀트 스코어**: `{sel_row['score']:.1f}점 / 100점` ({sel_row['label']})")
                         st.markdown(f"- **이평배열 상태**: `{sel_row.get('ma_status', '-')}`")
-                        st.markdown(f"- **권장 목표/손절선**: `익절 +{sel_row['tp_pct']:.1f}% / 손절 -{sel_row['sl_pct']:.1f}%`")
+                        ana_gain = sel_row.get("analyzed_gain_pct", sel_row.get("tp_pct", 0.0))
+                        st.markdown(f"- **분석 상승률 & 손절선**: `분석 상승률 +{ana_gain:.1f}% / 손절 -{sel_row['sl_pct']:.1f}%`")
 
                 # Detailed Technical Breakdown
                 bk = sel_row["breakdown"]
@@ -3747,7 +3777,8 @@ with tab3:
                         st.markdown(f"**당일**: `{item.get('intraday_tag', '-')}`")
                         st.markdown(f"**익일**: `{item.get('nextday_tag', '-')}`")
                         st.progress(min(1.0, max(0.0, item["score"] / 100.0)))
-                        st.caption(f"목표 익절: +{item['tp_pct']:.1f}% | 손절: -{item['sl_pct']:.1f}%")
+                        card_ana_gain = item.get("analyzed_gain_pct", item.get("tp_pct", 0.0))
+                        st.caption(f"분석 상승률: +{card_ana_gain:.1f}% | 손절: -{item['sl_pct']:.1f}%")
 
                         btn_c1, btn_c2 = st.columns(2)
                         with btn_c1:

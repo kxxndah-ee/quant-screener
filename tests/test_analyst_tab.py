@@ -270,6 +270,60 @@ class TestAnalystTab(unittest.TestCase):
             answers.append(ans)
         self.assertEqual(len(set(answers)), len(custom_questions))
 
+    def test_calculate_analyzed_rise_rate(self):
+        from src.core.scoring import calculate_analyzed_rise_rate
+
+        # Strong bullish stock
+        rate_bull = calculate_analyzed_rise_rate(
+            total_score=85.0,
+            vol_ratio=3.5,
+            rsi_val=60.0,
+            ma_status="정배열",
+            change_pct=4.2,
+            strategy_tag="당일단타 수급돌파",
+            bb_pct=0.75
+        )
+        self.assertGreaterEqual(rate_bull, 5.0)
+
+        # Neutral stock
+        rate_neutral = calculate_analyzed_rise_rate(
+            total_score=55.0,
+            vol_ratio=1.1,
+            rsi_val=50.0,
+            ma_status="수렴",
+            change_pct=0.5,
+            strategy_tag="-",
+            bb_pct=0.5
+        )
+        self.assertGreater(rate_neutral, 1.0)
+        self.assertLess(rate_neutral, rate_bull)
+
+    def test_watchlist_tab_uses_analyzed_rise_rate(self):
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Locate Tab 3 block
+        tab3_start = content.find("with tab3:")
+        tab4_start = content.find("with tab4:")
+        self.assertGreater(tab3_start, 0)
+        self.assertGreater(tab4_start, tab3_start)
+
+        tab3_content = content[tab3_start:tab4_start]
+
+        # Verify Tab 3 has "분석 상승률" in table and sorting
+        self.assertIn('"분석 상승률 높은 순"', tab3_content)
+        self.assertIn('"analyzed_gain_pct"', tab3_content)
+        self.assertIn('"분석 상승률"', tab3_content)
+        self.assertIn("분석 상승률 / 손절", tab3_content)
+        self.assertIn("분석 상승률 & 손절선", tab3_content)
+        self.assertIn("분석 상승률: +", tab3_content)
+
+        # Verify Tab 3 does NOT have "목표익절" or "목표 익절가 높은 순"
+        self.assertNotIn('"목표 익절가 높은 순"', tab3_content)
+        self.assertNotIn('"목표익절"', tab3_content)
+
 
 if __name__ == "__main__":
     unittest.main()
+
