@@ -323,7 +323,25 @@ class TestAnalystTab(unittest.TestCase):
         self.assertNotIn('"목표 익절가 높은 순"', tab3_content)
         self.assertNotIn('"목표익절"', tab3_content)
 
+    def test_screener_qa_hub_cleanup_and_no_scrollbar(self):
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # 1. Verify text and selectbox from media_1791877801284.png are removed
+        self.assertNotIn("AI 퀀트 수석 애널리스트 실시간 질의응답 (Q&A 허브)", content)
+        self.assertNotIn("스크리닝된 상승 유력 종목 중 궁금한 종목을 선택하여", content)
+        self.assertNotIn("분석 및 질의응답할 스크리닝 종목 선택", content)
+        self.assertNotIn("qa_hub_stock_selectbox", content)
+        self.assertNotIn("[안내] 상단 테이블 클릭 또는 카드 버튼 클릭 시 자동 연동", content)
+
+        # 2. Verify scrollbar prevention CSS on question buttons
+        self.assertIn("overflow-x: hidden !important;", content)
+        self.assertIn("scrollbar-width: none !important;", content)
+        self.assertIn("display: none !important;", content)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

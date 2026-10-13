@@ -474,14 +474,21 @@ st.markdown("""
         box-shadow: 0 0 0 2px rgba(203, 213, 225, 0.5) !important;
     }
 
-    /* Compact Single-Row Question Buttons */
+    /* Compact Single-Row Question Buttons: Zero scrollbar, clean single row */
     div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
-        overflow-x: auto !important;
+        overflow-x: hidden !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
         gap: 6px !important;
         padding-bottom: 2px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="stHorizontalBlock"]::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
     }
     div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="column"] {
         min-width: 0 !important;
@@ -500,12 +507,6 @@ st.markdown("""
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
-    }
-    @media (max-width: 768px) {
-        div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="column"] {
-            flex: 0 0 auto !important;
-            min-width: 105px !important;
-        }
     }
 
     /* Office Stealth Sliders: Slate grey accents instead of bright red */
@@ -1489,7 +1490,7 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
             st.session_state[hist_key].append({"q": default_label, "ans": default_ans})
 
     with st.container(border=True):
-        hdr_c1, hdr_c2 = st.columns([3.5, 1.5])
+        hdr_c1, hdr_c2 = st.columns([4.0, 1.0], gap="small")
         with hdr_c1:
             st.markdown(f"**{name} ({code})** 수석 애널리스트 실시간 Q&A 콘솔")
             score_v = float(stock_dict.get('score') or 0.0)
@@ -1504,44 +1505,45 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
                 st.session_state.pop(active_ans_key, None)
                 st.rerun()
 
-        # Quick Question Buttons (Single-row compact layout)
-        st.markdown('<div class="compact-qa-buttons" style="display:none;"></div>', unsafe_allow_html=True)
-        q_cols = st.columns(5, gap="small")
+        # Quick Question Buttons (Single-row compact layout in dedicated container)
+        with st.container():
+            st.markdown('<div class="compact-qa-buttons" style="display:none;"></div>', unsafe_allow_html=True)
+            q_cols = st.columns(5, gap="small")
 
-        curr_active_q = st.session_state.get(active_q_key, quick_queries["why"]["label"])
+            curr_active_q = st.session_state.get(active_q_key, quick_queries["why"]["label"])
 
-        clicked_prompt = None
-        clicked_label = None
+            clicked_prompt = None
+            clicked_label = None
 
-        with q_cols[0]:
-            b_type = "primary" if curr_active_q == quick_queries["why"]["label"] else "secondary"
-            if st.button(quick_queries["why"]["label"], key=f"btn_quick_why_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                clicked_prompt = quick_queries["why"]["q"]
-                clicked_label = quick_queries["why"]["label"]
+            with q_cols[0]:
+                b_type = "primary" if curr_active_q == quick_queries["why"]["label"] else "secondary"
+                if st.button(quick_queries["why"]["label"], key=f"btn_quick_why_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["why"]["q"]
+                    clicked_label = quick_queries["why"]["label"]
 
-        with q_cols[1]:
-            b_type = "primary" if curr_active_q == quick_queries["buy"]["label"] else "secondary"
-            if st.button(quick_queries["buy"]["label"], key=f"btn_quick_buy_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                clicked_prompt = quick_queries["buy"]["q"]
-                clicked_label = quick_queries["buy"]["label"]
+            with q_cols[1]:
+                b_type = "primary" if curr_active_q == quick_queries["buy"]["label"] else "secondary"
+                if st.button(quick_queries["buy"]["label"], key=f"btn_quick_buy_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["buy"]["q"]
+                    clicked_label = quick_queries["buy"]["label"]
 
-        with q_cols[2]:
-            b_type = "primary" if curr_active_q == quick_queries["tp"]["label"] else "secondary"
-            if st.button(quick_queries["tp"]["label"], key=f"btn_quick_tp_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                clicked_prompt = quick_queries["tp"]["q"]
-                clicked_label = quick_queries["tp"]["label"]
+            with q_cols[2]:
+                b_type = "primary" if curr_active_q == quick_queries["tp"]["label"] else "secondary"
+                if st.button(quick_queries["tp"]["label"], key=f"btn_quick_tp_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["tp"]["q"]
+                    clicked_label = quick_queries["tp"]["label"]
 
-        with q_cols[3]:
-            b_type = "primary" if curr_active_q == quick_queries["risk"]["label"] else "secondary"
-            if st.button(quick_queries["risk"]["label"], key=f"btn_quick_risk_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                clicked_prompt = quick_queries["risk"]["q"]
-                clicked_label = quick_queries["risk"]["label"]
+            with q_cols[3]:
+                b_type = "primary" if curr_active_q == quick_queries["risk"]["label"] else "secondary"
+                if st.button(quick_queries["risk"]["label"], key=f"btn_quick_risk_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["risk"]["q"]
+                    clicked_label = quick_queries["risk"]["label"]
 
-        with q_cols[4]:
-            b_type = "primary" if curr_active_q == quick_queries["chart"]["label"] else "secondary"
-            if st.button(quick_queries["chart"]["label"], key=f"btn_quick_chart_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                clicked_prompt = quick_queries["chart"]["q"]
-                clicked_label = quick_queries["chart"]["label"]
+            with q_cols[4]:
+                b_type = "primary" if curr_active_q == quick_queries["chart"]["label"] else "secondary"
+                if st.button(quick_queries["chart"]["label"], key=f"btn_quick_chart_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["chart"]["q"]
+                    clicked_label = quick_queries["chart"]["label"]
 
         if clicked_prompt and clicked_label:
             if clicked_prompt in st.session_state[cache_key]:
@@ -2691,11 +2693,10 @@ with tab1:
                 )
         elif "스나이퍼" in sc_mode or "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode:
             with sc_c3:
-                cur_snp_val = st.session_state.get("sc_min_val_krw_b", 100)
                 snp_options = [50, 100, 150, 200, 300]
-                if cur_snp_val not in snp_options:
-                    cur_snp_val = 100
-                min_val_krw_b = st.selectbox("최소 20일 평균 거래대금", snp_options, index=snp_options.index(cur_snp_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_val_krw_b")
+                if "sc_min_val_krw_b" not in st.session_state or st.session_state["sc_min_val_krw_b"] not in snp_options:
+                    st.session_state["sc_min_val_krw_b"] = 100
+                min_val_krw_b = st.selectbox("최소 20일 평균 거래대금", snp_options, format_func=lambda x: f"{x}억 원 이상", key="sc_min_val_krw_b")
             with sc_c4:
                 cur_disp = st.session_state.get("sc_max_disparity_val", 103.5)
                 max_disparity_val = st.slider("20일선 최대 이격도 (%)", 100.0, 105.0, value=cur_disp, step=0.5, key="sc_max_disparity_val")
@@ -2705,10 +2706,9 @@ with tab1:
         elif "종가배팅" in sc_mode:
             with sc_c3:
                 cb_options = [100, 200, 300, 500]
-                cur_cb_val = st.session_state.get("sc_min_today_val_b", 200)
-                if cur_cb_val not in cb_options:
-                    cur_cb_val = 200
-                min_today_val_b = st.selectbox("당일 최소 거래대금", cb_options, index=cb_options.index(cur_cb_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_today_val_b")
+                if "sc_min_today_val_b" not in st.session_state or st.session_state["sc_min_today_val_b"] not in cb_options:
+                    st.session_state["sc_min_today_val_b"] = 200
+                min_today_val_b = st.selectbox("당일 최소 거래대금", cb_options, format_func=lambda x: f"{x}억 원 이상", key="sc_min_today_val_b")
             with sc_c4:
                 cur_cb_ret = st.session_state.get("sc_min_day_ret_val", 3.0)
                 min_day_ret_val = st.slider("당일 최소 주가 상승률 (%)", 2.0, 6.0, value=cur_cb_ret, step=0.5, key="sc_min_day_ret_val")
@@ -2723,10 +2723,9 @@ with tab1:
         elif "5% 급등" in sc_mode or "5% 돌파" in sc_mode:
             with sc_c3:
                 surge_options = [100, 200, 300, 500]
-                cur_s_val = st.session_state.get("sc_min_surge_val_b", 200)
-                if cur_s_val not in surge_options:
-                    cur_s_val = 200
-                min_surge_val_b = st.selectbox("당일 최소 거래대금", surge_options, index=surge_options.index(cur_s_val), format_func=lambda x: f"{x}억 원 이상", key="sc_min_surge_val_b")
+                if "sc_min_surge_val_b" not in st.session_state or st.session_state["sc_min_surge_val_b"] not in surge_options:
+                    st.session_state["sc_min_surge_val_b"] = 200
+                min_surge_val_b = st.selectbox("당일 최소 거래대금", surge_options, format_func=lambda x: f"{x}억 원 이상", key="sc_min_surge_val_b")
             with sc_c4:
                 cur_s_pct = st.session_state.get("sc_min_day_surge_pct", 8.0)
                 min_day_surge_pct = st.slider("당일 최소 주가 상승률 (%)", 5.0, 25.0, value=cur_s_pct, step=1.0, key="sc_min_day_surge_pct")
@@ -2900,10 +2899,12 @@ with tab1:
                 key="sc_timing_sel"
             )
         with sc_t2:
+            sc_sort_options = ["익일 스코어 높은 순", "전일대비 등락률 높은 순", "목표 익절가 높은 순", "종목명 가나다순"]
+            if st.session_state.get("sc_sort_sel") not in sc_sort_options:
+                st.session_state["sc_sort_sel"] = "익일 스코어 높은 순"
             sc_sort = st.selectbox(
                 "정렬 기준",
-                ["익일 스코어 높은 순", "전일대비 등락률 높은 순", "목표 익절가 높은 순", "종목명 가나다순"],
-                index=0,
+                sc_sort_options,
                 key="sc_sort_sel"
             )
         with sc_t3:
@@ -3167,7 +3168,6 @@ with tab1:
                 b4.info(f"**체결 원칙**: {sel_sc.get('rule_note', '-')}")
 
                 st.markdown("---")
-                st.markdown(f"#### **{sel_sc['name']}** AI 퀀트 수석 애널리스트 실시간 Q&A")
                 render_quant_analyst_qa_box(sel_sc, key_suffix="insp")
 
         # -------------------------------------------------
@@ -3229,62 +3229,24 @@ with tab1:
                                 st.rerun()
 
         # -------------------------------------------------
-        # Screener Section C: AI Quant Analyst Q&A Hub
+        # Screener Section C: AI Quant Analyst Q&A
         # -------------------------------------------------
         if not df_sc_disp.empty:
-            opt_row_map = {}
-            qa_target_options = []
-            for _, r in df_sc_disp.iterrows():
-                raw_c = str(r.get("code", "")).strip()
-                r_code = raw_c.zfill(6) if raw_c.isdigit() else raw_c
-                r_name = str(r.get("name", "종목"))
-                r_tag = str(r.get("strategy_tag", ""))
-                opt_label = f"{r_name} ({r_code}) - {r_tag}" if r_tag else f"{r_name} ({r_code})"
-                qa_target_options.append(opt_label)
-                opt_row_map[opt_label] = r
+            qa_stock_row = None
+            if "qa_selected_stock_code" in st.session_state:
+                raw_sel = str(st.session_state["qa_selected_stock_code"]).strip()
+                sel_target = raw_sel.zfill(6) if raw_sel.isdigit() else raw_sel
+                matched = df_sc_disp[df_sc_disp["code"].astype(str).str.zfill(6) == sel_target]
+                if not matched.empty:
+                    qa_stock_row = matched.iloc[0]
 
-            if qa_target_options:
+            if qa_stock_row is None and not df_sc_disp.empty:
+                qa_stock_row = df_sc_disp.iloc[0]
+
+            has_table_selection = bool(sel_sc_rows and len(sel_sc_rows) > 0) if "sel_sc_rows" in locals() else False
+            if qa_stock_row is not None and not has_table_selection:
                 st.markdown("---")
-                st.markdown("### AI 퀀트 수석 애널리스트 실시간 질의응답 (Q&A 허브)")
-                st.caption("스크리닝된 상승 유력 종목 중 궁금한 종목을 선택하여 왜 급등하는지, 지금 사도 되는지, 목표가/손절가 시나리오를 퀀트 전문가에게 실시간 질의하세요.")
-
-                default_qa_idx = 0
-                if "qa_selected_stock_code" in st.session_state:
-                    raw_sel = str(st.session_state["qa_selected_stock_code"]).strip()
-                    sel_target = raw_sel.zfill(6) if raw_sel.isdigit() else raw_sel
-                    for idx, opt in enumerate(qa_target_options):
-                        if f"({sel_target})" in opt:
-                            default_qa_idx = idx
-                            break
-                default_qa_idx = min(max(0, default_qa_idx), len(qa_target_options) - 1)
-
-                col_qa_sel, col_qa_opt = st.columns([3.5, 1.5])
-                with col_qa_sel:
-                    qa_chosen_opt = st.selectbox(
-                        "분석 및 질의응답할 스크리닝 종목 선택",
-                        qa_target_options,
-                        index=default_qa_idx,
-                        key="qa_hub_stock_selectbox"
-                    )
-                with col_qa_opt:
-                    st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
-                    st.caption("[안내] 상단 테이블 클릭 또는 카드 버튼 클릭 시 자동 연동")
-
-                qa_stock_row = opt_row_map.get(qa_chosen_opt)
-                if qa_stock_row is None and qa_chosen_opt:
-                    import re
-                    m = re.search(r"\(([0-9A-Za-z]{6})\)", qa_chosen_opt)
-                    extracted_code = m.group(1) if m else ""
-                    if extracted_code:
-                        matched = df_sc_disp[df_sc_disp["code"].astype(str).str.zfill(6) == extracted_code]
-                        if not matched.empty:
-                            qa_stock_row = matched.iloc[0]
-
-                if qa_stock_row is None and not df_sc_disp.empty:
-                    qa_stock_row = df_sc_disp.iloc[0]
-
-                if qa_stock_row is not None:
-                    render_quant_analyst_qa_box(qa_stock_row, key_suffix="hub")
+                render_quant_analyst_qa_box(qa_stock_row, key_suffix="hub")
 
 # =========================================================
 # TAB 2: Q&A
@@ -3493,10 +3455,12 @@ with tab3:
         with t_col3:
             filter_sector = st.selectbox("업종/테마 필터", all_sectors, index=0, key="wl_filter_sector")
         with t_col4:
+            wl_sort_options = ["익일 스코어 높은 순", "전일대비 등락률 높은 순", "시초가대비 등락률 높은 순", "거래량 많은 순", "분석 상승률 높은 순", "종목명 가나다순"]
+            if st.session_state.get("wl_sort_by") not in wl_sort_options:
+                st.session_state["wl_sort_by"] = "익일 스코어 높은 순"
             sort_by = st.selectbox(
                 "정렬 기준",
-                ["익일 스코어 높은 순", "전일대비 등락률 높은 순", "시초가대비 등락률 높은 순", "거래량 많은 순", "분석 상승률 높은 순", "종목명 가나다순"],
-                index=0,
+                wl_sort_options,
                 key="wl_sort_by"
             )
         with t_col5:
