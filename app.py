@@ -1638,9 +1638,9 @@ def render_analyst_factsheet_and_qa_tab():
     if cache_key not in st.session_state:
         st.session_state[cache_key] = {}
 
-    # 2. STEP 1 (TOP): 통합 질문 입력 콘솔 (상단 텍스트 삭제 후 시세 동기화 / 질의 초기화 동일 사이즈 배치)
+    # 2. STEP 1 (TOP): 통합 질문 입력 콘솔 (상단 텍스트 삭제 후 좌측에 컴팩트한 동일 사이즈로 시세 동기화 / 질의 초기화 배치)
     with st.container(border=True):
-        h_c1, h_c2 = st.columns(2, gap="small")
+        h_c1, h_c2, _h_spacer = st.columns([0.9, 0.9, 4.2], gap="small")
         with h_c1:
             sync_btn = st.button("시세 동기화", key="btn_qa_sync_market", use_container_width=True, help="실시간 시세 및 퀀트 지표 동기화")
         with h_c2:
@@ -1850,7 +1850,8 @@ def render_analyst_factsheet_and_qa_tab():
     # 4. STEP 3 (질문 답변 아래): 비교 종목 카드 보기 버튼 + 종목 팩트시트 박스 (종목명 옆 가격 & 박스 내부에 빠른 질문 버튼 2개 포함)
     if len(st.session_state.get("qa_compared_codes", [])) >= 2:
         comp_list = st.session_state["qa_compared_codes"]
-        sw_cols = st.columns(max(len(comp_list), 2), gap="small")
+        sw_weights = [1.2] * len(comp_list) + [max(0.2, 6.0 - 1.2 * len(comp_list))]
+        sw_cols = st.columns(sw_weights, gap="small")
         for idx_c, c_code in enumerate(comp_list):
             c_meta = get_stock_metadata(c_code) or {}
             c_name = c_meta.get("name", c_code)
