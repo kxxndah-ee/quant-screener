@@ -74,6 +74,9 @@ from src.database.diary_manager import (
     evaluate_model_decay
 )
 from src.core.screening_worker import get_screening_worker
+import importlib
+import src.core.quant_analyst as _qa_mod
+importlib.reload(_qa_mod)
 from src.core.quant_analyst import generate_quant_expert_answer, extract_stock_and_question_from_query
 try:
     from src.automation.scheduler import (
@@ -1581,7 +1584,8 @@ def render_analyst_factsheet_and_qa_tab():
     if "qa_console_target_code" not in st.session_state:
         st.session_state["qa_console_target_code"] = def_top_code
     if "qa_has_active_result" not in st.session_state:
-        st.session_state["qa_has_active_result"] = False
+        st.session_state["qa_has_active_result"] = True
+    st.session_state.pop("qa_direct_search_kw", None)
 
     curr_target_code = str(st.session_state["qa_console_target_code"]).strip().zfill(6)
     curr_meta = get_stock_metadata(curr_target_code) or {}
@@ -1635,7 +1639,7 @@ def render_analyst_factsheet_and_qa_tab():
             st.session_state[qa_hist_key] = []
             st.session_state[qa_active_q_key] = "buy"
             st.session_state.pop(qa_active_ans_key, None)
-            st.session_state["qa_has_active_result"] = False
+            st.session_state["qa_has_active_result"] = True
             st.rerun()
 
         # 통합 질문 입력칸 (선택질문 위로 배치)
@@ -1646,7 +1650,7 @@ def render_analyst_factsheet_and_qa_tab():
                     "통합 질문 입력",
                     placeholder="질문을 먼저 입력하세요 (예: 삼성전자 지금 사도 되나요?, SK하이닉스 내일 시초가 대응법은?, 지금 매수할 만한 종목은?)",
                     label_visibility="collapsed",
-                    key="qa_direct_search_kw"
+                    key=f"input_qa_custom_{curr_target_code}"
                 )
             with f_c2:
                 submitted = st.form_submit_button("질문 전송", type="primary", use_container_width=True)
@@ -1655,11 +1659,11 @@ def render_analyst_factsheet_and_qa_tab():
         qa_b1, qa_b2, qa_b3 = st.columns([1.5, 1.5, 3.0], gap="small")
         clicked_qa = None
         with qa_b1:
-            is_active = st.session_state.get("qa_has_active_result", False) and (st.session_state[qa_active_q_key] == "buy")
+            is_active = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "buy")
             if st.button(qa_menus["buy"]["label"], key=f"btn_qa_buy_{curr_target_code}", type="primary" if is_active else "secondary", use_container_width=True):
                 clicked_qa = "buy"
         with qa_b2:
-            is_active = st.session_state.get("qa_has_active_result", False) and (st.session_state[qa_active_q_key] == "why")
+            is_active = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "why")
             if st.button(qa_menus["why"]["label"], key=f"btn_qa_why_{curr_target_code}", type="primary" if is_active else "secondary", use_container_width=True):
                 clicked_qa = "why"
         with qa_b3:
