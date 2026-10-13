@@ -77,7 +77,12 @@ from src.core.screening_worker import get_screening_worker
 import importlib
 import src.core.quant_analyst as _qa_mod
 importlib.reload(_qa_mod)
-from src.core.quant_analyst import generate_quant_expert_answer, extract_stock_and_question_from_query
+from src.core.quant_analyst import (
+    generate_quant_expert_answer,
+    extract_stock_and_question_from_query,
+    extract_all_stocks_from_query,
+    _compute_complex_quant_metrics
+)
 try:
     from src.automation.scheduler import (
         run_post_market_job,
@@ -1245,7 +1250,11 @@ def get_stock_factsheet_payload(code: str) -> Dict[str, Any]:
     open_p = _safe_float_val(price_info.get("open"), close)
     high_p = _safe_float_val(price_info.get("high"), close)
     low_p = _safe_float_val(price_info.get("low"), close)
-    prev_close = _safe_float_val(price_info.get("prev_close"), close)
+    prev_close = _safe_float_val(price_info.get("prev_close"), 0.0)
+    if (prev_close <= 0 or abs(prev_close - close) < 0.01) and close > 0 and abs(change_pct) > 0.001:
+        prev_close = round(close / (1.0 + change_pct / 100.0))
+    elif prev_close <= 0:
+        prev_close = close
     open_pct = _safe_float_val(price_info.get("open_pct"), 0.0)
     high_pct = _safe_float_val(price_info.get("high_pct"), 0.0)
     low_pct = _safe_float_val(price_info.get("low_pct"), 0.0)
@@ -1574,7 +1583,7 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
 
 def render_analyst_factsheet_and_qa_tab():
     st.markdown('<div class="office-subheading">Q&A</div>', unsafe_allow_html=True)
-    st.caption("먼저 궁금한 질문(예: '삼성전자 지금 사도 되나요?', 'SK하이닉스 내일 시초가 대응법은?', '지금 매수할 만한 종목은?')을 전송하거나 선택하면, 아래에 해당 종목의 실시간 퀀트 분석 카드와 수석 애널리스트의 답변이 함께 표시됩니다.")
+    st.caption("궁금한 질문(예: 'HLB와 삼성전자 중 오후에 상승 가능성이 더 높은 종목은?', '삼성전자 지금 사도 되나요?', 'SK하이닉스 내일 시초가 대응법은?')을 입력하면 즉시 아래에 수석 애널리스트의 답변이 출력되고, 하단에 종목 퀀트 팩트시트가 표시됩니다.")
 
     # 1. State initialization for selected stock & top screened fallback
     def_top_code = "005930"
@@ -1614,14 +1623,14 @@ def render_analyst_factsheet_and_qa_tab():
     if cache_key not in st.session_state:
         st.session_state[cache_key] = {}
 
-    # 2. STEP 1 (TOP): 수석 애널리스트 통합 질문 콘솔 (질문 먼저 입력/선택)
+    # 2. STEP 1 (TOP): 수석 애널리스트 통합 질문 입력 콘솔
     with st.container(border=True):
         h_c1, h_c2, h_c3 = st.columns([3.4, 1.0, 1.0])
         with h_c1:
             st.markdown(
                 f"**수석 애널리스트 실시간 Q&A 콘솔** "
                 f"<span style='font-size:0.78rem; color:#475569; font-weight:600; margin-left:8px;'>"
-                f"현재 대상: <strong style='color:#0284C7;'>{curr_meta_name} ({curr_target_code})</strong> · 질문에 종목명/코드를 함께 입력하면 자동 전환됩니다"
+                f"현재 대상: <strong style='color:#0284C7;'>{curr_meta_name} ({curr_target_code})</strong> · 단일 종목 및 다종목 복합 비교 질문 지원"
                 f"</span>",
                 unsafe_allow_html=True
             )
@@ -1639,40 +1648,21 @@ def render_analyst_factsheet_and_qa_tab():
             st.session_state[qa_hist_key] = []
             st.session_state[qa_active_q_key] = "buy"
             st.session_state.pop(qa_active_ans_key, None)
+            st.session_state["qa_compared_codes"] = []
             st.session_state["qa_has_active_result"] = True
             st.rerun()
 
-        # 통합 질문 입력칸 (선택질문 위로 배치)
         with st.form(key=f"qa_custom_form_{curr_target_code}", clear_on_submit=True):
             f_c1, f_c2 = st.columns([4.4, 1.0])
             with f_c1:
                 custom_q_input = st.text_input(
                     "통합 질문 입력",
-                    placeholder="질문을 먼저 입력하세요 (예: 삼성전자 지금 사도 되나요?, SK하이닉스 내일 시초가 대응법은?, 지금 매수할 만한 종목은?)",
+                    placeholder="질문을 입력하세요 (예: HLB와 삼성전자 중 오후에 상승 가능성이 더 높은 종목은?, 삼성전자 지금 사도 되나요?, 내일 시초가 대응법은?)",
                     label_visibility="collapsed",
                     key=f"input_qa_custom_{curr_target_code}"
                 )
             with f_c2:
                 submitted = st.form_submit_button("질문 전송", type="primary", use_container_width=True)
-
-        # 빠른 선택 질문 버튼 ('지금 사도 되나요?' -> '왜 급등하나요?' 순서)
-        qa_b1, qa_b2, qa_b3 = st.columns([1.5, 1.5, 3.0], gap="small")
-        clicked_qa = None
-        with qa_b1:
-            is_active = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "buy")
-            if st.button(qa_menus["buy"]["label"], key=f"btn_qa_buy_{curr_target_code}", type="primary" if is_active else "secondary", use_container_width=True):
-                clicked_qa = "buy"
-        with qa_b2:
-            is_active = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "why")
-            if st.button(qa_menus["why"]["label"], key=f"btn_qa_why_{curr_target_code}", type="primary" if is_active else "secondary", use_container_width=True):
-                clicked_qa = "why"
-        with qa_b3:
-            st.caption("※ 종목명+질문(예: '현대차 목표가 알려줘') 또는 단독 질문(예: '내일 시초가 대응은?') 모두 지원합니다.")
-
-        if clicked_qa:
-            st.session_state["qa_has_active_result"] = True
-            st.session_state[qa_active_q_key] = clicked_qa
-            st.rerun()
 
         if submitted:
             c_prompt = (custom_q_input or "").strip()
@@ -1682,46 +1672,92 @@ def render_analyst_factsheet_and_qa_tab():
                     current_code=curr_target_code,
                     fallback_top_code=def_top_code
                 )
-                resolved_code = parsed["code"]
+                matched_codes = parsed.get("codes", [parsed["code"]])
                 eff_question = parsed["question"]
                 is_stock_only = parsed["is_stock_only"]
 
-                st.session_state["qa_console_target_code"] = resolved_code
-                st.session_state["qa_has_active_result"] = True
+                if len(matched_codes) >= 2:
+                    with st.spinner("수석 애널리스트가 복수 종목의 실시간 퀀트 지표를 동시 산출하여 비교 분석 중입니다..."):
+                        comp_payloads = [get_stock_factsheet_payload(c) for c in matched_codes]
+                        # 질문 의도에 맞는 비교 우위 1위 종목을 하단 팩트시트 기본 종목으로 설정
+                        q_low = eff_question.lower()
+                        is_afternoon_q = any(w in q_low for w in ["오후", "오후장", "장후반", "마감", "종가", "오후에"])
+                        is_morning_q = any(w in q_low for w in ["오전", "시초", "시초가", "장초반", "내일 아침", "아침"])
+                        is_supply_q = any(w in q_low for w in ["수급", "거래량", "메이저", "세력", "수급주"])
+                        is_safety_q = any(w in q_low for w in ["안전", "방어", "손절", "리스크", "위험", "안정"])
 
-                target_q_key = f"qa_active_q_{resolved_code}"
-                target_ans_key = f"qa_active_ans_{resolved_code}"
-                target_hist_key = f"qa_hist_{resolved_code}"
-                if target_hist_key not in st.session_state:
-                    st.session_state[target_hist_key] = []
+                        def _rank_val(p):
+                            cm = _compute_complex_quant_metrics(p, eff_question)
+                            if is_afternoon_q:
+                                return cm["afternoon_score"]
+                            if is_morning_q:
+                                return cm["morning_score"]
+                            if is_supply_q:
+                                return cm["supply_score"]
+                            if is_safety_q:
+                                return cm["safety_score"]
+                            return cm["composite_score"]
 
-                with st.spinner("수석 애널리스트가 질문 대상 종목의 실시간 퀀트 지표와 답변을 산출 중입니다..."):
-                    target_payload = get_stock_factsheet_payload(resolved_code)
-                    try:
-                        ans = generate_quant_expert_answer(target_payload, eff_question)
-                    except Exception as _e:
-                        ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
+                        ranked_payloads = sorted(comp_payloads, key=_rank_val, reverse=True)
+                        winner_payload = ranked_payloads[0]
+                        resolved_code = winner_payload["code"]
+                        try:
+                            ans = generate_quant_expert_answer(winner_payload, eff_question, compare_stocks=comp_payloads)
+                        except Exception as _e:
+                            ans = f"복합 비교 분석 답변 생성 중 오류가 발생했습니다: {_e}"
 
-                if is_stock_only:
-                    st.session_state[target_q_key] = "buy"
+                    st.session_state["qa_compared_codes"] = matched_codes
+                    st.session_state["qa_console_target_code"] = resolved_code
+                    st.session_state["qa_has_active_result"] = True
+
+                    for c_code in matched_codes:
+                        t_q_key = f"qa_active_q_{c_code}"
+                        t_ans_key = f"qa_active_ans_{c_code}"
+                        t_hist_key = f"qa_hist_{c_code}"
+                        if t_hist_key not in st.session_state:
+                            st.session_state[t_hist_key] = []
+                        st.session_state[t_q_key] = f"직접 질문: {c_prompt}"
+                        st.session_state[t_ans_key] = ans
+                        st.session_state[t_hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
+                    st.rerun()
                 else:
-                    st.session_state[target_q_key] = f"직접 질문: {c_prompt}"
-                st.session_state[target_ans_key] = ans
-                st.session_state[target_hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
-                st.rerun()
+                    resolved_code = parsed["code"]
+                    st.session_state["qa_compared_codes"] = []
+                    st.session_state["qa_console_target_code"] = resolved_code
+                    st.session_state["qa_has_active_result"] = True
+
+                    target_q_key = f"qa_active_q_{resolved_code}"
+                    target_ans_key = f"qa_active_ans_{resolved_code}"
+                    target_hist_key = f"qa_hist_{resolved_code}"
+                    if target_hist_key not in st.session_state:
+                        st.session_state[target_hist_key] = []
+
+                    with st.spinner("수석 애널리스트가 질문 대상 종목의 실시간 퀀트 지표와 답변을 산출 중입니다..."):
+                        target_payload = get_stock_factsheet_payload(resolved_code)
+                        try:
+                            ans = generate_quant_expert_answer(target_payload, eff_question)
+                        except Exception as _e:
+                            ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
+
+                    if is_stock_only:
+                        st.session_state[target_q_key] = "buy"
+                    else:
+                        st.session_state[target_q_key] = f"직접 질문: {c_prompt}"
+                    st.session_state[target_ans_key] = ans
+                    st.session_state[target_hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
+                    st.rerun()
             else:
                 st.warning("질문 내용을 입력해 주세요.")
 
-    # 3. 질문 전 초기 안내 상태 vs 질문 후 종목 분석 및 답변 표시
     if not st.session_state.get("qa_has_active_result", False):
         st.markdown(
             f"""
             <div style="background:#F8FAFC; border:1px dashed #CBD5E1; border-radius:8px; padding:18px 20px; margin-top:8px; color:#334155;">
                 <div style="font-size:0.95rem; font-weight:800; color:#0F172A; margin-bottom:6px;">질문을 먼저 입력하거나 빠른 질문 버튼을 선택해 주세요</div>
                 <div style="font-size:0.83rem; line-height:1.6; color:#475569;">
-                    • <strong>종목 지정 질문 예시</strong>: <code>삼성전자 지금 사도 되나요?</code>, <code>SK하이닉스 왜 급등하나요?</code>, <code>카카오 내일 시초가에 어떻게 대응해야 하나요?</code>, <code>005380 목표가와 손절가 알려줘</code><br>
-                    • <strong>시장 추천 질문 예시</strong>: <code>지금 매수할 만한 종목은?</code>, <code>오늘 급등주 추천해줘</code> (고확신 스크리닝 최상위 종목 자동 매칭)<br>
-                    • <strong>빠른 질문 버튼</strong>: 상단 <code>지금 사도 되나요?</code> 또는 <code>왜 급등하나요?</code> 클릭 시 현재 대상 종목(<strong>{curr_meta_name}</strong>)의 퀀트 분석 카드와 답변이 즉시 출력됩니다.
+                    • <strong>다종목 복합 비교 예시</strong>: <code>HLB와 삼성전자 중 오후에 상승 가능성이 더 높은 종목은?</code>, <code>SK하이닉스와 현대차 중 지금 매수하기 더 좋은 종목은?</code><br>
+                    • <strong>단일 종목 지정 예시</strong>: <code>삼성전자 지금 사도 되나요?</code>, <code>SK하이닉스 왜 급등하나요?</code>, <code>카카오 내일 시초가에 어떻게 대응해야 하나요?</code><br>
+                    • <strong>시장 추천 질문 예시</strong>: <code>지금 매수할 만한 종목은?</code>, <code>오늘 급등주 추천해줘</code>
                 </div>
             </div>
             """,
@@ -1729,7 +1765,6 @@ def render_analyst_factsheet_and_qa_tab():
         )
         return
 
-    # 4. STEP 2 (BELOW): 질문 대상 종목 실시간 퀀트 분석 카드 & 수석 애널리스트 답변
     with st.spinner(f"수석 애널리스트가 [{curr_target_code}] 실시간 시세 및 퀀트 지표를 분석 중입니다..."):
         payload = get_stock_factsheet_payload(curr_target_code)
 
@@ -1763,37 +1798,129 @@ def render_analyst_factsheet_and_qa_tab():
     rule_note = payload["rule_note"]
     est_val_억 = payload["est_trading_val_krw"] / 100_000_000
 
-    # 4-1. 종목 팩트시트 헤더 바
+    # 3. STEP 2 (질문 입력창 바로 아래): 질문에 대한 수석 애널리스트 답변 즉시 표시
+    with st.container(border=True):
+        curr_choice = st.session_state[qa_active_q_key]
+        compared_codes = st.session_state.get("qa_compared_codes", [])
+        if curr_choice in qa_menus:
+            q_label = qa_menus[curr_choice]["label"]
+            q_prompt = qa_menus[curr_choice]["q"]
+            if q_prompt not in st.session_state[cache_key]:
+                with st.spinner(f"AI 퀀트 수석 애널리스트가 '{q_label}' 항목을 분석 중입니다..."):
+                    try:
+                        q_ans = generate_quant_expert_answer(payload, q_prompt)
+                    except Exception as _e:
+                        q_ans = f"답변 생성 중 일시적인 오류가 발생했습니다: {_e}"
+                    st.session_state[cache_key][q_prompt] = q_ans
+            else:
+                q_ans = st.session_state[cache_key][q_prompt]
+            st.session_state[qa_active_ans_key] = q_ans
+            disp_title = f"[{name} ({code})] {q_label}"
+        else:
+            if len(compared_codes) >= 2:
+                comp_names = []
+                for c_c in compared_codes:
+                    m_info = get_stock_metadata(c_c) or {}
+                    comp_names.append(f"{m_info.get('name', c_c)}({c_c})")
+                disp_title = f"[복합 비교: {' vs '.join(comp_names)}] {curr_choice}"
+            else:
+                disp_title = f"[{name} ({code})] {curr_choice}"
+            q_ans = st.session_state.get(qa_active_ans_key, "")
+            if not q_ans and curr_choice.startswith("직접 질문:"):
+                raw_q = curr_choice.replace("직접 질문:", "", 1).strip()
+                parsed_q = extract_stock_and_question_from_query(raw_q, current_code=code, fallback_top_code=def_top_code)
+                q_codes = parsed_q.get("codes", [parsed_q["code"]])
+                if len(q_codes) >= 2:
+                    c_payloads = [get_stock_factsheet_payload(c) for c in q_codes]
+                    q_ans = generate_quant_expert_answer(payload, parsed_q["question"], compare_stocks=c_payloads)
+                else:
+                    q_ans = generate_quant_expert_answer(payload, parsed_q["question"])
+                st.session_state[qa_active_ans_key] = q_ans
+
+        st.markdown(
+            f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:6px 12px; border-radius:6px; border:1px solid #CBD5E1; margin:2px 0 6px 0;'>"
+            f"선택 질문: <span style='color:#0284C7;'>{disp_title}</span>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+
+        with st.chat_message("assistant"):
+            st.markdown(q_ans)
+
+        if len(st.session_state[qa_hist_key]) > 0:
+            with st.expander(f"이전 직접 질문 기록 ({len(st.session_state[qa_hist_key])}건)", expanded=False):
+                for h_idx, h in enumerate(reversed(st.session_state[qa_hist_key])):
+                    st.markdown(f"**[질문] {h['q']}**")
+                    st.markdown(h['ans'])
+                    if h_idx < len(st.session_state[qa_hist_key]) - 1:
+                        st.divider()
+
+    # 4. STEP 3 (질문 답변 아래): 종목 팩트시트 헤더 (종목명 옆 가격 배치 + 우측 빠른 질문 버튼 배치) & 퀀트 카드
+    if len(st.session_state.get("qa_compared_codes", [])) >= 2:
+        comp_list = st.session_state["qa_compared_codes"]
+        sw_cols = st.columns(len(comp_list) + 1, gap="small")
+        with sw_cols[0]:
+            st.markdown("<div style='font-size:0.78rem; font-weight:700; color:#475569; padding-top:6px;'>비교 종목 팩트시트 전환:</div>", unsafe_allow_html=True)
+        for idx_c, c_code in enumerate(comp_list):
+            c_meta = get_stock_metadata(c_code) or {}
+            c_name = c_meta.get("name", c_code)
+            with sw_cols[idx_c + 1]:
+                if st.button(
+                    f"{c_name} ({c_code}) 카드 보기",
+                    key=f"btn_switch_comp_{c_code}",
+                    type="primary" if c_code == curr_target_code else "secondary",
+                    use_container_width=True
+                ):
+                    st.session_state["qa_console_target_code"] = c_code
+                    st.rerun()
+
+    # 4-1. 종목 팩트시트 헤더 바 (종목 가격은 종목명 옆에 바로 배치 + 우측 종목 옆에 빠른 질문 버튼 2개 배치)
     chg_color = "#DC2626" if change_pct > 0 else ("#2563EB" if change_pct < 0 else "#475569")
     chg_sign = "+" if change_pct > 0 else ""
     diff_val = close - prev_close
 
-    st.markdown(
-        f"""
-        <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:10px 14px; margin:6px 0 8px 0;">
-            <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap;">
-                <div>
+    hdr_c1, hdr_b1, hdr_b2 = st.columns([3.8, 1.1, 1.1], gap="small")
+    with hdr_c1:
+        st.markdown(
+            f"""
+            <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:8px 14px; margin:2px 0 6px 0;">
+                <div style="display:flex; align-items:baseline; flex-wrap:wrap; gap:6px;">
                     <span style="font-size:0.8rem; background:#E2E8F0; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{market}</span>
-                    <span style="font-size:1.3rem; font-weight:800; color:#0F172A; margin-left:6px;">{name}</span>
-                    <span style="font-size:0.9rem; color:#64748B; font-weight:600; margin-left:4px;">({code})</span>
-                    <span style="font-size:0.85rem; color:#0284C7; font-weight:600; margin-left:8px;">{sector}</span>
+                    <span style="font-size:1.25rem; font-weight:800; color:#0F172A; margin-left:2px;">{name}</span>
+                    <span style="font-size:0.88rem; color:#64748B; font-weight:600;">({code})</span>
+                    <span style="font-size:0.84rem; color:#0284C7; font-weight:600; margin-left:2px;">{sector}</span>
+                    <span style="font-size:1.28rem; font-weight:800; color:{chg_color}; margin-left:10px;">{close:,.0f}원</span>
+                    <span style="font-size:0.95rem; font-weight:700; color:{chg_color};">({chg_sign}{change_pct:.2f}% · {diff_val:+,.0f}원)</span>
                 </div>
-                <div>
-                    <span style="font-size:1.35rem; font-weight:800; color:{chg_color};">{close:,.0f}원</span>
-                    <span style="font-size:1.0rem; font-weight:700; color:{chg_color}; margin-left:6px;">({chg_sign}{change_pct:.2f}% · {diff_val:+,.0f}원)</span>
+                <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:5px; font-size:0.78rem; color:#475569; border-top:1px dashed #CBD5E1; padding-top:5px;">
+                    <span>시가: <strong>{open_p:,.0f}원</strong> ({open_pct:+.2f}%)</span>
+                    <span>고가: <strong>{high_p:,.0f}원</strong> ({high_pct:+.2f}%)</span>
+                    <span>저가: <strong>{low_p:,.0f}원</strong> ({low_pct:+.2f}%)</span>
+                    <span>거래량: <strong>{volume:,}주</strong> (전일비 <strong>{vol_ratio:.1f}배</strong>)</span>
+                    <span>추정 대금: <strong>약 {est_val_억:,.0f}억원</strong></span>
                 </div>
             </div>
-            <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:6px; font-size:0.8rem; color:#475569; border-top:1px dashed #CBD5E1; padding-top:6px;">
-                <span>시가: <strong>{open_p:,.0f}원</strong> ({open_pct:+.2f}%)</span>
-                <span>고가: <strong>{high_p:,.0f}원</strong> ({high_pct:+.2f}%)</span>
-                <span>저가: <strong>{low_p:,.0f}원</strong> ({low_pct:+.2f}%)</span>
-                <span>거래량: <strong>{volume:,}주</strong> (전일비 <strong>{vol_ratio:.1f}배</strong>)</span>
-                <span>추정 대금: <strong>약 {est_val_억:,.0f}억원</strong></span>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+            """,
+            unsafe_allow_html=True
+        )
+
+    clicked_qa = None
+    with hdr_b1:
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+        is_active_buy = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "buy")
+        if st.button(qa_menus["buy"]["label"], key=f"btn_qa_buy_{curr_target_code}", type="primary" if is_active_buy else "secondary", use_container_width=True):
+            clicked_qa = "buy"
+    with hdr_b2:
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+        is_active_why = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "why")
+        if st.button(qa_menus["why"]["label"], key=f"btn_qa_why_{curr_target_code}", type="primary" if is_active_why else "secondary", use_container_width=True):
+            clicked_qa = "why"
+
+    if clicked_qa:
+        st.session_state["qa_has_active_result"] = True
+        st.session_state["qa_compared_codes"] = []
+        st.session_state[qa_active_q_key] = clicked_qa
+        st.rerun()
 
     # 4-2. 4대 핵심 요약 카드 (가로 4열)
     score_color = "#DC2626" if score >= 75 else ("#D97706" if score >= 65 else "#475569")
@@ -1896,51 +2023,6 @@ def render_analyst_factsheet_and_qa_tab():
                     st.session_state[cache_key][q_chart] = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
             st.markdown(st.session_state[cache_key][q_chart])
 
-    # 4-4. 질문에 대한 수석 애널리스트 답변 출력
-    with st.container(border=True):
-        curr_choice = st.session_state[qa_active_q_key]
-        if curr_choice in qa_menus:
-            q_label = qa_menus[curr_choice]["label"]
-            q_prompt = qa_menus[curr_choice]["q"]
-            if q_prompt not in st.session_state[cache_key]:
-                with st.spinner(f"AI 퀀트 수석 애널리스트가 '{q_label}' 항목을 분석 중입니다..."):
-                    try:
-                        q_ans = generate_quant_expert_answer(payload, q_prompt)
-                    except Exception as _e:
-                        q_ans = f"답변 생성 중 일시적인 오류가 발생했습니다: {_e}"
-                    st.session_state[cache_key][q_prompt] = q_ans
-            else:
-                q_ans = st.session_state[cache_key][q_prompt]
-            st.session_state[qa_active_ans_key] = q_ans
-            disp_title = f"[{name} ({code})] {q_label}"
-        else:
-            disp_title = f"[{name} ({code})] {curr_choice}"
-            q_ans = st.session_state.get(qa_active_ans_key, "")
-            if not q_ans and curr_choice.startswith("직접 질문:"):
-                raw_q = curr_choice.replace("직접 질문:", "", 1).strip()
-                parsed_q = extract_stock_and_question_from_query(raw_q, current_code=code, fallback_top_code=def_top_code)
-                q_ans = generate_quant_expert_answer(payload, parsed_q["question"])
-                st.session_state[qa_active_ans_key] = q_ans
-
-        st.markdown(
-            f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:6px 12px; border-radius:6px; border:1px solid #CBD5E1; margin:2px 0 6px 0;'>"
-            f"선택 질문: <span style='color:#0284C7;'>{disp_title}</span>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-
-        with st.chat_message("assistant"):
-            st.markdown(q_ans)
-
-        # Past Question History Expander
-        if len(st.session_state[qa_hist_key]) > 0:
-            with st.expander(f"이전 직접 질문 기록 ({len(st.session_state[qa_hist_key])}건)", expanded=False):
-                for h_idx, h in enumerate(reversed(st.session_state[qa_hist_key])):
-                    st.markdown(f"**[질문] {h['q']}**")
-                    st.markdown(h['ans'])
-                    if h_idx < len(st.session_state[qa_hist_key]) - 1:
-                        st.divider()
-
     # 5. Action Toolbar (Watchlist, Backtest, Screener)
     act_c1, act_c2, act_c3, act_c4 = st.columns([2.0, 2.0, 2.0, 4.0])
     is_in_watchlist = False
@@ -2013,7 +2095,7 @@ tab1, tab2, tab3, tab4 = st.tabs(main_tab_names, key="main_active_tab_nav")
 # =========================================================
 with tab1:
     sc_mode = st.radio(
-        "스크리닝 전략 모드 선택 (아래 6개 중 1개 선택)",
+        "스크리닝 전략 모드 선택",
         [
             "장전 시초가 공략 (눌림 반등 + 주도 갭상승)",
             "실시간 당일 단타 (5% 익절)",

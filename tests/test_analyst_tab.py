@@ -110,14 +110,20 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn("차트 & 지표 진단", content)
         self.assertIn("상세 진단 리포트 전문 보기", content)
 
-        # 4. Question-First Layout: 통합 질문 콘솔(qa_custom_form_, btn_qa_buy_, btn_qa_why_)이 종목 분석 카드(종합 퀀트 스코어)보다 먼저 배치
+        # 4. Tab 1 label & Tab 2 layout assertions:
+        self.assertNotIn("스크리닝 전략 모드 선택 (아래 6개 중 1개 선택)", content)
+        self.assertIn('"스크리닝 전략 모드 선택"', content)
+
         tab2_fn_text = content[content.index("def render_analyst_factsheet_and_qa_tab():"):content.index("main_tab_names =")]
+        self.assertIn("qa_custom_form_", tab2_fn_text)
+        self.assertIn("선택 질문:", tab2_fn_text)
         self.assertIn("btn_qa_buy_", tab2_fn_text)
         self.assertIn("btn_qa_why_", tab2_fn_text)
+        # Question Input -> Answer Output -> Stock Header + Quick Buttons -> Core Cards
+        self.assertLess(tab2_fn_text.index("qa_custom_form_"), tab2_fn_text.index("선택 질문:"))
+        self.assertLess(tab2_fn_text.index("선택 질문:"), tab2_fn_text.index("btn_qa_buy_"))
         self.assertLess(tab2_fn_text.index("btn_qa_buy_"), tab2_fn_text.index("btn_qa_why_"))
-        self.assertIn("qa_custom_form_", tab2_fn_text)
-        self.assertLess(tab2_fn_text.index("qa_custom_form_"), tab2_fn_text.index("종합 퀀트 스코어"))
-        self.assertLess(tab2_fn_text.index("btn_qa_buy_"), tab2_fn_text.index("종합 퀀트 스코어"))
+        self.assertLess(tab2_fn_text.index("btn_qa_why_"), tab2_fn_text.index("종합 퀀트 스코어"))
 
     def test_question_first_stock_and_question_extraction(self):
         # 1. Stock name + question
@@ -149,6 +155,66 @@ class TestAnalystTab(unittest.TestCase):
         res5 = extract_stock_and_question_from_query("삼성전자", current_code="000660")
         self.assertEqual(res5["code"], "005930")
         self.assertTrue(res5["is_stock_only"])
+
+        # 6. Multi-stock comparative question ('HLB와 삼성전자 중 오후에 상승 가능성이 더 높은 종목은?')
+        res6 = extract_stock_and_question_from_query("HLB와 삼성전자 중 오후에 상승 가능성이 더 높은 종목은?", current_code="000660")
+        self.assertEqual(res6["matched_by"], "multi")
+        self.assertTrue(res6["is_comparative"])
+        self.assertEqual(res6["codes"], ["028300", "005930"])
+
+    def test_multi_stock_comparative_quant_answer(self):
+        hlb_sample = {
+            "name": "HLB",
+            "code": "028300",
+            "market": "KOSDAQ",
+            "sector": "제약/바이오",
+            "close": 48900,
+            "open": 49500,
+            "high": 50200,
+            "low": 48500,
+            "prev_close": 50350,
+            "volume": 1200000,
+            "change_pct": -2.88,
+            "score": 47.0,
+            "label": "중립",
+            "strategy_tag": "일반 퀀트 관찰",
+            "tp_pct": 5.0,
+            "sl_pct": 2.5,
+            "vol_ratio": 0.6,
+            "rsi": 39.2,
+            "ma_status": "이평 역배열",
+            "bb_pct": 0.42,
+            "breakdown": {"rsi_val": 39.2, "vol_ratio": 0.6, "ma_status": "이평 역배열", "bb_pct": 0.42}
+        }
+        sec_sample = {
+            "name": "삼성전자",
+            "code": "005930",
+            "market": "KOSPI",
+            "sector": "전기/전자",
+            "close": 75000,
+            "open": 73500,
+            "high": 75300,
+            "low": 73100,
+            "prev_close": 72500,
+            "volume": 15000000,
+            "change_pct": 3.45,
+            "score": 80.0,
+            "label": "우수",
+            "strategy_tag": "고확신 퀀트 모멘텀",
+            "tp_pct": 5.0,
+            "sl_pct": 2.5,
+            "vol_ratio": 2.5,
+            "rsi": 62.0,
+            "ma_status": "이평 정배열",
+            "bb_pct": 0.72,
+            "breakdown": {"rsi_val": 62.0, "vol_ratio": 2.5, "ma_status": "이평 정배열", "bb_pct": 0.72}
+        }
+        q = "HLB와 삼성전자 중 오후에 상승 가능성이 더 높은 종목은?"
+        comp_ans = generate_quant_expert_answer(sec_sample, q, compare_stocks=[hlb_sample, sec_sample])
+        self.assertIn("HLB", comp_ans)
+        self.assertIn("삼성전자", comp_ans)
+        self.assertIn("오후장 상승 가능성 점수", comp_ans)
+        self.assertIn("최우선 공략 1위", comp_ans)
 
     def test_custom_questions_produce_distinct_quant_results(self):
         sample = {
@@ -182,6 +248,7 @@ class TestAnalystTab(unittest.TestCase):
             }
         }
         custom_questions = [
+            "오후에 상승 가능성이 얼마나 되나요?",
             "내일 시초가에 어떻게 대응해야 하나요?",
             "보유 중인데 언제 매도할까요?",
             "지지선과 저항선이 어디인가요?",
