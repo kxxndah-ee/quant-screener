@@ -115,13 +115,17 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn('"스크리닝 전략 모드 선택"', content)
 
         tab2_fn_text = content[content.index("def render_analyst_factsheet_and_qa_tab():"):content.index("main_tab_names =")]
+        self.assertNotIn('<div class="office-subheading">Q&A</div>', tab2_fn_text)
+        self.assertIn('placeholder="질문을 입력하세요"', tab2_fn_text)
+        self.assertNotIn("비교 종목 팩트시트 전환:", tab2_fn_text)
         self.assertIn("qa_custom_form_", tab2_fn_text)
-        self.assertIn("선택 질문:", tab2_fn_text)
+        self.assertIn("질문: <span", tab2_fn_text)
+        self.assertNotIn("선택 질문:", tab2_fn_text)
         self.assertIn("btn_qa_buy_", tab2_fn_text)
         self.assertIn("btn_qa_why_", tab2_fn_text)
-        # Question Input -> Answer Output -> Stock Header + Quick Buttons -> Core Cards
-        self.assertLess(tab2_fn_text.index("qa_custom_form_"), tab2_fn_text.index("선택 질문:"))
-        self.assertLess(tab2_fn_text.index("선택 질문:"), tab2_fn_text.index("btn_qa_buy_"))
+        # Question Input -> Answer Output -> Stock Header Box (with Quick Buttons inside) -> Core Cards
+        self.assertLess(tab2_fn_text.index("qa_custom_form_"), tab2_fn_text.index("질문: <span"))
+        self.assertLess(tab2_fn_text.index("질문: <span"), tab2_fn_text.index("btn_qa_buy_"))
         self.assertLess(tab2_fn_text.index("btn_qa_buy_"), tab2_fn_text.index("btn_qa_why_"))
         self.assertLess(tab2_fn_text.index("btn_qa_why_"), tab2_fn_text.index("종합 퀀트 스코어"))
 

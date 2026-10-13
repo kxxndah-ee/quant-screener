@@ -1581,10 +1581,25 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
                         st.divider()
 
 
-def render_analyst_factsheet_and_qa_tab():
-    st.markdown('<div class="office-subheading">Q&A</div>', unsafe_allow_html=True)
-    st.caption("궁금한 질문(예: 'HLB와 삼성전자 중 오후에 상승 가능성이 더 높은 종목은?', '삼성전자 지금 사도 되나요?', 'SK하이닉스 내일 시초가 대응법은?')을 입력하면 즉시 아래에 수석 애널리스트의 답변이 출력되고, 하단에 종목 퀀트 팩트시트가 표시됩니다.")
+def _strip_redundant_qa_headers(ans_text: str) -> str:
+    """Removes leading markdown title (### ...) and '- **질문 분석**: ...' line from displayed answer."""
+    if not ans_text:
+        return ""
+    lines = ans_text.splitlines()
+    cleaned = []
+    for line in lines:
+        s = line.strip()
+        if not cleaned and not s:
+            continue
+        if not cleaned and s.startswith("###"):
+            continue
+        if "질문 분석" in s and (s.startswith("-") or s.startswith("•") or s.startswith("*")):
+            continue
+        cleaned.append(line)
+    return "\n".join(cleaned).strip()
 
+
+def render_analyst_factsheet_and_qa_tab():
     # 1. State initialization for selected stock & top screened fallback
     def_top_code = "005930"
     if "screened_results_df" in st.session_state and st.session_state["screened_results_df"] is not None and not st.session_state["screened_results_df"].empty:
@@ -1630,7 +1645,7 @@ def render_analyst_factsheet_and_qa_tab():
             st.markdown(
                 f"**수석 애널리스트 실시간 Q&A 콘솔** "
                 f"<span style='font-size:0.78rem; color:#475569; font-weight:600; margin-left:8px;'>"
-                f"현재 대상: <strong style='color:#0284C7;'>{curr_meta_name} ({curr_target_code})</strong> · 단일 종목 및 다종목 복합 비교 질문 지원"
+                f"현재 대상: <strong style='color:#0284C7;'>{curr_meta_name} ({curr_target_code})</strong>"
                 f"</span>",
                 unsafe_allow_html=True
             )
@@ -1657,7 +1672,7 @@ def render_analyst_factsheet_and_qa_tab():
             with f_c1:
                 custom_q_input = st.text_input(
                     "통합 질문 입력",
-                    placeholder="질문을 입력하세요 (예: HLB와 삼성전자 중 오후에 상승 가능성이 더 높은 종목은?, 삼성전자 지금 사도 되나요?, 내일 시초가 대응법은?)",
+                    placeholder="질문을 입력하세요",
                     label_visibility="collapsed",
                     key=f"input_qa_custom_{curr_target_code}"
                 )
@@ -1679,10 +1694,9 @@ def render_analyst_factsheet_and_qa_tab():
                 if len(matched_codes) >= 2:
                     with st.spinner("수석 애널리스트가 복수 종목의 실시간 퀀트 지표를 동시 산출하여 비교 분석 중입니다..."):
                         comp_payloads = [get_stock_factsheet_payload(c) for c in matched_codes]
-                        # 질문 의도에 맞는 비교 우위 1위 종목을 하단 팩트시트 기본 종목으로 설정
                         q_low = eff_question.lower()
                         is_afternoon_q = any(w in q_low for w in ["오후", "오후장", "장후반", "마감", "종가", "오후에"])
-                        is_morning_q = any(w in q_low for w in ["오전", "시초", "시초가", "장초반", "내일 아침", "아침"])
+                        is_morning_q = any(w in q_low for w in ["오전", "시초", "시초가", "장초반", "내일", "익일", "아침"])
                         is_supply_q = any(w in q_low for w in ["수급", "거래량", "메이저", "세력", "수급주"])
                         is_safety_q = any(w in q_low for w in ["안전", "방어", "손절", "리스크", "위험", "안정"])
 
@@ -1716,9 +1730,9 @@ def render_analyst_factsheet_and_qa_tab():
                         t_hist_key = f"qa_hist_{c_code}"
                         if t_hist_key not in st.session_state:
                             st.session_state[t_hist_key] = []
-                        st.session_state[t_q_key] = f"직접 질문: {c_prompt}"
+                        st.session_state[t_q_key] = c_prompt
                         st.session_state[t_ans_key] = ans
-                        st.session_state[t_hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
+                        st.session_state[t_hist_key].append({"q": c_prompt, "ans": ans})
                     st.rerun()
                 else:
                     resolved_code = parsed["code"]
@@ -1742,27 +1756,14 @@ def render_analyst_factsheet_and_qa_tab():
                     if is_stock_only:
                         st.session_state[target_q_key] = "buy"
                     else:
-                        st.session_state[target_q_key] = f"직접 질문: {c_prompt}"
+                        st.session_state[target_q_key] = c_prompt
                     st.session_state[target_ans_key] = ans
-                    st.session_state[target_hist_key].append({"q": f"직접 질문: {c_prompt}", "ans": ans})
+                    st.session_state[target_hist_key].append({"q": c_prompt, "ans": ans})
                     st.rerun()
             else:
                 st.warning("질문 내용을 입력해 주세요.")
 
     if not st.session_state.get("qa_has_active_result", False):
-        st.markdown(
-            f"""
-            <div style="background:#F8FAFC; border:1px dashed #CBD5E1; border-radius:8px; padding:18px 20px; margin-top:8px; color:#334155;">
-                <div style="font-size:0.95rem; font-weight:800; color:#0F172A; margin-bottom:6px;">질문을 먼저 입력하거나 빠른 질문 버튼을 선택해 주세요</div>
-                <div style="font-size:0.83rem; line-height:1.6; color:#475569;">
-                    • <strong>다종목 복합 비교 예시</strong>: <code>HLB와 삼성전자 중 오후에 상승 가능성이 더 높은 종목은?</code>, <code>SK하이닉스와 현대차 중 지금 매수하기 더 좋은 종목은?</code><br>
-                    • <strong>단일 종목 지정 예시</strong>: <code>삼성전자 지금 사도 되나요?</code>, <code>SK하이닉스 왜 급등하나요?</code>, <code>카카오 내일 시초가에 어떻게 대응해야 하나요?</code><br>
-                    • <strong>시장 추천 질문 예시</strong>: <code>지금 매수할 만한 종목은?</code>, <code>오늘 급등주 추천해줘</code>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
         return
 
     with st.spinner(f"수석 애널리스트가 [{curr_target_code}] 실시간 시세 및 퀀트 지표를 분석 중입니다..."):
@@ -1817,18 +1818,18 @@ def render_analyst_factsheet_and_qa_tab():
             st.session_state[qa_active_ans_key] = q_ans
             disp_title = f"[{name} ({code})] {q_label}"
         else:
+            clean_choice_str = curr_choice.replace("직접 질문:", "", 1).strip()
             if len(compared_codes) >= 2:
                 comp_names = []
                 for c_c in compared_codes:
                     m_info = get_stock_metadata(c_c) or {}
                     comp_names.append(f"{m_info.get('name', c_c)}({c_c})")
-                disp_title = f"[복합 비교: {' vs '.join(comp_names)}] {curr_choice}"
+                disp_title = f"[{' vs '.join(comp_names)}] {clean_choice_str}"
             else:
-                disp_title = f"[{name} ({code})] {curr_choice}"
+                disp_title = f"[{name} ({code})] {clean_choice_str}"
             q_ans = st.session_state.get(qa_active_ans_key, "")
-            if not q_ans and curr_choice.startswith("직접 질문:"):
-                raw_q = curr_choice.replace("직접 질문:", "", 1).strip()
-                parsed_q = extract_stock_and_question_from_query(raw_q, current_code=code, fallback_top_code=def_top_code)
+            if not q_ans and clean_choice_str:
+                parsed_q = extract_stock_and_question_from_query(clean_choice_str, current_code=code, fallback_top_code=def_top_code)
                 q_codes = parsed_q.get("codes", [parsed_q["code"]])
                 if len(q_codes) >= 2:
                     c_payloads = [get_stock_factsheet_payload(c) for c in q_codes]
@@ -1838,33 +1839,30 @@ def render_analyst_factsheet_and_qa_tab():
                 st.session_state[qa_active_ans_key] = q_ans
 
         st.markdown(
-            f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:6px 12px; border-radius:6px; border:1px solid #CBD5E1; margin:2px 0 6px 0;'>"
-            f"선택 질문: <span style='color:#0284C7;'>{disp_title}</span>"
+            f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:6px 12px; border-radius:6px; border:1px solid #CBD5E1; margin:2px 0 8px 0;'>"
+            f"질문: <span style='color:#0284C7;'>{disp_title}</span>"
             f"</div>",
             unsafe_allow_html=True
         )
 
-        with st.chat_message("assistant"):
-            st.markdown(q_ans)
+        st.markdown(_strip_redundant_qa_headers(q_ans))
 
         if len(st.session_state[qa_hist_key]) > 0:
-            with st.expander(f"이전 직접 질문 기록 ({len(st.session_state[qa_hist_key])}건)", expanded=False):
+            with st.expander(f"이전 질문 기록 ({len(st.session_state[qa_hist_key])}건)", expanded=False):
                 for h_idx, h in enumerate(reversed(st.session_state[qa_hist_key])):
                     st.markdown(f"**[질문] {h['q']}**")
-                    st.markdown(h['ans'])
+                    st.markdown(_strip_redundant_qa_headers(h['ans']))
                     if h_idx < len(st.session_state[qa_hist_key]) - 1:
                         st.divider()
 
-    # 4. STEP 3 (질문 답변 아래): 종목 팩트시트 헤더 (종목명 옆 가격 배치 + 우측 빠른 질문 버튼 배치) & 퀀트 카드
+    # 4. STEP 3 (질문 답변 아래): 비교 종목 카드 보기 버튼 + 종목 팩트시트 박스 (종목명 옆 가격 & 박스 내부에 빠른 질문 버튼 2개 포함)
     if len(st.session_state.get("qa_compared_codes", [])) >= 2:
         comp_list = st.session_state["qa_compared_codes"]
-        sw_cols = st.columns(len(comp_list) + 1, gap="small")
-        with sw_cols[0]:
-            st.markdown("<div style='font-size:0.78rem; font-weight:700; color:#475569; padding-top:6px;'>비교 종목 팩트시트 전환:</div>", unsafe_allow_html=True)
+        sw_cols = st.columns(max(len(comp_list), 2), gap="small")
         for idx_c, c_code in enumerate(comp_list):
             c_meta = get_stock_metadata(c_code) or {}
             c_name = c_meta.get("name", c_code)
-            with sw_cols[idx_c + 1]:
+            with sw_cols[idx_c]:
                 if st.button(
                     f"{c_name} ({c_code}) 카드 보기",
                     key=f"btn_switch_comp_{c_code}",
@@ -1874,47 +1872,45 @@ def render_analyst_factsheet_and_qa_tab():
                     st.session_state["qa_console_target_code"] = c_code
                     st.rerun()
 
-    # 4-1. 종목 팩트시트 헤더 바 (종목 가격은 종목명 옆에 바로 배치 + 우측 종목 옆에 빠른 질문 버튼 2개 배치)
+    # 4-1. 종목 팩트시트 헤더 박스 (종목명 옆 가격 + 박스 안에 '지금 사도 되나요?', '왜 급등하나요?' 버튼 함께 배치)
     chg_color = "#DC2626" if change_pct > 0 else ("#2563EB" if change_pct < 0 else "#475569")
     chg_sign = "+" if change_pct > 0 else ""
     diff_val = close - prev_close
 
-    hdr_c1, hdr_b1, hdr_b2 = st.columns([3.8, 1.1, 1.1], gap="small")
-    with hdr_c1:
-        st.markdown(
-            f"""
-            <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:8px 14px; margin:2px 0 6px 0;">
-                <div style="display:flex; align-items:baseline; flex-wrap:wrap; gap:6px;">
-                    <span style="font-size:0.8rem; background:#E2E8F0; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{market}</span>
-                    <span style="font-size:1.25rem; font-weight:800; color:#0F172A; margin-left:2px;">{name}</span>
-                    <span style="font-size:0.88rem; color:#64748B; font-weight:600;">({code})</span>
-                    <span style="font-size:0.84rem; color:#0284C7; font-weight:600; margin-left:2px;">{sector}</span>
-                    <span style="font-size:1.28rem; font-weight:800; color:{chg_color}; margin-left:10px;">{close:,.0f}원</span>
-                    <span style="font-size:0.95rem; font-weight:700; color:{chg_color};">({chg_sign}{change_pct:.2f}% · {diff_val:+,.0f}원)</span>
-                </div>
-                <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:5px; font-size:0.78rem; color:#475569; border-top:1px dashed #CBD5E1; padding-top:5px;">
-                    <span>시가: <strong>{open_p:,.0f}원</strong> ({open_pct:+.2f}%)</span>
-                    <span>고가: <strong>{high_p:,.0f}원</strong> ({high_pct:+.2f}%)</span>
-                    <span>저가: <strong>{low_p:,.0f}원</strong> ({low_pct:+.2f}%)</span>
-                    <span>거래량: <strong>{volume:,}주</strong> (전일비 <strong>{vol_ratio:.1f}배</strong>)</span>
-                    <span>추정 대금: <strong>약 {est_val_억:,.0f}억원</strong></span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
     clicked_qa = None
-    with hdr_b1:
-        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
-        is_active_buy = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "buy")
-        if st.button(qa_menus["buy"]["label"], key=f"btn_qa_buy_{curr_target_code}", type="primary" if is_active_buy else "secondary", use_container_width=True):
-            clicked_qa = "buy"
-    with hdr_b2:
-        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
-        is_active_why = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "why")
-        if st.button(qa_menus["why"]["label"], key=f"btn_qa_why_{curr_target_code}", type="primary" if is_active_why else "secondary", use_container_width=True):
-            clicked_qa = "why"
+    with st.container(border=True):
+        hdr_c1, hdr_b1, hdr_b2 = st.columns([3.8, 1.1, 1.1], gap="small")
+        with hdr_c1:
+            st.markdown(
+                f"""
+                <div style="padding:2px 4px;">
+                    <div style="display:flex; align-items:baseline; flex-wrap:wrap; gap:6px;">
+                        <span style="font-size:0.8rem; background:#E2E8F0; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{market}</span>
+                        <span style="font-size:1.25rem; font-weight:800; color:#0F172A; margin-left:2px;">{name}</span>
+                        <span style="font-size:0.88rem; color:#64748B; font-weight:600;">({code})</span>
+                        <span style="font-size:0.84rem; color:#0284C7; font-weight:600; margin-left:2px;">{sector}</span>
+                        <span style="font-size:1.28rem; font-weight:800; color:{chg_color}; margin-left:10px;">{close:,.0f}원</span>
+                        <span style="font-size:0.95rem; font-weight:700; color:{chg_color};">({chg_sign}{change_pct:.2f}% · {diff_val:+,.0f}원)</span>
+                    </div>
+                    <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:5px; font-size:0.78rem; color:#475569; border-top:1px dashed #CBD5E1; padding-top:5px;">
+                        <span>시가: <strong>{open_p:,.0f}원</strong> ({open_pct:+.2f}%)</span>
+                        <span>고가: <strong>{high_p:,.0f}원</strong> ({high_pct:+.2f}%)</span>
+                        <span>저가: <strong>{low_p:,.0f}원</strong> ({low_pct:+.2f}%)</span>
+                        <span>거래량: <strong>{volume:,}주</strong> (전일비 <strong>{vol_ratio:.1f}배</strong>)</span>
+                        <span>추정 대금: <strong>약 {est_val_억:,.0f}억원</strong></span>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        with hdr_b1:
+            is_active_buy = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "buy")
+            if st.button(qa_menus["buy"]["label"], key=f"btn_qa_buy_{curr_target_code}", type="primary" if is_active_buy else "secondary", use_container_width=True):
+                clicked_qa = "buy"
+        with hdr_b2:
+            is_active_why = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "why")
+            if st.button(qa_menus["why"]["label"], key=f"btn_qa_why_{curr_target_code}", type="primary" if is_active_why else "secondary", use_container_width=True):
+                clicked_qa = "why"
 
     if clicked_qa:
         st.session_state["qa_has_active_result"] = True
