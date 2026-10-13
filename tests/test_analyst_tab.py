@@ -116,6 +116,7 @@ class TestAnalystTab(unittest.TestCase):
 
         tab2_fn_text = content[content.index("def render_analyst_factsheet_and_qa_tab():"):content.index("main_tab_names =")]
         self.assertNotIn('<div class="office-subheading">Q&A</div>', tab2_fn_text)
+        self.assertNotIn("수석 애널리스트 실시간 Q&A 콘솔", tab2_fn_text)
         self.assertIn('placeholder="질문을 입력하세요"', tab2_fn_text)
         self.assertNotIn("비교 종목 팩트시트 전환:", tab2_fn_text)
         self.assertIn("qa_custom_form_", tab2_fn_text)

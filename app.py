@@ -1638,20 +1638,12 @@ def render_analyst_factsheet_and_qa_tab():
     if cache_key not in st.session_state:
         st.session_state[cache_key] = {}
 
-    # 2. STEP 1 (TOP): 수석 애널리스트 통합 질문 입력 콘솔
+    # 2. STEP 1 (TOP): 통합 질문 입력 콘솔 (상단 텍스트 삭제 후 시세 동기화 / 질의 초기화 동일 사이즈 배치)
     with st.container(border=True):
-        h_c1, h_c2, h_c3 = st.columns([3.4, 1.0, 1.0])
+        h_c1, h_c2 = st.columns(2, gap="small")
         with h_c1:
-            st.markdown(
-                f"**수석 애널리스트 실시간 Q&A 콘솔** "
-                f"<span style='font-size:0.78rem; color:#475569; font-weight:600; margin-left:8px;'>"
-                f"현재 대상: <strong style='color:#0284C7;'>{curr_meta_name} ({curr_target_code})</strong>"
-                f"</span>",
-                unsafe_allow_html=True
-            )
-        with h_c2:
             sync_btn = st.button("시세 동기화", key="btn_qa_sync_market", use_container_width=True, help="실시간 시세 및 퀀트 지표 동기화")
-        with h_c3:
+        with h_c2:
             reset_btn = st.button("질의 초기화", key=f"reset_chat_{curr_target_code}_tab2", use_container_width=True)
 
         if sync_btn:
@@ -1667,8 +1659,8 @@ def render_analyst_factsheet_and_qa_tab():
             st.session_state["qa_has_active_result"] = True
             st.rerun()
 
-        with st.form(key=f"qa_custom_form_{curr_target_code}", clear_on_submit=True):
-            f_c1, f_c2 = st.columns([4.4, 1.0])
+        with st.form(key=f"qa_custom_form_{curr_target_code}", clear_on_submit=True, border=False):
+            f_c1, f_c2 = st.columns([4.4, 1.0], gap="small")
             with f_c1:
                 custom_q_input = st.text_input(
                     "통합 질문 입력",
