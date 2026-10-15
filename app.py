@@ -411,15 +411,22 @@ st.markdown("""
     }
 
     /* Office Stealth Mode: Button Styling (Discreet corporate slate/neutral) */
-    div.stButton > button {
+    div.stButton button,
+    div.stButton > button,
+    [data-testid="stBaseButton-secondary"],
+    [data-testid="stBaseButton-primary"] {
         font-size: 0.80rem !important;
         font-weight: 600 !important;
         padding: 0.35rem 0.8rem !important;
         min-height: 2rem !important;
+        height: 2rem !important;
         border-radius: 5px !important;
         transition: all 0.15s ease-in-out !important;
     }
-    div.stButton > button p {
+    div.stButton button p,
+    div.stButton > button p,
+    [data-testid="stBaseButton-secondary"] p,
+    [data-testid="stBaseButton-primary"] p {
         font-size: 0.80rem !important;
         font-weight: 600 !important;
     }
@@ -1671,7 +1678,7 @@ def render_analyst_factsheet_and_qa_tab():
     with st.container(border=True):
         h_c1, h_c2, _h_spacer = st.columns([0.9, 0.9, 4.2], gap="small")
         with h_c1:
-            sync_btn = st.button("시세 동기화", key="btn_qa_sync_market", use_container_width=True, help="실시간 시세 및 퀀트 지표 동기화")
+            sync_btn = st.button("시세 동기화", key="btn_qa_sync_market", use_container_width=True)
         with h_c2:
             reset_btn = st.button("질의 초기화", key=f"reset_chat_{curr_target_code}_tab2", use_container_width=True)
 

@@ -340,6 +340,22 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn("scrollbar-width: none !important;", content)
         self.assertIn("display: none !important;", content)
 
+    def test_sync_and_reset_buttons_uniform_sizing(self):
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Both buttons should be in identical column width ratio [0.9, 0.9, 4.2]
+        self.assertIn("st.columns([0.9, 0.9, 4.2], gap=\"small\")", content)
+
+        # sync_btn should NOT have help= parameter which caused unequal size/DOM wrapper
+        self.assertIn('sync_btn = st.button("시세 동기화", key="btn_qa_sync_market", use_container_width=True)', content)
+        self.assertIn('reset_btn = st.button("질의 초기화", key=f"reset_chat_{curr_target_code}_tab2", use_container_width=True)', content)
+
+        # CSS rule should uniformly enforce height and font across all buttons
+        self.assertIn('height: 2rem !important;', content)
+        self.assertIn('min-height: 2rem !important;', content)
+
 
 if __name__ == "__main__":
     unittest.main()
