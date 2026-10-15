@@ -2108,10 +2108,104 @@ if "main_active_tab_nav" in st.session_state:
 tab1, tab2, tab3, tab4 = st.tabs(main_tab_names, key="main_active_tab_nav")
 
 
+def render_us_market_macro_bar():
+    """
+    Renders US Market & Global Macro Quantitative Overview.
+    Displays NASDAQ, S&P 500, SOXX, DOW, USD/KRW, and VIX with
+    regime status badge, action guide, and sector impact notes.
+    """
+    from src.collectors.us_market import fetch_us_market_summary
+
+    us_summary = fetch_us_market_summary()
+    metrics = us_summary.get("metrics", {})
+    regime = us_summary.get("regime", "중립")
+    regime_desc = us_summary.get("regime_desc", "")
+    regime_color = us_summary.get("color", "#475569")
+    action_guide = us_summary.get("action_guide", "")
+    sector_notes = us_summary.get("sector_notes", {})
+    updated_at_str = us_summary.get("date_str", "")
+
+    nasdaq_pct = us_summary.get("nasdaq_pct", 0.0)
+    sp500_pct = us_summary.get("sp500_pct", 0.0)
+    soxx_pct = us_summary.get("soxx_pct", 0.0)
+    usdkrw_val = us_summary.get("usdkrw_rate", 1340.0)
+
+    title_summary = (
+        f"[전일 미장 및 글로벌 매크로 퀀트 점검] "
+        f"나스닥 {nasdaq_pct:+.2f}% · S&P500 {sp500_pct:+.2f}% · SOXX {soxx_pct:+.2f}% · 환율 {usdkrw_val:,.1f}원 "
+        f"| 체제: {regime}"
+    )
+
+    with st.expander(title_summary, expanded=True):
+        top_c1, top_c2 = st.columns([4.2, 1.2])
+        with top_c1:
+            st.markdown(
+                f'<div style="display:flex; align-items:center; gap:8px; padding-top:2px;">'
+                f'<span style="background:{regime_color}; color:#FFFFFF; font-weight:700; font-size:0.75rem; padding:2px 8px; border-radius:4px;">'
+                f'글로벌 체제: {regime} ({regime_desc})'
+                f'</span>'
+                f'<span style="color:#64748B; font-size:0.75rem;">기준시각: {updated_at_str}</span>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+        with top_c2:
+            if st.button("미장 시세 갱신", key="btn_refresh_us_market", use_container_width=True):
+                fetch_us_market_summary(force_refresh=True)
+                st.toast("전일 미장 및 매크로 지표를 새로 수신했습니다.")
+                st.rerun()
+
+        m_c1, m_c2, m_c3, m_c4, m_c5, m_c6 = st.columns(6)
+
+        def _render_metric_box(col, label, key_name):
+            item = metrics.get(key_name, {})
+            val = item.get("close", 0.0)
+            chg_pct = item.get("change_pct", 0.0)
+            color = "#DC2626" if chg_pct < 0 else ("#059669" if chg_pct > 0 else "#475569")
+            with col:
+                st.markdown(
+                    f'<div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:6px 8px; text-align:center;">'
+                    f'<div style="font-size:0.72rem; color:#64748B; font-weight:600; margin-bottom:2px;">{label}</div>'
+                    f'<div style="font-size:0.84rem; font-weight:700; color:#1E293B;">{val:,.2f}</div>'
+                    f'<div style="font-size:0.74rem; font-weight:700; color:{color};">{chg_pct:+.2f}%</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+        _render_metric_box(m_c1, "나스닥 종합", "NASDAQ")
+        _render_metric_box(m_c2, "S&P 500", "SP500")
+        _render_metric_box(m_c3, "필라델피아 반도체", "SOXX")
+        _render_metric_box(m_c4, "다우 존스", "DOW")
+        _render_metric_box(m_c5, "원/달러 환율", "USDKRW")
+        _render_metric_box(m_c6, "공포지수(VIX)", "VIX")
+
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+
+        st.markdown(
+            f'<div style="font-size:0.78rem; line-height:1.5; color:#1E293B; background:#F1F5F9; border-left:4px solid {regime_color}; padding:8px 12px; border-radius:4px;">'
+            f'<strong>[당일 국내 정규장 대응 가이드]</strong> {action_guide}'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+        if sector_notes:
+            notes_html = []
+            for sec_k, sec_txt in sector_notes.items():
+                notes_html.append(f"• <strong>{sec_k}</strong>: {sec_txt}")
+            notes_str = "<br>".join(notes_html)
+            st.markdown(
+                f'<div style="font-size:0.75rem; line-height:1.45; color:#475569; background:#FAFAFA; border:1px solid #E5E7EB; padding:6px 10px; border-radius:4px; margin-top:6px;">'
+                f'<strong style="color:#374151;">[주요 섹터 및 수급 영향]</strong><br>{notes_str}'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+
 # =========================================================
 # TAB 1: 시장 전체 익일 상승 후보 & 고확신 스크리너
 # =========================================================
 with tab1:
+    render_us_market_macro_bar()
+
     sc_mode = st.radio(
         "스크리닝 전략 모드 선택",
         [
@@ -2422,6 +2516,11 @@ with tab1:
             key="g_guide_view_radio"
         )
         if "핵심 원칙" in g_guide_mode:
+            from src.collectors.us_market import fetch_us_market_summary
+            _us_m = fetch_us_market_summary()
+            _us_reg = _us_m.get("regime", "중립")
+            _us_desc = _us_m.get("regime_desc", "")
+
             if "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode:
                 bm_ohlcv = get_benchmark_ohlcv()
                 mkt_ok, mkt_msg, mkt_meta = evaluate_market_regime(bm_ohlcv)
@@ -2431,7 +2530,7 @@ with tab1:
                 mkt_txt = "장전 시초가 공략 신규 매수가 적극 허용됩니다." if mkt_ok else "지수 하락/조정장 주의: 눌림목 반등 위주 선별 및 비중 조절 권장"
                 st.markdown(
                     f'<div style="font-size:0.78rem; line-height:1.45; color:{mkt_color}; background:{mkt_bg}; border:1px solid {mkt_border}; border-radius:5px; padding:6px 10px; margin-bottom:8px;">'
-                    f'<strong>[시장 체제 점검]</strong> KODEX 200 20일선 기준: {mkt_txt} ({mkt_msg})'
+                    f'<strong>[시장 체제 점검]</strong> KODEX 200: {mkt_txt} ({mkt_msg}) · <strong>전일 미장:</strong> {_us_reg} ({_us_desc})'
                     f'</div>',
                     unsafe_allow_html=True
                 )
@@ -2456,7 +2555,7 @@ with tab1:
                 mkt_txt = "당일 단타 모드 신규 매수가 적극 허용됩니다." if mkt_ok else "조정/하락장입니다. 보수적 비중 조절 및 칼손절(-2.5%) 준수 필수!"
                 st.markdown(
                     f'<div style="font-size:0.78rem; line-height:1.45; color:{mkt_color}; background:{mkt_bg}; border:1px solid {mkt_border}; border-radius:5px; padding:6px 10px; margin-bottom:8px;">'
-                    f'<strong>[시장 체제 점검]</strong> KODEX 200 20일선 기준: {mkt_txt} ({mkt_msg})'
+                    f'<strong>[시장 체제 점검]</strong> KODEX 200: {mkt_txt} ({mkt_msg}) · <strong>전일 미장:</strong> {_us_reg} ({_us_desc})'
                     f'</div>',
                     unsafe_allow_html=True
                 )
@@ -2482,7 +2581,7 @@ with tab1:
                 mkt_txt = "스나이퍼 신규 매수가 허용됩니다." if mkt_ok else "지수 하락장 위험 감지: 스나이퍼 전략은 하락장에서 무리한 진입을 전면 차단합니다."
                 st.markdown(
                     f'<div style="font-size:0.78rem; line-height:1.45; color:{mkt_color}; background:{mkt_bg}; border:1px solid {mkt_border}; border-radius:5px; padding:6px 10px; margin-bottom:8px;">'
-                    f'<strong>[시장 체제 점검]</strong> KODEX 200 20일선 기준: {mkt_txt} ({mkt_msg})'
+                    f'<strong>[시장 체제 점검]</strong> KODEX 200: {mkt_txt} ({mkt_msg}) · <strong>전일 미장:</strong> {_us_reg} ({_us_desc})'
                     f'</div>',
                     unsafe_allow_html=True
                 )

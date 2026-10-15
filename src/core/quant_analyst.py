@@ -11,6 +11,8 @@ import logging
 from typing import Dict, Any, List, Optional
 import requests
 
+from src.collectors.us_market import fetch_us_market_summary, get_sector_macro_note
+
 logger = logging.getLogger(__name__)
 
 
@@ -117,9 +119,23 @@ def _call_gemini_quant_expert(
         "당신은 대한민국 주식 시장에 특화된 최고 수준의 '수석 퀀트 트레이더 및 기술적 분석가(Chief Quant Analyst)'입니다.\n"
         "제공된 종목들의 실제 체결 데이터, 거래량 급증비, 이평선 배열, RSI, 퀀트 스코어, 목표가/손절가를 바탕으로 "
         "사용자의 단일 또는 복수 종목 비교·복합 질문에 명쾌하고 객관적이며 신뢰도 높은 전문가 분석 답변을 한국어로 제공하세요.\n"
+        "또한 전일 미국 증시(나스닥, S&P 500, 필라델피아 반도체 SOXX, 환율) 동향과 국내 섹터별 상관관계를 반영하여 글로벌 매크로 관점의 리스크도 함께 조언하세요.\n"
         "추상적이거나 모호한 답변 대신 구체적인 가격 수치, 백분율, 우위 종목 판정을 인용하여 설명하세요.\n"
         "매매 위험과 원칙 손절의 중요성을 항상 함께 고지하세요."
     )
+
+    macro_text = ""
+    try:
+        us_m = fetch_us_market_summary()
+        macro_text = (
+            f"[전일 글로벌 미장 및 매크로 지표]\n"
+            f"- 나스닥: {us_m.get('nasdaq_pct', 0.0):+.2f}% | S&P 500: {us_m.get('sp500_pct', 0.0):+.2f}% | "
+            f"필라델피아 반도체(SOXX): {us_m.get('soxx_pct', 0.0):+.2f}%\n"
+            f"- 원/달러 환율: {us_m.get('usdkrw_rate', 1340.0):,.1f}원 | 글로벌 체제: {us_m.get('regime', '중립')} ({us_m.get('regime_desc', '')})\n"
+            f"- 글로벌 리스크 가이드: {us_m.get('action_guide', '')}\n\n"
+        )
+    except Exception:
+        pass
 
     if compare_stocks and len(compare_stocks) >= 2:
         context_data = "\n".join(_format_one_stock_context(s, i + 1) for i, s in enumerate(compare_stocks))
@@ -130,7 +146,7 @@ def _call_gemini_quant_expert(
         "contents": [
             {
                 "parts": [
-                    {"text": f"{system_instruction}\n\n{context_data}\n\n[사용자 질문]: {question}"}
+                    {"text": f"{system_instruction}\n\n{macro_text}{context_data}\n\n[사용자 질문]: {question}"}
                 ]
             }
         ],
@@ -530,6 +546,23 @@ def _built_in_quant_reasoning(
 - **대응 원칙**: {rule_note}
 """
 
+    try:
+        us_m = fetch_us_market_summary()
+        regime = us_m.get("regime", "중립")
+        nasdaq_pct = us_m.get("nasdaq_pct", 0.0)
+        soxx_pct = us_m.get("soxx_pct", 0.0)
+        usdkrw = us_m.get("usdkrw_rate", 1340.0)
+        action_g = us_m.get("action_guide", "")
+        sec_note = get_sector_macro_note(sector, us_m)
+
+        ans += f"\n\n**3. 글로벌 미장 연동 점검 ({regime} 국면)**\n"
+        ans += f"- **전일 미장 지표**: 나스닥 **{nasdaq_pct:+.2f}%** | 필라델피아 반도체(SOXX) **{soxx_pct:+.2f}%** | 환율 **{usdkrw:,.1f}원**\n"
+        ans += f"- **글로벌 대응 가이드**: {action_g}\n"
+        if sec_note:
+            ans += f"- **업종별 영향 ({sector})**: {sec_note}\n"
+    except Exception:
+        pass
+
     if fallback_notice:
         ans += "\n\n*(※ Gemini API 연동 대기 중으로 내장 퀀트 수치 추론 엔진이 실시간 생성한 정밀 리포트입니다.)*"
 
@@ -606,6 +639,21 @@ def _compute_complex_quant_metrics(stock_info: Dict[str, Any], question: str = "
 
     # 5. 종합 상승 우위 점수 (0~100)
     composite_score = round(score * 0.45 + afternoon_score * 0.30 + safety_score * 0.25, 1)
+
+    # Factor in US market sector impact
+    try:
+        us_m = fetch_us_market_summary()
+        soxx_pct = us_m.get("soxx_pct", 0.0)
+        sec_str = (sector + " " + name).lower()
+        if any(k in sec_str for k in ["반도체", "hpsp", "하이닉스", "삼성전자", "한미반도체", "주성", "동진", "원익"]):
+            if soxx_pct <= -2.5:
+                morning_score = round(max(5.0, morning_score - 8.0), 1)
+                composite_score = round(max(5.0, composite_score - 4.0), 1)
+            elif soxx_pct >= 2.0:
+                morning_score = round(min(98.0, morning_score + 5.0), 1)
+                composite_score = round(min(98.0, composite_score + 2.5), 1)
+    except Exception:
+        pass
 
     q_low = (question or "").lower()
     if any(k in q_low for k in ["오후", "오후장", "장후반", "종가", "마감", "동시호가"]):
@@ -764,6 +812,30 @@ def _built_in_multi_stock_comparative_reasoning(
 **2. 종목별 실전 매매 타점 및 대응 전략**
 {guides_text}
 """
+
+    try:
+        us_m = fetch_us_market_summary()
+        regime = us_m.get("regime", "중립")
+        nasdaq_pct = us_m.get("nasdaq_pct", 0.0)
+        soxx_pct = us_m.get("soxx_pct", 0.0)
+        usdkrw = us_m.get("usdkrw_rate", 1340.0)
+        action_g = us_m.get("action_guide", "")
+
+        sec_bullets = []
+        for m in metrics_list:
+            sec_n = get_sector_macro_note(m.get("sector", "") or m.get("name", ""), us_m)
+            if sec_n:
+                sec_bullets.append(f"- **{m['name']} ({m.get('sector', '업종')})**: {sec_n}")
+
+        macro_part = f"\n\n**3. 글로벌 미장 연동 점검 ({regime} 국면)**\n"
+        macro_part += f"- **전일 미장 동향**: 나스닥 **{nasdaq_pct:+.2f}%** | 필라델피아 반도체(SOXX) **{soxx_pct:+.2f}%** | 원/달러 환율 **{usdkrw:,.1f}원**\n"
+        macro_part += f"- **글로벌 가이드**: {action_g}\n"
+        if sec_bullets:
+            macro_part += "- **비교 종목별 섹터 영향**:\n" + "\n".join(f"  {b}" for b in sec_bullets) + "\n"
+        ans += macro_part
+    except Exception:
+        pass
+
     if fallback_notice:
         ans += "\n\n*(※ 내장 다종목 비교 퀀트 추론 엔진이 실시간 산출한 복합 분석 리포트입니다.)*"
     return ans
