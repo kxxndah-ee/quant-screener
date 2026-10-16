@@ -20,12 +20,13 @@ def generate_quant_expert_answer(
     stock_info: Dict[str, Any],
     question: str,
     api_key: Optional[str] = None,
-    compare_stocks: Optional[List[Dict[str, Any]]] = None
+    compare_stocks: Optional[List[Dict[str, Any]]] = None,
+    chat_history: Optional[List[Dict[str, str]]] = None
 ) -> str:
     """
     Generates a professional quant expert explanation for a given stock (or multiple stocks) and question.
     Automatically detects multi-stock comparative questions (e.g., 'HLB와 삼성전자 중 오후에 상승 가능성이 더 높은 종목은?')
-    and complex analytical requests.
+    and complex analytical requests, seamlessly developing on previous conversational context.
     """
     stocks_list: List[Dict[str, Any]] = []
     if compare_stocks and len(compare_stocks) >= 2:
@@ -49,18 +50,19 @@ def generate_quant_expert_answer(
                 stock_info,
                 question,
                 key.strip(),
-                compare_stocks=stocks_list if len(stocks_list) >= 2 else None
+                compare_stocks=stocks_list if len(stocks_list) >= 2 else None,
+                chat_history=chat_history
             )
         except Exception as e:
             logger.warning(f"Gemini API call failed, falling back to built-in quant engine: {e}")
             if len(stocks_list) >= 2:
-                return _built_in_multi_stock_comparative_reasoning(stocks_list, question, fallback_notice=True)
-            return _built_in_quant_reasoning(stock_info, question, fallback_notice=True)
+                return _built_in_multi_stock_comparative_reasoning(stocks_list, question, fallback_notice=True, chat_history=chat_history)
+            return _built_in_quant_reasoning(stock_info, question, fallback_notice=True, chat_history=chat_history)
 
     if len(stocks_list) >= 2:
-        return _built_in_multi_stock_comparative_reasoning(stocks_list, question)
+        return _built_in_multi_stock_comparative_reasoning(stocks_list, question, chat_history=chat_history)
 
-    return _built_in_quant_reasoning(stock_info, question)
+    return _built_in_quant_reasoning(stock_info, question, chat_history=chat_history)
 
 
 def _safe_to_float(v, default=0.0):
@@ -78,7 +80,8 @@ def _call_gemini_quant_expert(
     stock_info: Dict[str, Any],
     question: str,
     api_key: str,
-    compare_stocks: Optional[List[Dict[str, Any]]] = None
+    compare_stocks: Optional[List[Dict[str, Any]]] = None,
+    chat_history: Optional[List[Dict[str, str]]] = None
 ) -> str:
     """Calls Gemini API via REST with quant persona and strict financial data grounding."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
@@ -142,11 +145,32 @@ def _call_gemini_quant_expert(
     else:
         context_data = _format_one_stock_context(stock_info, 1)
 
+    hist_text = ""
+    if chat_history and len(chat_history) > 0:
+        recent_turns = chat_history[-3:]
+        h_lines = []
+        for h in recent_turns:
+            q_txt = str(h.get("q", "")).strip()
+            a_txt = str(h.get("ans", "")).strip()
+            if len(a_txt) > 250:
+                a_txt = a_txt[:250] + "..."
+            if q_txt:
+                h_lines.append(f"Q: {q_txt}\nA: {a_txt}")
+        if h_lines:
+            hist_text = "[이전 대화 맥락 (연계 디벨롭 분석 참조)]:\n" + "\n\n".join(h_lines) + "\n\n"
+
+    instruction_addon = (
+        "\n\n[답변 원칙]: 사용자가 이전 대화 맥락에 이어 추가 질의한 경우, 이전 답변 내용과 일관성을 유지하면서 더욱 구체적이고 심화(디벨롭)된 퀀트 매매 실행 전략을 제시하세요."
+        if hist_text else ""
+    )
+
+    prompt_content = f"{system_instruction}{instruction_addon}\n\n{macro_text}{context_data}\n\n{hist_text}[사용자 질문]: {question}"
+
     payload = {
         "contents": [
             {
                 "parts": [
-                    {"text": f"{system_instruction}\n\n{macro_text}{context_data}\n\n[사용자 질문]: {question}"}
+                    {"text": prompt_content}
                 ]
             }
         ],
@@ -171,7 +195,8 @@ def _call_gemini_quant_expert(
 def _built_in_quant_reasoning(
     stock_info: Dict[str, Any],
     question: str,
-    fallback_notice: bool = False
+    fallback_notice: bool = False,
+    chat_history: Optional[List[Dict[str, str]]] = None
 ) -> str:
     """
     State-of-the-art rule & statistical quant reasoning engine.
@@ -566,6 +591,12 @@ def _built_in_quant_reasoning(
     if fallback_notice:
         ans += "\n\n*(※ Gemini API 연동 대기 중으로 내장 퀀트 수치 추론 엔진이 실시간 생성한 정밀 리포트입니다.)*"
 
+    if chat_history and len(chat_history) > 0:
+        last_item = chat_history[-1]
+        last_q = last_item.get("q", "")
+        if last_q:
+            ans = f"> **[직전 질문 연계 심화(디벨롭) 분석]** 이전 질의('{last_q}')의 퀀트 분석 맥락을 바탕으로 연계 심층 진단을 제공합니다.\n\n" + ans
+
     return ans
 
 
@@ -714,7 +745,8 @@ def _compute_complex_quant_metrics(stock_info: Dict[str, Any], question: str = "
 def _built_in_multi_stock_comparative_reasoning(
     stocks: List[Dict[str, Any]],
     question: str,
-    fallback_notice: bool = False
+    fallback_notice: bool = False,
+    chat_history: Optional[List[Dict[str, str]]] = None
 ) -> str:
     """
     Compares 2 or more stocks quantitatively based on the user's specific question intent
@@ -838,6 +870,13 @@ def _built_in_multi_stock_comparative_reasoning(
 
     if fallback_notice:
         ans += "\n\n*(※ 내장 다종목 비교 퀀트 추론 엔진이 실시간 산출한 복합 분석 리포트입니다.)*"
+
+    if chat_history and len(chat_history) > 0:
+        last_item = chat_history[-1]
+        last_q = last_item.get("q", "")
+        if last_q:
+            ans = f"> **[직전 질문 연계 심화(디벨롭) 분석]** 이전 질의('{last_q}')의 퀀트 분석 맥락을 바탕으로 연계 심층 진단을 제공합니다.\n\n" + ans
+
     return ans
 
 

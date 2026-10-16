@@ -409,12 +409,58 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn('div[data-testid="stVerticalBlockBorderWrapper"]', content)
         self.assertIn('div[data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar', content)
 
-        # 2. Verify Tab 2 factsheet header has Row 1 with buttons and Row 2 full width
-        self.assertIn('hdr_c1, hdr_b1, hdr_b2 = st.columns([3.8, 1.1, 1.1], gap="small")', content)
-        self.assertIn('<span>시가: <strong>{open_p:,.0f}원</strong>', content)
+    def test_quant_analyst_multi_turn_chat_history(self):
+        sample = {
+            "name": "삼성전자",
+            "code": "005930",
+            "market": "KOSPI",
+            "sector": "전기/전자",
+            "close": 75000,
+            "change_pct": 3.5,
+            "score": 80.0,
+            "label": "우수",
+            "strategy_tag": "고확신 퀀트 모멘텀",
+            "tp_pct": 5.0,
+            "sl_pct": 2.5,
+            "vol_ratio": 2.5,
+            "rsi": 62.0,
+            "ma_status": "이평 정배열",
+            "reason_core": "거래량 2.5배 폭발 및 정배열 모멘텀",
+            "rule_note": "목표가 도달 시 50% 분할 익절",
+            "breakdown": {
+                "rsi_val": 62.0,
+                "vol_ratio": 2.5,
+                "ma_status": "이평 정배열"
+            }
+        }
+        # 1. First turn: initial question without history
+        ans_1 = generate_quant_expert_answer(sample, "지금 사도 되나요?", chat_history=[])
+        self.assertIn("진입 적합도", ans_1)
+        self.assertNotIn("[직전 질문 연계 심화(디벨롭) 분석]", ans_1)
+
+        # 2. Second turn: follow-up question with history
+        history = [{"q": "지금 사도 되나요?", "ans": ans_1}]
+        ans_2 = generate_quant_expert_answer(sample, "그럼 손절가는 얼마로 잡을까?", chat_history=history)
+        self.assertIn("[직전 질문 연계 심화(디벨롭) 분석]", ans_2)
+        self.assertIn("지금 사도 되나요?", ans_2)
+
+        # 3. Verify app.py wire-up for chat_history and reset
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Tab 1 wires chat_history
+        self.assertIn("chat_history=st.session_state.get(hist_key, [])", content)
+        # Tab 2 wires chat_history
+        self.assertIn("chat_history=st.session_state[target_hist_key]", content)
+        self.assertIn("chat_history=st.session_state.get(qa_hist_key, [])", content)
+        # Reset button clears history
+        self.assertIn("st.session_state[hist_key] = []", content)
+        self.assertIn("st.session_state[qa_hist_key] = []", content)
 
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

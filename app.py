@@ -1595,7 +1595,7 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
             else:
                 with st.spinner(f"AI 퀀트 수석 애널리스트가 '{clicked_label}' 항목을 정밀 분석 중입니다..."):
                     try:
-                        new_ans = generate_quant_expert_answer(stock_dict, clicked_prompt)
+                        new_ans = generate_quant_expert_answer(stock_dict, clicked_prompt, chat_history=st.session_state.get(hist_key, []))
                     except Exception as _e:
                         new_ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
                     st.session_state[cache_key][clicked_prompt] = new_ans
@@ -1636,7 +1636,7 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
                 c_prompt = user_custom_input.strip()
                 with st.spinner("퀀트 전문가 답변 생성 중..."):
                     try:
-                        ans = generate_quant_expert_answer(stock_dict, c_prompt)
+                        ans = generate_quant_expert_answer(stock_dict, c_prompt, chat_history=st.session_state.get(hist_key, []))
                     except Exception as _e:
                         ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
                 st.session_state[active_q_key] = f"직접 질문: {c_prompt}"
@@ -1782,8 +1782,9 @@ def render_analyst_factsheet_and_qa_tab():
                         ranked_payloads = sorted(comp_payloads, key=_rank_val, reverse=True)
                         winner_payload = ranked_payloads[0]
                         resolved_code = winner_payload["code"]
+                        t_prev_hist = st.session_state.get(f"qa_hist_{resolved_code}", [])
                         try:
-                            ans = generate_quant_expert_answer(winner_payload, eff_question, compare_stocks=comp_payloads)
+                            ans = generate_quant_expert_answer(winner_payload, eff_question, compare_stocks=comp_payloads, chat_history=t_prev_hist)
                         except Exception as _e:
                             ans = f"복합 비교 분석 답변 생성 중 오류가 발생했습니다: {_e}"
 
@@ -1816,7 +1817,7 @@ def render_analyst_factsheet_and_qa_tab():
                     with st.spinner("수석 애널리스트가 질문 대상 종목의 실시간 퀀트 지표와 답변을 산출 중입니다..."):
                         target_payload = get_stock_factsheet_payload(resolved_code)
                         try:
-                            ans = generate_quant_expert_answer(target_payload, eff_question)
+                            ans = generate_quant_expert_answer(target_payload, eff_question, chat_history=st.session_state[target_hist_key])
                         except Exception as _e:
                             ans = f"분석 답변 생성 중 오류가 발생했습니다: {_e}"
 
@@ -1876,7 +1877,11 @@ def render_analyst_factsheet_and_qa_tab():
             if q_prompt not in st.session_state[cache_key]:
                 with st.spinner(f"AI 퀀트 수석 애널리스트가 '{q_label}' 항목을 분석 중입니다..."):
                     try:
-                        q_ans = generate_quant_expert_answer(payload, q_prompt)
+                        q_ans = generate_quant_expert_answer(
+                            payload,
+                            q_prompt,
+                            chat_history=st.session_state.get(qa_hist_key, [])
+                        )
                     except Exception as _e:
                         q_ans = f"답변 생성 중 일시적인 오류가 발생했습니다: {_e}"
                     st.session_state[cache_key][q_prompt] = q_ans
@@ -1900,9 +1905,18 @@ def render_analyst_factsheet_and_qa_tab():
                 q_codes = parsed_q.get("codes", [parsed_q["code"]])
                 if len(q_codes) >= 2:
                     c_payloads = [get_stock_factsheet_payload(c) for c in q_codes]
-                    q_ans = generate_quant_expert_answer(payload, parsed_q["question"], compare_stocks=c_payloads)
+                    q_ans = generate_quant_expert_answer(
+                        payload,
+                        parsed_q["question"],
+                        compare_stocks=c_payloads,
+                        chat_history=st.session_state.get(qa_hist_key, [])
+                    )
                 else:
-                    q_ans = generate_quant_expert_answer(payload, parsed_q["question"])
+                    q_ans = generate_quant_expert_answer(
+                        payload,
+                        parsed_q["question"],
+                        chat_history=st.session_state.get(qa_hist_key, [])
+                    )
                 st.session_state[qa_active_ans_key] = q_ans
 
         st.markdown(
