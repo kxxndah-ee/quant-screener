@@ -1456,13 +1456,13 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
         st.session_state[hist_key] = []
 
     quick_queries = {
-        "why": {
-            "label": "왜 급등하나요?",
-            "q": "왜 급등하나요? 거래량과 수급 상승 원인을 정밀 분석해줘."
-        },
         "buy": {
             "label": "지금 사도 되나요?",
             "q": "지금 사도 되나요? 신규 매수 진입 적합도와 손익비를 진단해줘."
+        },
+        "why": {
+            "label": "왜 급등하나요?",
+            "q": "왜 급등하나요? 거래량과 수급 상승 원인을 정밀 분석해줘."
         },
         "tp": {
             "label": "목표가 & 손절가",
@@ -1480,8 +1480,8 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
 
     # Initial answer initialization
     if active_q_key not in st.session_state or active_ans_key not in st.session_state:
-        default_label = quick_queries["why"]["label"]
-        default_prompt = quick_queries["why"]["q"]
+        default_label = quick_queries["buy"]["label"]
+        default_prompt = quick_queries["buy"]["q"]
         if default_prompt in st.session_state[cache_key]:
             default_ans = st.session_state[cache_key][default_prompt]
         else:
@@ -1499,7 +1499,12 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
     with st.container(border=True):
         hdr_c1, hdr_c2 = st.columns([4.0, 1.0], gap="small")
         with hdr_c1:
-            st.markdown(f"**{name} ({code})** 수석 애널리스트 실시간 Q&A 콘솔")
+            close_v = float(stock_dict.get('close') or 0.0)
+            chg_v = float(stock_dict.get('change_pct') or 0.0)
+            if close_v > 0:
+                st.markdown(f"**{name} ({code})** {close_v:,.0f}원 ({chg_v:+.2f}%)")
+            else:
+                st.markdown(f"**{name} ({code})**")
             score_v = float(stock_dict.get('score') or 0.0)
             vol_v = float(stock_dict.get('vol_ratio') or 1.0)
             rsi_v = float(stock_dict.get('rsi') or 50.0)
@@ -1517,22 +1522,22 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
             st.markdown('<div class="compact-qa-buttons" style="display:none;"></div>', unsafe_allow_html=True)
             q_cols = st.columns(5, gap="small")
 
-            curr_active_q = st.session_state.get(active_q_key, quick_queries["why"]["label"])
+            curr_active_q = st.session_state.get(active_q_key, quick_queries["buy"]["label"])
 
             clicked_prompt = None
             clicked_label = None
 
             with q_cols[0]:
-                b_type = "primary" if curr_active_q == quick_queries["why"]["label"] else "secondary"
-                if st.button(quick_queries["why"]["label"], key=f"btn_quick_why_{code}_{key_suffix}", type=b_type, use_container_width=True):
-                    clicked_prompt = quick_queries["why"]["q"]
-                    clicked_label = quick_queries["why"]["label"]
-
-            with q_cols[1]:
                 b_type = "primary" if curr_active_q == quick_queries["buy"]["label"] else "secondary"
                 if st.button(quick_queries["buy"]["label"], key=f"btn_quick_buy_{code}_{key_suffix}", type=b_type, use_container_width=True):
                     clicked_prompt = quick_queries["buy"]["q"]
                     clicked_label = quick_queries["buy"]["label"]
+
+            with q_cols[1]:
+                b_type = "primary" if curr_active_q == quick_queries["why"]["label"] else "secondary"
+                if st.button(quick_queries["why"]["label"], key=f"btn_quick_why_{code}_{key_suffix}", type=b_type, use_container_width=True):
+                    clicked_prompt = quick_queries["why"]["q"]
+                    clicked_label = quick_queries["why"]["label"]
 
             with q_cols[2]:
                 b_type = "primary" if curr_active_q == quick_queries["tp"]["label"] else "secondary"

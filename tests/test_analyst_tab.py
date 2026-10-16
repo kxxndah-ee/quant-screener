@@ -365,6 +365,19 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn('"실시간 당일 단타 (5% 익절)"', content)
         self.assertIn('st.session_state["sc_mode_radio_sel"] = "실시간 당일 단타 (5% 익절)"', content)
 
+    def test_screener_qa_box_title_and_order(self):
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        qa_box_text = content[content.index("def render_quant_analyst_qa_box(stock_row, key_suffix=\"\"):"):content.index("def render_analyst_factsheet_and_qa_tab():")]
+
+        # 1. Verify "수석 애널리스트 실시간 Q&A 콘솔" is deleted from Tab 1 screener box
+        self.assertNotIn("수석 애널리스트 실시간 Q&A 콘솔", qa_box_text)
+
+        # 2. Verify "지금 사도 되나요?" is first and "왜 급등하나요?" is second in quick_queries and buttons
+        self.assertLess(qa_box_text.index('"btn_quick_buy_'), qa_box_text.index('"btn_quick_why_'))
+
 
 if __name__ == "__main__":
     unittest.main()
