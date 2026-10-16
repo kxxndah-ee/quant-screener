@@ -220,17 +220,30 @@ st.markdown("""
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.35rem !important;
     }
-    /* Prevent unwanted inner vertical/horizontal scrollbars on column containers, expanders, border wrappers, and cards */
+    /* Prevent unwanted inner vertical/horizontal scrollbars on column containers, expanders, border wrappers, chat messages, and cards */
+    .stVerticalBlock,
+    .stHorizontalBlock,
+    .stColumn,
+    .stElementContainer,
+    .element-container,
     div[data-testid="stHorizontalBlock"],
-    div[data-testid="column"],
-    div[data-testid="column"] > div[data-testid="stVerticalBlock"],
     div[data-testid="stVerticalBlock"],
+    div[data-testid="stColumn"],
+    div[data-testid="column"],
+    div[data-testid="stColumn"] > div,
+    div[data-testid="column"] > div,
+    div[data-testid="stElementContainer"],
     div[data-testid="element-container"],
     div[data-testid="stAlert"],
+    div[data-testid="stChatMessage"],
+    div[data-testid="stChatMessageContent"],
+    div[data-testid="stMarkdownContainer"],
+    .stMarkdownContainer,
     div[data-testid="stVerticalBlockBorderWrapper"],
     div[data-testid="stVerticalBlockBorderWrapper"] > div,
     div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stVerticalBlock"],
     div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stHorizontalBlock"],
+    div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stColumn"],
     div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="column"],
     div[data-testid="stExpander"],
     div[data-testid="stExpander"] details,
@@ -238,6 +251,7 @@ st.markdown("""
     div[data-testid="stExpanderDetails"] > div,
     div[data-testid="stExpanderDetails"] div[data-testid="stVerticalBlock"],
     div[data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"],
+    div[data-testid="stExpanderDetails"] div[data-testid="stColumn"],
     div[data-testid="stExpanderDetails"] div[data-testid="column"] {
         overflow: visible !important;
         overflow-x: visible !important;
@@ -247,8 +261,18 @@ st.markdown("""
         scrollbar-width: none !important;
         -ms-overflow-style: none !important;
     }
+    .stVerticalBlock::-webkit-scrollbar,
+    .stHorizontalBlock::-webkit-scrollbar,
+    .stColumn::-webkit-scrollbar,
+    .stElementContainer::-webkit-scrollbar,
     div[data-testid="stVerticalBlock"]::-webkit-scrollbar,
+    div[data-testid="stHorizontalBlock"]::-webkit-scrollbar,
+    div[data-testid="stColumn"]::-webkit-scrollbar,
+    div[data-testid="column"]::-webkit-scrollbar,
+    div[data-testid="stElementContainer"]::-webkit-scrollbar,
     div[data-testid="element-container"]::-webkit-scrollbar,
+    div[data-testid="stChatMessage"]::-webkit-scrollbar,
+    div[data-testid="stChatMessageContent"]::-webkit-scrollbar,
     div[data-testid="stAlert"]::-webkit-scrollbar,
     div[data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar,
     div[data-testid="stVerticalBlockBorderWrapper"] *::-webkit-scrollbar,
@@ -257,6 +281,38 @@ st.markdown("""
         display: none !important;
         width: 0 !important;
         height: 0 !important;
+    }
+    /* Specific overrides for QA panels and macro metrics grid (Zero scroll, crisp display) */
+    div[class*="st-key-qa_panel"],
+    div[class*="st-key-qa_panel"] *,
+    div[class*="st-key-qa_panel"] .stVerticalBlock,
+    div[class*="st-key-qa_panel"] .stHorizontalBlock,
+    div[class*="st-key-qa_panel"] .stColumn,
+    div[class*="st-key-qa_panel"] .stElementContainer {
+        overflow: visible !important;
+        max-height: none !important;
+        height: auto !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+    }
+    div[class*="st-key-qa_panel"]::-webkit-scrollbar,
+    div[class*="st-key-qa_panel"] *::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+    }
+    .macro-metrics-grid {
+        display: grid !important;
+        grid-template-columns: repeat(6, 1fr) !important;
+        gap: 8px !important;
+        width: 100% !important;
+        margin: 6px 0 10px 0 !important;
+        box-sizing: border-box !important;
+    }
+    @media (max-width: 768px) {
+        .macro-metrics-grid {
+            grid-template-columns: repeat(3, 1fr) !important;
+        }
     }
     /* Compact alert styling for warnings and alerts (Image 3) */
     div[data-testid="stAlert"] {
@@ -570,7 +626,12 @@ st.markdown("""
     }
 
     /* Compact Single-Row Question Buttons: Zero scrollbar, clean single row */
-    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="stHorizontalBlock"] {
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="stHorizontalBlock"],
+    .stVerticalBlock:has(.compact-qa-buttons) .stHorizontalBlock,
+    div[class*="st-key-qa_btns"] div[data-testid="stHorizontalBlock"],
+    div[class*="st-key-qa_btns"] .stHorizontalBlock,
+    div[class*="st-key-qa_panel"] .compact-qa-buttons ~ div[data-testid="stHorizontalBlock"],
+    div[class*="st-key-qa_panel"] .stHorizontalBlock:has(.compact-qa-buttons) {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
@@ -580,24 +641,40 @@ st.markdown("""
         gap: 6px !important;
         padding-bottom: 2px !important;
     }
-    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="stHorizontalBlock"]::-webkit-scrollbar {
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="stHorizontalBlock"]::-webkit-scrollbar,
+    .stVerticalBlock:has(.compact-qa-buttons) .stHorizontalBlock::-webkit-scrollbar,
+    div[class*="st-key-qa_btns"] *::-webkit-scrollbar,
+    div[class*="st-key-qa_panel"] *::-webkit-scrollbar {
         display: none !important;
         width: 0 !important;
         height: 0 !important;
     }
-    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="column"] {
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="column"],
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="stColumn"],
+    .stVerticalBlock:has(.compact-qa-buttons) .stColumn,
+    div[class*="st-key-qa_btns"] div[data-testid="stColumn"],
+    div[class*="st-key-qa_btns"] .stColumn,
+    div[class*="st-key-qa_panel"] .stHorizontalBlock div[data-testid="stColumn"],
+    div[class*="st-key-qa_panel"] .stHorizontalBlock .stColumn {
         min-width: 0 !important;
         flex: 1 1 0% !important;
+        padding: 0 !important;
     }
-    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div.stButton > button {
-        padding: 0.22rem 0.35rem !important;
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div.stButton > button,
+    .stVerticalBlock:has(.compact-qa-buttons) div.stButton > button,
+    div[class*="st-key-qa_btns"] .stButton > button,
+    div[class*="st-key-qa_panel"] .stHorizontalBlock .stButton > button {
+        padding: 0.20rem 0.25rem !important;
         min-height: 1.85rem !important;
         height: 1.85rem !important;
         border-radius: 5px !important;
         width: 100% !important;
     }
-    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div.stButton > button p {
-        font-size: 0.77rem !important;
+    div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div.stButton > button p,
+    .stVerticalBlock:has(.compact-qa-buttons) div.stButton > button p,
+    div[class*="st-key-qa_btns"] .stButton > button p,
+    div[class*="st-key-qa_panel"] .stHorizontalBlock .stButton > button p {
+        font-size: 0.74rem !important;
         font-weight: 600 !important;
         white-space: nowrap !important;
         overflow: hidden !important;
@@ -1602,20 +1679,25 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
         elif st.session_state[hist_key][-1]["q"] == target_label:
             st.session_state[hist_key][-1]["ans"] = cur_ans
 
-    with st.container(border=True):
+    with st.container(border=True, key=f"qa_panel_{code}_{key_suffix}"):
         hdr_c1, hdr_c2 = st.columns([4.0, 1.0], gap="small")
         with hdr_c1:
             close_v = float(stock_dict.get('close') or 0.0)
             chg_v = float(stock_dict.get('change_pct') or 0.0)
-            if close_v > 0:
-                st.markdown(f"**{name} ({code})** {close_v:,.0f}원 ({chg_v:+.2f}%)")
-            else:
-                st.markdown(f"**{name} ({code})**")
             score_v = float(stock_dict.get('score') or 0.0)
             vol_v = float(stock_dict.get('vol_ratio') or 1.0)
             rsi_v = float(stock_dict.get('rsi') or 50.0)
-            st.caption(f"전략: {stock_dict.get('strategy_tag', '')} | 스코어: {score_v:.1f}점 | 전일비 거래량: {vol_v:.1f}배 | RSI: {rsi_v:.1f}")
+            strat_v = stock_dict.get('strategy_tag', '')
+            price_str = f" {close_v:,.0f}원 ({chg_v:+.2f}%)" if close_v > 0 else ""
+            st.markdown(
+                f"<div style='padding:6px 0 2px 2px;'>"
+                f"<div style='font-size:0.92rem; font-weight:700; color:#1E293B; line-height:1.3;'>{name} ({code})<span style='font-weight:600; color:#0284C7; margin-left:6px;'>{price_str}</span></div>"
+                f"<div style='font-size:0.75rem; color:#64748B; margin-top:3px;'>전략: {strat_v} | 스코어: {score_v:.1f}점 | 전일비 거래량: {vol_v:.1f}배 | RSI: {rsi_v:.1f}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
         with hdr_c2:
+            st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
             if st.button("질의 초기화", key=f"reset_chat_{code}_{key_suffix}", use_container_width=True):
                 st.session_state[cache_key] = {}
                 st.session_state[hist_key] = []
@@ -1624,7 +1706,7 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
                 st.rerun()
 
         # Quick Question Buttons (Single-row compact layout in dedicated container)
-        with st.container():
+        with st.container(key=f"qa_btns_{code}_{key_suffix}"):
             st.markdown('<div class="compact-qa-buttons" style="display:none;"></div>', unsafe_allow_html=True)
             q_cols = st.columns(5, gap="small")
 
@@ -2306,34 +2388,38 @@ def render_us_market_macro_bar():
                 st.toast("전일 미장 및 매크로 지표를 새로 수신했습니다.")
                 st.rerun()
 
-        m_c1, m_c2, m_c3, m_c4, m_c5, m_c6 = st.columns(6)
-
-        def _render_metric_box(col, label, key_name):
-            item = metrics.get(key_name, {})
+        macro_items = [
+            ("나스닥 종합", "NASDAQ"),
+            ("S&P 500", "SP500"),
+            ("필라델피아 반도체", "SOXX"),
+            ("다우 존스", "DOW"),
+            ("원/달러 환율", "USDKRW"),
+            ("공포지수(VIX)", "VIX")
+        ]
+        macro_cards_html = []
+        for label, k_name in macro_items:
+            item = metrics.get(k_name, {})
             val = item.get("close", 0.0)
             chg_pct = item.get("change_pct", 0.0)
             color = "#DC2626" if chg_pct < 0 else ("#059669" if chg_pct > 0 else "#475569")
-            with col:
-                st.markdown(
-                    f'<div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:6px 4px; text-align:center; min-height:58px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;">'
-                    f'<div style="font-size:0.70rem; color:#64748B; font-weight:600; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{label}">{label}</div>'
-                    f'<div style="font-size:0.82rem; font-weight:700; color:#1E293B; line-height:1.2;">{val:,.2f}</div>'
-                    f'<div style="font-size:0.72rem; font-weight:700; color:{color}; line-height:1.2; margin-top:1px;">{chg_pct:+.2f}%</div>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
+            card_html = (
+                f'<div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:8px 4px 8px 4px; text-align:center; box-sizing:border-box;">'
+                f'<div style="font-size:0.70rem; color:#64748B; font-weight:600; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{label}">{label}</div>'
+                f'<div style="font-size:0.84rem; font-weight:700; color:#1E293B; line-height:1.25;">{val:,.2f}</div>'
+                f'<div style="font-size:0.72rem; font-weight:700; color:{color}; line-height:1.25; margin-top:3px;">{chg_pct:+.2f}%</div>'
+                f'</div>'
+            )
+            macro_cards_html.append(card_html)
 
-        _render_metric_box(m_c1, "나스닥 종합", "NASDAQ")
-        _render_metric_box(m_c2, "S&P 500", "SP500")
-        _render_metric_box(m_c3, "필라델피아 반도체", "SOXX")
-        _render_metric_box(m_c4, "다우 존스", "DOW")
-        _render_metric_box(m_c5, "원/달러 환율", "USDKRW")
-        _render_metric_box(m_c6, "공포지수(VIX)", "VIX")
-
-        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+        grid_html = (
+            f'<div class="macro-metrics-grid" style="display:grid; grid-template-columns:repeat(6, 1fr); gap:8px; width:100%; margin:6px 0 10px 0; box-sizing:border-box;">'
+            + "".join(macro_cards_html) +
+            f'</div>'
+        )
+        st.markdown(grid_html, unsafe_allow_html=True)
 
         st.markdown(
-            f'<div style="font-size:0.78rem; line-height:1.5; color:#1E293B; background:#F1F5F9; border-left:4px solid {regime_color}; padding:8px 12px; border-radius:4px;">'
+            f'<div style="font-size:0.78rem; line-height:1.5; color:#1E293B; background:#F1F5F9; border-left:4px solid {regime_color}; padding:8px 12px; border-radius:4px; margin-bottom:4px;">'
             f'<strong>[당일 국내 정규장 대응 가이드]</strong> {action_guide}'
             f'</div>',
             unsafe_allow_html=True
@@ -3211,7 +3297,7 @@ with tab1:
         # Screener View A: High-Density Interactive Data Table
         # -------------------------------------------------
         elif "테이블" in sc_view_mode:
-            st.caption(f"스크리닝 결과: **총 {total_sc_items:,}개** 발굴됨 (10줄 높이 고정 · 표 내부 마우스 스크롤로 전체 탐색 및 다중 체크박스 선택 지원)")
+            st.caption(f"스크리닝 결과: **총 {total_sc_items:,}개** 발굴됨")
             desired_cols = [
                 "code", "name", "timing_label", "strategy_tag", "reason_summary", "market", "sector",
                 "close", "change_pct", "open_pct", "high_pct", "low_pct",
@@ -3769,7 +3855,7 @@ with tab3:
         if "테이블" in view_mode:
             rows_to_show_wl = int(wl_display_rows)
             wl_table_height = min(38 + rows_to_show_wl * 35, 38 + total_wl_items * 35)
-            st.caption(f"필터 결과: **총 {total_wl_items:,}개** 종목 (10줄 높이 고정 · 표 내부 마우스 스크롤로 전체 탐색 및 다중 체크박스 선택 지원)")
+            st.caption(f"필터 결과: **총 {total_wl_items:,}개** 종목")
 
             disp_table = df_filtered[[
                 "code", "name", "group_name", "market", "sector", "strategy_tag", "close", "change_pct",
