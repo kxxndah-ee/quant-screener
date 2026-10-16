@@ -383,12 +383,19 @@ class TestAnalystTab(unittest.TestCase):
         with open(app_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # Verify top sync button clears cache and Q&A caches
+        # Verify top sync button clears cache, Q&A caches, and active answers
         top_sync_section = content[content.index('key="btn_top_time_sync"'):content.index('def _safe_float_val')]
         self.assertIn("st.cache_data.clear()", top_sync_section)
         self.assertIn('qa_ans_cache_', top_sync_section)
         self.assertIn('quant_cache_', top_sync_section)
+        self.assertIn('qa_active_ans_', top_sync_section)
+        self.assertIn('quant_active_ans_', top_sync_section)
         self.assertIn('st.session_state["sc_trigger_time_sync"] = True', top_sync_section)
+
+        # Verify Tab 2 sync button pops active answer and clears compared caches
+        tab2_sync_section = content[content.index('if sync_btn:'):content.index('if reset_btn:')]
+        self.assertIn("st.session_state.pop(qa_active_ans_key, None)", tab2_sync_section)
+        self.assertIn("qa_compared_codes", tab2_sync_section)
 
     def test_expander_no_scrollbar_css(self):
         app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")

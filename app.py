@@ -1215,6 +1215,8 @@ with col_top_r:
             for _k in list(st.session_state.keys()):
                 if _k.startswith("qa_ans_cache_") or _k.startswith("quant_cache_"):
                     st.session_state[_k] = {}
+                if _k.startswith("qa_active_ans_") or _k.startswith("quant_active_ans_"):
+                    st.session_state.pop(_k, None)
             st.session_state["sc_trigger_time_sync"] = True
             st.toast("현재 시각 기준 실시간 시세, Q&A 데이터 및 스크리너 필터가 전체 동기화되었습니다.")
             st.rerun()
@@ -1510,23 +1512,33 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
         }
     }
 
-    # Initial answer initialization
+    # Initial answer or synced answer initialization
     if active_q_key not in st.session_state or active_ans_key not in st.session_state:
-        default_label = quick_queries["buy"]["label"]
-        default_prompt = quick_queries["buy"]["q"]
-        if default_prompt in st.session_state[cache_key]:
-            default_ans = st.session_state[cache_key][default_prompt]
+        target_label = st.session_state.get(active_q_key, quick_queries["buy"]["label"])
+        target_prompt = None
+        for _k, _v in quick_queries.items():
+            if _v["label"] == target_label:
+                target_prompt = _v["q"]
+                break
+        if not target_prompt:
+            clean_q = target_label.replace("직접 질문:", "", 1).strip()
+            target_prompt = clean_q if clean_q else quick_queries["buy"]["q"]
+
+        if target_prompt in st.session_state[cache_key]:
+            cur_ans = st.session_state[cache_key][target_prompt]
         else:
             try:
-                default_ans = generate_quant_expert_answer(stock_dict, default_prompt)
+                cur_ans = generate_quant_expert_answer(stock_dict, target_prompt, chat_history=st.session_state.get(hist_key, []))
             except Exception as _e:
-                default_ans = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
-            st.session_state[cache_key][default_prompt] = default_ans
+                cur_ans = f"분석 리포트 생성 중 일시적인 오류가 발생했습니다: {_e}"
+            st.session_state[cache_key][target_prompt] = cur_ans
 
-        st.session_state[active_q_key] = default_label
-        st.session_state[active_ans_key] = default_ans
+        st.session_state[active_q_key] = target_label
+        st.session_state[active_ans_key] = cur_ans
         if not st.session_state[hist_key]:
-            st.session_state[hist_key].append({"q": default_label, "ans": default_ans})
+            st.session_state[hist_key].append({"q": target_label, "ans": cur_ans})
+        elif st.session_state[hist_key][-1]["q"] == target_label:
+            st.session_state[hist_key][-1]["ans"] = cur_ans
 
     with st.container(border=True):
         hdr_c1, hdr_c2 = st.columns([4.0, 1.0], gap="small")
@@ -1722,6 +1734,11 @@ def render_analyst_factsheet_and_qa_tab():
         if sync_btn:
             st.cache_data.clear()
             st.session_state[cache_key] = {}
+            st.session_state.pop(qa_active_ans_key, None)
+            for c_c in st.session_state.get("qa_compared_codes", []):
+                st.session_state.pop(f"qa_active_ans_{c_c}", None)
+                if f"qa_ans_cache_{c_c}" in st.session_state:
+                    st.session_state[f"qa_ans_cache_{c_c}"] = {}
             st.toast("실시간 시세 및 퀀트 분석 데이터가 동기화되었습니다.")
             st.rerun()
 
@@ -1874,6 +1891,7 @@ def render_analyst_factsheet_and_qa_tab():
         if curr_choice in qa_menus:
             q_label = qa_menus[curr_choice]["label"]
             q_prompt = qa_menus[curr_choice]["q"]
+            clean_choice_str = q_label
             if q_prompt not in st.session_state[cache_key]:
                 with st.spinner(f"AI 퀀트 수석 애널리스트가 '{q_label}' 항목을 분석 중입니다..."):
                     try:
@@ -1918,6 +1936,11 @@ def render_analyst_factsheet_and_qa_tab():
                         chat_history=st.session_state.get(qa_hist_key, [])
                     )
                 st.session_state[qa_active_ans_key] = q_ans
+
+        if st.session_state.get(qa_hist_key) and len(st.session_state[qa_hist_key]) > 0:
+            last_h = st.session_state[qa_hist_key][-1]
+            if last_h.get("q") in [curr_choice, clean_choice_str, disp_title]:
+                st.session_state[qa_hist_key][-1]["ans"] = q_ans
 
         st.markdown(
             f"<div style='font-size:0.85rem; font-weight:700; color:#1E293B; background:#F8FAFC; padding:6px 12px; border-radius:6px; border:1px solid #CBD5E1; margin:2px 0 8px 0;'>"
