@@ -287,9 +287,10 @@ def _built_in_quant_reasoning(
     }
     is_custom_query = q_clean not in preset_prompts
 
-    # 1. 오후장 / 1시 이후 / 2시 이후 / 장후반 / 추가 상승 여력 / 얼마나 더 갈까
+    # 1. 오후장 / 1시 이후 / 2시 이후 / 장후반 / 현시각 이후 / 추가 상승 여력 / 얼마나 더 갈까
     if any(k in q_lower for k in [
-        "오후", "오후장", "장후반", "1시", "2시", "3시", "12시", "점심", "마감",
+        "오후", "오후장", "장후반", "1시", "2시", "3시", "12시", "점심", "마감", "장마감", "종가",
+        "현시각", "현 시각", "현재 시각", "현재시각", "지금부터",
         "여력", "상승 여력", "상승여력", "추가 상승", "추가상승", "더 오를", "더 갈",
         "얼마나 더", "상승 가능성", "상승가능성", "상승 확률", "상승확률", "오를 가능성", "오를 확률",
         "더 갈까", "더 오를까", "슈팅"
@@ -299,47 +300,87 @@ def _built_in_quant_reasoning(
         aft_room = max(1.2, round(tp_pct * 0.75, 1))
         aft_target_price = close * (1.0 + aft_room / 100.0) if close > 0 else 0.0
 
+        try:
+            from src.database.models import get_now_kst
+            now_kst = get_now_kst()
+        except Exception:
+            from datetime import datetime
+            now_kst = datetime.now()
+
+        now_h = now_kst.hour
+        now_m = now_kst.minute
+        now_hm = f"{now_h:02d}:{now_m:02d}"
+
+        # Resolve dynamic target time label based on query context
+        if any(k in q_lower for k in ["현시각", "현 시각", "현재 시각", "현재시각", "현재", "지금부터", "지금"]):
+            target_time_label = f"현시각({now_hm}) 이후"
+        elif any(k in q_lower for k in ["1시", "13시", "한시"]):
+            target_time_label = "1시 이후"
+        elif any(k in q_lower for k in ["2시", "14시", "두시"]):
+            target_time_label = "2시 이후"
+        elif any(k in q_lower for k in ["3시", "15시", "세시"]):
+            target_time_label = "3시 이후"
+        elif any(k in q_lower for k in ["12시", "열두시", "점심"]):
+            target_time_label = "점심(12시) 이후"
+        elif any(k in q_lower for k in ["장후반", "장후반부"]):
+            target_time_label = "장후반(14시 이후)"
+        elif any(k in q_lower for k in ["장마감", "마감", "종가", "동시호가"]):
+            target_time_label = "장마감까지"
+        elif any(k in q_lower for k in ["오후", "오후장"]):
+            target_time_label = f"오후장(현시각 {now_hm} 기준)" if now_h >= 12 else "오후장(13시 이후)"
+        else:
+            target_time_label = f"현시각({now_hm}) 이후" if now_h >= 12 else f"현시각({now_hm}) 기준"
+
+        if now_h >= 14 and now_m >= 30:
+            timing_scenario = f"장마감(15:30) 직전까지 추가 탄력 및 동시호가(15:20~15:30) 종가배팅 수급 유입 가능성이 높습니다."
+            timing_action = f"15:20 이전 1차 목표가(**{tp_price:,.0f}원**) 도달 시 분할 익절하고, 장마감 직전 원칙 손절선(**{sl_price:,.0f}원**, -{sl_pct:.1f}%) 이탈 시에는 오버나잇을 지양하고 기계적으로 정리하십시오."
+        elif now_h >= 13:
+            timing_scenario = f"14:30 전후 2차 수급 및 장마감 종가배팅 자금 유입 확률이 74% 이상으로 높습니다."
+            timing_action = f"오후 14:30 전후 거래량 재유입과 함께 당일 고가권(**{resist_1:,.0f}원**) 돌파 시 목표가 **{tp_price:,.0f}원**까지 홀딩을 권장합니다. 만약 14:30 이후 **{sl_price:,.0f}원(-{sl_pct:.1f}%)**을 하향 이탈할 경우 종가 투매 리스크 차단을 위해 원칙 손절로 대응하십시오."
+        else:
+            timing_scenario = f"13:30 이후 2차 수급 및 종가배팅 자금 유입 확률이 74% 이상으로 높습니다."
+            timing_action = f"오후장 피벗 중심선(**{pivot_price:,.0f}원**) 및 1차 지지선(**{support_1:,.0f}원**) 상단 안착 시 분할 접근, 당일 고가권(**{resist_1:,.0f}원**) 거래량 동반 돌파 시 목표가 **{tp_price:,.0f}원**까지 홀딩 권장합니다. 오후 14:30 이후 **{sl_price:,.0f}원(-{sl_pct:.1f}%)** 이탈 시에는 원칙 손절로 대응하십시오."
+
         if aft_score >= 70.0:
-            aft_grade = f"충분·상방 룸 우위 (오후장 상승 탄력 {aft_score:.1f}점 / 100점 · 2차 수급 유입 우세)"
+            aft_grade = f"충분·상방 룸 우위 (상승 탄력 {aft_score:.1f}점 / 100점 · 수급 유입 우세)"
             aft_direct = (
-                f"**{name}은 1시 이후 약 +{aft_room:.1f}% 내외(목표 약 {aft_target_price:,.0f}원)의 추가 상승 여력이 충분합니다.** "
-                f"장중 고점 지지력({candle_support_pct:.0f}%)과 전일비 {vol_ratio:.1f}배의 메이저 수급이 탄탄하여 13:30 이후 2차 수급 및 종가배팅 자금 유입 확률이 74% 이상으로 높습니다. "
+                f"**{name}은 {target_time_label} 약 +{aft_room:.1f}% 내외(목표 약 {aft_target_price:,.0f}원)의 추가 상승 여력이 충분합니다.** "
+                f"장중 고점 지지력({candle_support_pct:.0f}%)과 전일비 {vol_ratio:.1f}배의 메이저 수급이 탄탄하여 {timing_scenario} "
                 f"단, 1차 지지선인 {support_1:,.0f}원(손절 기준 {sl_price:,.0f}원, -{sl_pct:.1f}%) 이탈 시에는 오후장 윗꼬리 차익실현에 대비하십시오."
             )
         elif aft_score >= 52.0:
-            aft_grade = f"보통~완만한 우위 (오후장 상승 탄력 {aft_score:.1f}점 / 100점 · 지지선 확인 필요)"
+            aft_grade = f"보통~완만한 우위 (상승 탄력 {aft_score:.1f}점 / 100점 · 지지선 확인 필요)"
             aft_direct = (
-                f"**{name}은 1시 이후 +{aft_room:.1f}% 내외의 완만한 추가 상승 여력은 열려 있으나, 당일 고점 매물 소화가 선행되어야 합니다.** "
-                f"오후 13:30 전후로 1차 지지선({support_1:,.0f}원) 안착과 분봉 거래량 재유입을 확인한 뒤 분할 접근하는 것이 유리하며, "
+                f"**{name}은 {target_time_label} +{aft_room:.1f}% 내외의 완만한 추가 상승 여력은 열려 있으나, 당일 고점 매물 소화가 선행되어야 합니다.** "
+                f"1차 지지선({support_1:,.0f}원) 안착과 분봉 거래량 재유입을 확인한 뒤 분할 접근하는 것이 유리하며, "
                 f"{sl_price:,.0f}원 하향 이탈 시에는 무리한 홀딩을 피하십시오."
             )
         else:
-            aft_grade = f"제한적·과열 주의 (오후장 상승 탄력 {aft_score:.1f}점 / 100점 · 고점 매물 출회 구간)"
+            aft_grade = f"제한적·과열 주의 (상승 탄력 {aft_score:.1f}점 / 100점 · 고점 매물 출회 구간)"
             aft_direct = (
-                f"**{name}은 1시 이후 추가 상승 여력이 제한적이며(상승 확률 {aft_score:.1f}점), 오후장 차익실현 윗꼬리 출회 위험이 큽니다.** "
+                f"**{name}은 {target_time_label} 추가 상승 여력이 제한적이며(상승 확률 {aft_score:.1f}점), 오후장 차익실현 윗꼬리 출회 위험이 큽니다.** "
                 f"현재 위치에서의 불타기 신규 진입은 자제하고 보수적 관망을 권고하며, "
                 f"보유자는 {sl_price:,.0f}원(-{sl_pct:.1f}%) 이탈 시 종가 투매 리스크를 차단하기 위해 비중 축소로 대응하십시오."
             )
 
         ans = f"""> **[수석 애널리스트 핵심 직답]**: {aft_direct}
 
-### **{name} ({code}) 1시 이후·오후장 상승 여력 퀀트 정밀 진단**
+### **{name} ({code}) {target_time_label} 상승 여력 퀀트 정밀 진단**
 
 - **질문 분석**: `{q_clean}`
 - **퀀트 산출 결과값 (오후장 상승 판정)**: **{aft_grade}**
-  - **오후장 상승 탄력 점수**: **{aft_score:.1f}점 / 100점** (종합 퀀트 스코어 **{score:.1f}점 · {label}**)
+  - **상승 탄력 점수**: **{aft_score:.1f}점 / 100점** (종합 퀀트 스코어 **{score:.1f}점 · {label}**)
   - **추가 상승 기대 룸**: **+{aft_room:.1f}%** (단기 타겟가 **약 {aft_target_price:,.0f}원**)
   - **장중 고가 지지력 (캔들 실체 위치)**: **{candle_support_pct:.1f}%** (시가 **{open_p:,.0f}원** / 고가 **{high_p:,.0f}원** / 현재가 **{close:,.0f}원**)
   - **수급 에너지 및 거래량 배수**: 전일 대비 **{vol_ratio:.2f}배** (추정 거래대금 **약 {est_val_eok:,.1f}억원**)
-  - **오후장 핵심 타점**: 1차 지지선 **{support_1:,.0f}원** | 오후 돌파 기준선 **{resist_1:,.0f}원** | 목표 익절가 **{tp_price:,.0f}원 (+{tp_pct:.1f}%)** / 손절가 **{sl_price:,.0f}원 (-{sl_pct:.1f}%)**
+  - **핵심 대응 타점**: 1차 지지선 **{support_1:,.0f}원** | 돌파 기준선 **{resist_1:,.0f}원** | 목표 익절가 **{tp_price:,.0f}원 (+{tp_pct:.1f}%)** / 손절가 **{sl_price:,.0f}원 (-{sl_pct:.1f}%)**
 
-**1. 오후장(13:00 ~ 15:30) 수급 및 캔들 구조 해석**
-- 오후장 추가 상승의 핵심 조건인 **장중 고점 지지율(캔들 실체 지지력)**이 현재 **{candle_support_pct:.1f}%**를 기록 중입니다. { '일중 고가 부근에서 차익 매물을 소화하며 탄탄하게 가격을 방어하고 있어 13:30 이후 2차 수급 및 종가배팅 자금 유입 가능성이 높습니다.' if candle_support_pct >= 60 else '장중 고점 대비 밀리며 윗꼬리 매물 부담이 일부 존재하므로, 성급한 추격매수보다는 1차 지지선 방어 여부를 먼저 확인해야 합니다.' }
-- 이동평균선 배열은 `{ma_status}`이며 RSI(14)는 **{rsi:.1f}pt**로, { '단기 과열 부담 없이 오후장 상방 탄력을 이어갈 수 있는 구간입니다.' if 45 <= rsi <= 73 else '단기 변동성 확대 구간이므로 분할 대응이 유리합니다.' }
+**1. 수급 및 캔들 구조 해석 ({target_time_label})**
+- 추가 상승의 핵심 조건인 **장중 고점 지지율(캔들 실체 지지력)**이 현재 **{candle_support_pct:.1f}%**를 기록 중입니다. { '일중 고가 부근에서 차익 매물을 소화하며 탄탄하게 가격을 방어하고 있어 ' + ('장마감 직전 종가배팅 수급 유입 가능성이 높습니다.' if now_h >= 14 and now_m >= 30 else '추가 수급 유입 가능성이 높습니다.') if candle_support_pct >= 60 else '장중 고점 대비 밀리며 윗꼬리 매물 부담이 일부 존재하므로, 성급한 추격매수보다는 1차 지지선 방어 여부를 먼저 확인해야 합니다.' }
+- 이동평균선 배열은 `{ma_status}`이며 RSI(14)는 **{rsi:.1f}pt**로, { '단기 과열 부담 없이 상방 탄력을 이어갈 수 있는 구간입니다.' if 45 <= rsi <= 73 else '단기 변동성 확대 구간이므로 분할 대응이 유리합니다.' }
 
-**2. 오후장 실전 매매 행동 지침**
-- **신규/추가 진입 기준**: 오후장 피벗 중심선(**{pivot_price:,.0f}원**) 및 1차 지지선(**{support_1:,.0f}원**) 상단 안착 시 분할 접근, 당일 고가권(**{resist_1:,.0f}원**) 거래량 동반 돌파 시 목표가 **{tp_price:,.0f}원**까지 홀딩 권장합니다.
-- **리스크 관리**: 만약 오후 14:30 이후 **{sl_price:,.0f}원(-{sl_pct:.1f}%)**을 하향 이탈할 경우 종가 투매 리스크 차단을 위해 원칙 손절로 대응하십시오.
+**2. 실전 매매 행동 지침**
+- **대응 요령**: {timing_action}
 """
 
     # 2. 투자 비중 / 분할 매수 / 자금 관리

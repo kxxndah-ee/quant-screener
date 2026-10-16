@@ -528,7 +528,16 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn("추가 상승 여력", ans_upside)
         # Must NOT be diverted into generic "상승 원인"
         self.assertNotIn("상승 원인 퀀트 정밀 진단", ans_upside)
-        self.assertIn("1시 이후·오후장 상승 여력", ans_upside)
+        self.assertIn("1시 이후", ans_upside)
+        self.assertIn("상승 여력 퀀트 정밀 진단", ans_upside)
+
+        # 1-1. Real-time dynamic question: "HT로보틱스 현시각 이후에 추가 상승 여력은?"
+        user_q_now = "HT로보틱스 현시각 이후에 추가 상승 여력은?"
+        ans_now = generate_quant_expert_answer(sample, user_q_now)
+        self.assertIn("> **[수석 애널리스트 핵심 직답]**:", ans_now)
+        self.assertIn("현시각(", ans_now)
+        self.assertNotIn("1시 이후", ans_now)
+        self.assertIn("추가 상승 여력", ans_now)
 
         # 2. Preset and custom questions must ALL contain the direct answer block
         test_questions = [

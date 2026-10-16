@@ -8,6 +8,7 @@ Tab 3: 예측 다이어리 & 라이브 추적 (Model Decay 감지)
 
 import os
 import sys
+import re
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 
@@ -1707,6 +1708,7 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
 
             if submitted and user_custom_input.strip():
                 c_prompt = user_custom_input.strip()
+                c_prompt = re.sub(r"^(\[[^\]]+\]\s*)+", "", c_prompt).strip()
                 with st.spinner("퀀트 전문가 답변 생성 중..."):
                     try:
                         ans = generate_quant_expert_answer(stock_dict, c_prompt, chat_history=st.session_state.get(hist_key, []))
@@ -1827,6 +1829,7 @@ def render_analyst_factsheet_and_qa_tab():
         if submitted:
             c_prompt = (custom_q_input or "").strip()
             if c_prompt:
+                c_prompt = re.sub(r"^(\[[^\]]+\]\s*)+", "", c_prompt).strip()
                 parsed = extract_stock_and_question_from_query(
                     c_prompt,
                     current_code=curr_target_code,
@@ -1970,6 +1973,7 @@ def render_analyst_factsheet_and_qa_tab():
             disp_title = f"[{name} ({code})] {q_label}"
         else:
             clean_choice_str = curr_choice.replace("직접 질문:", "", 1).strip()
+            clean_choice_str = re.sub(r"^(\[[^\]]+\]\s*)+", "", clean_choice_str).strip()
             if len(compared_codes) >= 2:
                 comp_names = []
                 for c_c in compared_codes:
