@@ -486,6 +486,68 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn('div[data-testid="element-container"]', content)
         self.assertIn('div[data-testid="element-container"]::-webkit-scrollbar', content)
 
+    def test_direct_answer_block_and_afternoon_upside_routing(self):
+        sample = {
+            "name": "HT로보틱스",
+            "code": "396300",
+            "market": "KOSDAQ",
+            "sector": "로봇/자동화",
+            "close": 40000,
+            "open": 37500,
+            "high": 41200,
+            "low": 37000,
+            "prev_close": 36500,
+            "volume": 3500000,
+            "change_pct": 9.59,
+            "score": 82.5,
+            "label": "고확신",
+            "strategy_tag": "당일단타 수급돌파",
+            "tp_pct": 5.0,
+            "sl_pct": 2.0,
+            "vol_ratio": 2.8,
+            "rsi": 66.5,
+            "ma_status": "이평 정배열",
+            "bb_pct": 0.78,
+            "reason_core": "거래량 2.8배 폭발 및 로봇 섹터 수급 집중",
+            "rule_note": "목표가 42,000원 분할 익절 및 39,200원 원칙 손절",
+            "breakdown": {
+                "rsi_val": 66.5,
+                "vol_ratio": 2.8,
+                "ma_status": "이평 정배열",
+                "bb_pct": 0.78
+            }
+        }
+
+        # 1. Exact user question: "HT로보틱스 1시 이후에 상승 여력은?"
+        user_q = "HT로보틱스 1시 이후에 상승 여력은?"
+        ans_upside = generate_quant_expert_answer(sample, user_q)
+
+        # Must have clear direct answer block at the top
+        self.assertIn("> **[수석 애널리스트 핵심 직답]**:", ans_upside)
+        self.assertIn("1시 이후", ans_upside)
+        self.assertIn("추가 상승 여력", ans_upside)
+        # Must NOT be diverted into generic "상승 원인"
+        self.assertNotIn("상승 원인 퀀트 정밀 진단", ans_upside)
+        self.assertIn("1시 이후·오후장 상승 여력", ans_upside)
+
+        # 2. Preset and custom questions must ALL contain the direct answer block
+        test_questions = [
+            ("왜 급등하나요?", "급등 원인"),
+            ("지금 사도 되나요?", "지금 매수"),
+            ("목표가와 손절가는?", "목표 익절가"),
+            ("리스크는 무엇인가요?", "핵심 리스크"),
+            ("지지선과 저항선은 어디인가요?", "핵심 1차 지지선"),
+            ("단타가 좋나요 스윙이 좋나요?", "매매에 가장 최적화"),
+            ("비중은 얼마나 들어갈까요?", "권장 진입 비중"),
+            ("내일 시초가 대응은?", "시초가 대응 판정"),
+            ("수급 상태는 어때?", "수급 상태는"),
+        ]
+
+        for q, expected_phrase in test_questions:
+            res = generate_quant_expert_answer(sample, q)
+            self.assertIn("> **[수석 애널리스트 핵심 직답]**:", res, f"Missing direct answer block for query: {q}")
+            self.assertIn(expected_phrase, res, f"Missing expected phrase '{expected_phrase}' for query: {q}")
+
 
 if __name__ == "__main__":
     unittest.main()
