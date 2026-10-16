@@ -400,6 +400,19 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn('scrollbar-width: none !important;', content)
         self.assertIn('div[data-testid="stExpanderDetails"]::-webkit-scrollbar', content)
 
+    def test_qa_header_container_no_scrollbar(self):
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # 1. Verify stVerticalBlockBorderWrapper has overflow visible and scrollbar none
+        self.assertIn('div[data-testid="stVerticalBlockBorderWrapper"]', content)
+        self.assertIn('div[data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar', content)
+
+        # 2. Verify Tab 2 factsheet header has Row 1 with buttons and Row 2 full width
+        self.assertIn('hdr_c1, hdr_b1, hdr_b2 = st.columns([3.8, 1.1, 1.1], gap="small")', content)
+        self.assertIn('<span>시가: <strong>{open_p:,.0f}원</strong>', content)
+
 
 if __name__ == "__main__":
     unittest.main()

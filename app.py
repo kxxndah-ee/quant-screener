@@ -219,10 +219,15 @@ st.markdown("""
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.35rem !important;
     }
-    /* Prevent unwanted inner vertical/horizontal scrollbars on column containers, expanders, and cards */
+    /* Prevent unwanted inner vertical/horizontal scrollbars on column containers, expanders, border wrappers, and cards */
     div[data-testid="stHorizontalBlock"],
     div[data-testid="column"],
     div[data-testid="column"] > div[data-testid="stVerticalBlock"],
+    div[data-testid="stVerticalBlockBorderWrapper"],
+    div[data-testid="stVerticalBlockBorderWrapper"] > div,
+    div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stVerticalBlock"],
+    div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stHorizontalBlock"],
+    div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="column"],
     div[data-testid="stExpander"],
     div[data-testid="stExpander"] details,
     div[data-testid="stExpanderDetails"],
@@ -238,6 +243,8 @@ st.markdown("""
         scrollbar-width: none !important;
         -ms-overflow-style: none !important;
     }
+    div[data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar,
+    div[data-testid="stVerticalBlockBorderWrapper"] *::-webkit-scrollbar,
     div[data-testid="stExpanderDetails"]::-webkit-scrollbar,
     div[data-testid="stExpanderDetails"] *::-webkit-scrollbar {
         display: none !important;
@@ -1944,22 +1951,13 @@ def render_analyst_factsheet_and_qa_tab():
         with hdr_c1:
             st.markdown(
                 f"""
-                <div style="padding:2px 4px;">
-                    <div style="display:flex; align-items:baseline; flex-wrap:wrap; gap:6px;">
-                        <span style="font-size:0.8rem; background:#E2E8F0; color:#334155; padding:2px 8px; border-radius:4px; font-weight:700;">{market}</span>
-                        <span style="font-size:1.25rem; font-weight:800; color:#0F172A; margin-left:2px;">{name}</span>
-                        <span style="font-size:0.88rem; color:#64748B; font-weight:600;">({code})</span>
-                        <span style="font-size:0.84rem; color:#0284C7; font-weight:600; margin-left:2px;">{sector}</span>
-                        <span style="font-size:1.28rem; font-weight:800; color:{chg_color}; margin-left:10px;">{close:,.0f}원</span>
-                        <span style="font-size:0.95rem; font-weight:700; color:{chg_color};">({chg_sign}{change_pct:.2f}% · {diff_val:+,.0f}원)</span>
-                    </div>
-                    <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:5px; font-size:0.78rem; color:#475569; border-top:1px dashed #CBD5E1; padding-top:5px;">
-                        <span>시가: <strong>{open_p:,.0f}원</strong> ({open_pct:+.2f}%)</span>
-                        <span>고가: <strong>{high_p:,.0f}원</strong> ({high_pct:+.2f}%)</span>
-                        <span>저가: <strong>{low_p:,.0f}원</strong> ({low_pct:+.2f}%)</span>
-                        <span>거래량: <strong>{volume:,}주</strong> (전일비 <strong>{vol_ratio:.1f}배</strong>)</span>
-                        <span>추정 대금: <strong>약 {est_val_억:,.0f}억원</strong></span>
-                    </div>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-height:2rem; line-height:1.2;">
+                    <span style="font-size:0.78rem; background:#E2E8F0; color:#334155; padding:2px 7px; border-radius:4px; font-weight:700;">{market}</span>
+                    <span style="font-size:1.22rem; font-weight:800; color:#0F172A; margin-left:2px;">{name}</span>
+                    <span style="font-size:0.84rem; color:#64748B; font-weight:600;">({code})</span>
+                    <span style="font-size:0.82rem; color:#0284C7; font-weight:600; margin-left:2px;">{sector}</span>
+                    <span style="font-size:1.25rem; font-weight:800; color:{chg_color}; margin-left:8px;">{close:,.0f}원</span>
+                    <span style="font-size:0.92rem; font-weight:700; color:{chg_color};">({chg_sign}{change_pct:.2f}% · {diff_val:+,.0f}원)</span>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -1972,6 +1970,19 @@ def render_analyst_factsheet_and_qa_tab():
             is_active_why = st.session_state.get("qa_has_active_result", True) and (st.session_state[qa_active_q_key] == "why")
             if st.button(qa_menus["why"]["label"], key=f"btn_qa_why_{curr_target_code}", type="primary" if is_active_why else "secondary", use_container_width=True):
                 clicked_qa = "why"
+
+        st.markdown(
+            f"""
+            <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:2px; font-size:0.78rem; color:#475569; border-top:1px dashed #CBD5E1; padding-top:6px; line-height:1.4;">
+                <span>시가: <strong>{open_p:,.0f}원</strong> ({open_pct:+.2f}%)</span>
+                <span>고가: <strong>{high_p:,.0f}원</strong> ({high_pct:+.2f}%)</span>
+                <span>저가: <strong>{low_p:,.0f}원</strong> ({low_pct:+.2f}%)</span>
+                <span>거래량: <strong>{volume:,}주</strong> (전일비 <strong>{vol_ratio:.1f}배</strong>)</span>
+                <span>추정 대금: <strong>약 {est_val_억:,.0f}억원</strong></span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     if clicked_qa:
         st.session_state["qa_has_active_result"] = True
