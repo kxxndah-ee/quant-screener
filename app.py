@@ -1184,7 +1184,9 @@ with col_top_r:
 </html>"""
         components.html(live_clock_html, height=36, scrolling=False)
     with top_c2:
-        if st.button("동기화", help="현재시각 및 시장상태 최신화", key="btn_top_time_sync"):
+        if st.button("동기화", help="현재시각, 시장상태 및 스크리너 필터 권장값 최신화", key="btn_top_time_sync"):
+            st.session_state["sc_trigger_time_sync"] = True
+            st.toast("현재 시각 기준 시장 데이터 및 스크리너 권장 필터가 동기화되었습니다.")
             st.rerun()
 
 def _safe_float_val(v, default=0.0) -> float:
@@ -2519,6 +2521,8 @@ with tab1:
     if "sc_last_applied_strat_slot" not in st.session_state or st.session_state.get("sc_trigger_time_sync") or st.session_state.get("sc_last_applied_strat_slot") != cur_strat_slot_id:
         for _k, _v in rec_time["params"].items():
             st.session_state[f"sc_{_k}"] = _v
+            if _k == "min_daytrade_val_b":
+                st.session_state["sc_min_daytrade_val"] = _v
         st.session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"
         st.session_state["sc_last_applied_strat_slot"] = cur_strat_slot_id
         st.session_state["sc_trigger_time_sync"] = False
@@ -2744,6 +2748,8 @@ with tab1:
             if st.button("현재시간 권장값 재적용", key="btn_reapply_auto_time", use_container_width=True):
                 for _k, _v in rec_time["params"].items():
                     st.session_state[f"sc_{_k}"] = _v
+                    if _k == "min_daytrade_val_b":
+                        st.session_state["sc_min_daytrade_val"] = _v
                 st.session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"
                 st.session_state["sc_trigger_time_sync"] = True
                 st.toast(f"현재 시각({now_str}) {sc_mode} 권장 설정이 자동 적용되었습니다.")

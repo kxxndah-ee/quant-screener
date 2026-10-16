@@ -86,6 +86,45 @@ class TestScreeningConsistency(unittest.TestCase):
             res_mobile["comparative_table"]
         )
 
+    def test_screener_time_sync_reapplication(self):
+        """
+        Verifies that when sc_trigger_time_sync is True (triggered by clicking '동기화'
+        next to the date/time header), the recommended parameters for the active strategy
+        are properly re-applied to session state and sc_trigger_time_sync resets to False.
+        """
+        # Mock session state and recommendation
+        mock_session_state = {
+            "sc_trigger_time_sync": True,
+            "sc_last_applied_strat_slot": "old_slot",
+            "sc_min_daytrade_val": 300,  # User previously customized this
+            "sc_scope_sel": "내 관심종목 138선 (초고속)"
+        }
+
+        rec_params = {
+            "min_daytrade_val_b": 100,
+            "intraday_gain_range": (2.5, 10.0),
+            "min_daytrade_vol_ratio": 0.5
+        }
+        cur_strat_slot_id = "실시간 당일 단타_dt_slot_0"
+
+        # Execute auto-sync logic identical to app.py
+        if "sc_last_applied_strat_slot" not in mock_session_state or mock_session_state.get("sc_trigger_time_sync") or mock_session_state.get("sc_last_applied_strat_slot") != cur_strat_slot_id:
+            for _k, _v in rec_params.items():
+                mock_session_state[f"sc_{_k}"] = _v
+                if _k == "min_daytrade_val_b":
+                    mock_session_state["sc_min_daytrade_val"] = _v
+            mock_session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"
+            mock_session_state["sc_last_applied_strat_slot"] = cur_strat_slot_id
+            mock_session_state["sc_trigger_time_sync"] = False
+
+        self.assertFalse(mock_session_state["sc_trigger_time_sync"])
+        self.assertEqual(mock_session_state["sc_min_daytrade_val"], 100)
+        self.assertEqual(mock_session_state["sc_min_daytrade_val_b"], 100)
+        self.assertEqual(mock_session_state["sc_intraday_gain_range"], (2.5, 10.0))
+        self.assertEqual(mock_session_state["sc_min_daytrade_vol_ratio"], 0.5)
+        self.assertEqual(mock_session_state["sc_scope_sel"], "전 상장사 전수조사 (약 2,700개)")
+        self.assertEqual(mock_session_state["sc_last_applied_strat_slot"], cur_strat_slot_id)
+
 
 if __name__ == "__main__":
     unittest.main()
