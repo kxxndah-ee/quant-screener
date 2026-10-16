@@ -378,6 +378,28 @@ class TestAnalystTab(unittest.TestCase):
         # 2. Verify "지금 사도 되나요?" is first and "왜 급등하나요?" is second in quick_queries and buttons
         self.assertLess(qa_box_text.index('"btn_quick_buy_'), qa_box_text.index('"btn_quick_why_'))
 
+    def test_top_sync_clears_cache_and_qa_market_data(self):
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Verify top sync button clears cache and Q&A caches
+        top_sync_section = content[content.index('key="btn_top_time_sync"'):content.index('def _safe_float_val')]
+        self.assertIn("st.cache_data.clear()", top_sync_section)
+        self.assertIn('qa_ans_cache_', top_sync_section)
+        self.assertIn('quant_cache_', top_sync_section)
+        self.assertIn('st.session_state["sc_trigger_time_sync"] = True', top_sync_section)
+
+    def test_expander_no_scrollbar_css(self):
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Verify expander overflow visible and scrollbar suppression
+        self.assertIn('div[data-testid="stExpanderDetails"]', content)
+        self.assertIn('scrollbar-width: none !important;', content)
+        self.assertIn('div[data-testid="stExpanderDetails"]::-webkit-scrollbar', content)
+
 
 if __name__ == "__main__":
     unittest.main()

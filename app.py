@@ -219,11 +219,30 @@ st.markdown("""
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.35rem !important;
     }
-    /* Prevent unwanted inner vertical scrollbars on column containers */
+    /* Prevent unwanted inner vertical/horizontal scrollbars on column containers, expanders, and cards */
     div[data-testid="stHorizontalBlock"],
     div[data-testid="column"],
-    div[data-testid="column"] > div[data-testid="stVerticalBlock"] {
+    div[data-testid="column"] > div[data-testid="stVerticalBlock"],
+    div[data-testid="stExpander"],
+    div[data-testid="stExpander"] details,
+    div[data-testid="stExpanderDetails"],
+    div[data-testid="stExpanderDetails"] > div,
+    div[data-testid="stExpanderDetails"] div[data-testid="stVerticalBlock"],
+    div[data-testid="stExpanderDetails"] div[data-testid="stHorizontalBlock"],
+    div[data-testid="stExpanderDetails"] div[data-testid="column"] {
         overflow: visible !important;
+        overflow-x: visible !important;
+        overflow-y: visible !important;
+        max-height: none !important;
+        height: auto !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+    }
+    div[data-testid="stExpanderDetails"]::-webkit-scrollbar,
+    div[data-testid="stExpanderDetails"] *::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
     }
     hr {
         margin: 0.35rem 0 !important;
@@ -1184,9 +1203,13 @@ with col_top_r:
 </html>"""
         components.html(live_clock_html, height=36, scrolling=False)
     with top_c2:
-        if st.button("동기화", help="현재시각, 시장상태 및 스크리너 필터 권장값 최신화", key="btn_top_time_sync"):
+        if st.button("동기화", help="현재시각, 시장상태, 전 탭 실시간 시세 및 스크리너 필터 권장값 최신화", key="btn_top_time_sync"):
+            st.cache_data.clear()
+            for _k in list(st.session_state.keys()):
+                if _k.startswith("qa_ans_cache_") or _k.startswith("quant_cache_"):
+                    st.session_state[_k] = {}
             st.session_state["sc_trigger_time_sync"] = True
-            st.toast("현재 시각 기준 시장 데이터 및 스크리너 권장 필터가 동기화되었습니다.")
+            st.toast("현재 시각 기준 실시간 시세, Q&A 데이터 및 스크리너 필터가 전체 동기화되었습니다.")
             st.rerun()
 
 def _safe_float_val(v, default=0.0) -> float:
@@ -1691,6 +1714,8 @@ def render_analyst_factsheet_and_qa_tab():
 
         if sync_btn:
             st.cache_data.clear()
+            st.session_state[cache_key] = {}
+            st.toast("실시간 시세 및 퀀트 분석 데이터가 동기화되었습니다.")
             st.rerun()
 
         if reset_btn:
@@ -2154,11 +2179,11 @@ def render_us_market_macro_bar():
         top_c1, top_c2 = st.columns([4.2, 1.2])
         with top_c1:
             st.markdown(
-                f'<div style="display:flex; align-items:center; gap:8px; padding-top:2px;">'
-                f'<span style="background:{regime_color}; color:#FFFFFF; font-weight:700; font-size:0.75rem; padding:2px 8px; border-radius:4px;">'
+                f'<div style="display:flex; align-items:center; gap:8px; min-height:2rem; line-height:1.2;">'
+                f'<span style="background:{regime_color}; color:#FFFFFF; font-weight:700; font-size:0.75rem; padding:3px 8px; border-radius:4px; white-space:nowrap;">'
                 f'글로벌 체제: {regime} ({regime_desc})'
                 f'</span>'
-                f'<span style="color:#64748B; font-size:0.75rem;">기준시각: {updated_at_str}</span>'
+                f'<span style="color:#64748B; font-size:0.75rem; white-space:nowrap;">기준시각: {updated_at_str}</span>'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -2177,10 +2202,10 @@ def render_us_market_macro_bar():
             color = "#DC2626" if chg_pct < 0 else ("#059669" if chg_pct > 0 else "#475569")
             with col:
                 st.markdown(
-                    f'<div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:6px 8px; text-align:center;">'
-                    f'<div style="font-size:0.72rem; color:#64748B; font-weight:600; margin-bottom:2px;">{label}</div>'
-                    f'<div style="font-size:0.84rem; font-weight:700; color:#1E293B;">{val:,.2f}</div>'
-                    f'<div style="font-size:0.74rem; font-weight:700; color:{color};">{chg_pct:+.2f}%</div>'
+                    f'<div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:6px; padding:6px 4px; text-align:center; min-height:58px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box;">'
+                    f'<div style="font-size:0.70rem; color:#64748B; font-weight:600; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{label}">{label}</div>'
+                    f'<div style="font-size:0.82rem; font-weight:700; color:#1E293B; line-height:1.2;">{val:,.2f}</div>'
+                    f'<div style="font-size:0.72rem; font-weight:700; color:{color}; line-height:1.2; margin-top:1px;">{chg_pct:+.2f}%</div>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
