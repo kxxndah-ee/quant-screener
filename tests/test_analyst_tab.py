@@ -465,9 +465,31 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn("st.session_state[hist_key] = []", content)
         self.assertIn("st.session_state[qa_hist_key] = []", content)
 
+    def test_compact_font_sizes_and_overflow_styling(self):
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # 1. Verify CSS styles for compact Q&A fonts (0.80rem)
+        self.assertIn(".quant-qa-body-wrap", content)
+        self.assertIn('div[data-testid="stChatMessage"] p', content)
+        self.assertIn('font-size: 0.80rem !important;', content)
+
+        # 2. Verify Tab 1 and Tab 2 wrap answers in quant-qa-body-wrap
+        self.assertIn("<div class='quant-qa-body-wrap'>", content)
+
+        # 3. Verify compact alert styling and theme clustering warning styling
+        self.assertIn('div[data-testid="stAlert"]', content)
+        self.assertIn('<strong>[테마 몰림 경고]</strong>', content)
+
+        # 4. Verify overflow: visible and scrollbar suppression for element-container and stVerticalBlock
+        self.assertIn('div[data-testid="element-container"]', content)
+        self.assertIn('div[data-testid="element-container"]::-webkit-scrollbar', content)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

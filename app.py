@@ -223,6 +223,9 @@ st.markdown("""
     div[data-testid="stHorizontalBlock"],
     div[data-testid="column"],
     div[data-testid="column"] > div[data-testid="stVerticalBlock"],
+    div[data-testid="stVerticalBlock"],
+    div[data-testid="element-container"],
+    div[data-testid="stAlert"],
     div[data-testid="stVerticalBlockBorderWrapper"],
     div[data-testid="stVerticalBlockBorderWrapper"] > div,
     div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stVerticalBlock"],
@@ -243,6 +246,9 @@ st.markdown("""
         scrollbar-width: none !important;
         -ms-overflow-style: none !important;
     }
+    div[data-testid="stVerticalBlock"]::-webkit-scrollbar,
+    div[data-testid="element-container"]::-webkit-scrollbar,
+    div[data-testid="stAlert"]::-webkit-scrollbar,
     div[data-testid="stVerticalBlockBorderWrapper"]::-webkit-scrollbar,
     div[data-testid="stVerticalBlockBorderWrapper"] *::-webkit-scrollbar,
     div[data-testid="stExpanderDetails"]::-webkit-scrollbar,
@@ -250,6 +256,61 @@ st.markdown("""
         display: none !important;
         width: 0 !important;
         height: 0 !important;
+    }
+    /* Compact alert styling for warnings and alerts (Image 3) */
+    div[data-testid="stAlert"] {
+        padding: 5px 10px !important;
+        margin: 3px 0 6px 0 !important;
+        border-radius: 5px !important;
+    }
+    div[data-testid="stAlert"] p,
+    div[data-testid="stAlert"] span,
+    div[data-testid="stAlert"] div {
+        font-size: 0.76rem !important;
+        line-height: 1.35 !important;
+    }
+
+    /* Q&A Analysis and Chat Message compact font styling (Image 1 and Image 4) */
+    .quant-qa-body-wrap,
+    .quant-qa-body-wrap p,
+    .quant-qa-body-wrap li,
+    .quant-qa-body-wrap ul,
+    .quant-qa-body-wrap ol,
+    .quant-qa-body-wrap span,
+    .quant-qa-body-wrap strong,
+    div[data-testid="stChatMessage"] p,
+    div[data-testid="stChatMessage"] li,
+    div[data-testid="stChatMessage"] ul,
+    div[data-testid="stChatMessage"] ol,
+    div[data-testid="stChatMessage"] span,
+    div[data-testid="stChatMessage"] strong {
+        font-size: 0.80rem !important;
+        line-height: 1.48 !important;
+    }
+    .quant-qa-body-wrap h1,
+    .quant-qa-body-wrap h2,
+    .quant-qa-body-wrap h3,
+    .quant-qa-body-wrap h4,
+    div[data-testid="stChatMessage"] h1,
+    div[data-testid="stChatMessage"] h2,
+    div[data-testid="stChatMessage"] h3,
+    div[data-testid="stChatMessage"] h4 {
+        font-size: 0.86rem !important;
+        font-weight: 700 !important;
+        margin-top: 6px !important;
+        margin-bottom: 3px !important;
+    }
+    .quant-qa-body-wrap blockquote,
+    div[data-testid="stChatMessage"] blockquote {
+        font-size: 0.76rem !important;
+        padding: 4px 8px !important;
+        margin: 4px 0 6px 0 !important;
+        border-left: 3px solid #64748B !important;
+        background: #F8FAFC !important;
+        border-radius: 3px !important;
+    }
+    div[data-testid="stChatMessage"] {
+        padding: 0.4rem 0.6rem !important;
     }
     hr {
         margin: 0.35rem 0 !important;
@@ -1629,7 +1690,7 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
         )
 
         with st.chat_message("assistant"):
-            st.markdown(active_ans_disp)
+            st.markdown(f"<div class='quant-qa-body-wrap'>\n\n{active_ans_disp}\n\n</div>", unsafe_allow_html=True)
 
         # Custom Question Form
         with st.form(key=f"custom_q_form_{code}_{key_suffix}", clear_on_submit=True):
@@ -1949,13 +2010,13 @@ def render_analyst_factsheet_and_qa_tab():
             unsafe_allow_html=True
         )
 
-        st.markdown(_strip_redundant_qa_headers(q_ans))
+        st.markdown(f"<div class='quant-qa-body-wrap'>\n\n{_strip_redundant_qa_headers(q_ans)}\n\n</div>", unsafe_allow_html=True)
 
         if len(st.session_state[qa_hist_key]) > 0:
             with st.expander(f"이전 질문 기록 ({len(st.session_state[qa_hist_key])}건)", expanded=False):
                 for h_idx, h in enumerate(reversed(st.session_state[qa_hist_key])):
                     st.markdown(f"**[질문] {h['q']}**")
-                    st.markdown(_strip_redundant_qa_headers(h['ans']))
+                    st.markdown(f"<div class='quant-qa-body-wrap'>\n\n{_strip_redundant_qa_headers(h['ans'])}\n\n</div>", unsafe_allow_html=True)
                     if h_idx < len(st.session_state[qa_hist_key]) - 1:
                         st.divider()
 
@@ -3059,16 +3120,25 @@ with tab1:
             max_ratio = max_count / len(top_n)
 
             if max_ratio >= 0.40:
-                st.warning(
-                    f"**[테마 몰림 경고]** 상위 10개 후보 중 **{max_sector}** 업종이 {max_count}건({max_ratio*100:.0f}%)으로 고도로 편중되어 있습니다. "
+                st.markdown(
+                    f"<div style='font-size:0.75rem; line-height:1.4; color:#B45309; background:#FFFBEB; border:1px solid #FDE68A; padding:5px 10px; border-radius:5px; margin:4px 0 6px 0;'>"
+                    f"<strong>[테마 몰림 경고]</strong> 상위 10개 후보 중 <strong>{max_sector}</strong> 업종이 {max_count}건({max_ratio*100:.0f}%)으로 고도로 편중되어 있습니다. "
                     f"동일 테마/업종 동반 급락 리스크에 주의하여 분산 투자를 준수하세요!"
+                    f"</div>",
+                    unsafe_allow_html=True
                 )
 
         # Action Bar: Total Count + Batch Add All to Watchlist
-        hdr_c1, hdr_c2 = st.columns([3, 1.8])
+        hdr_c1, hdr_c2 = st.columns([3.2, 1.6], gap="small")
         with hdr_c1:
-            st.markdown(f"### {mode_label} 스크리닝 결과 (**{len(df_screened):,}개 종목 발굴**)")
-            st.caption("표에서 종목(행)을 클릭하면 하단에 상세 **선정 이유(발굴 근거 및 수치 팩트체크)**와 매매 실행 가이드가 즉시 표시됩니다.")
+            st.markdown(
+                f"<div style='margin:2px 0 2px 0;'>"
+                f"<span style='font-size:0.92rem; font-weight:700; color:#1E293B;'>{mode_label} 스크리닝 결과</span> "
+                f"<span style='font-size:0.84rem; font-weight:700; color:#0284C7;'>({len(df_screened):,}개 종목 발굴)</span><br>"
+                f"<span style='font-size:0.75rem; color:#64748B;'>표에서 종목(행)을 클릭하면 하단에 상세 <strong>선정 이유(발굴 근거 및 수치 팩트체크)</strong>와 매매 실행 가이드가 즉시 표시됩니다.</span>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
         with hdr_c2:
             if st.button("발굴 후보 전체 관심종목 일괄 추가", type="primary", use_container_width=True):
                 codes_to_add = df_screened["code"].tolist()
