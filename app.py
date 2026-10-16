@@ -3113,8 +3113,6 @@ with tab1:
         df_screened = st.session_state["screened_results_df"]
         mode_label = st.session_state.get("screened_mode_label", "선택 전략")
 
-        st.markdown("---")
-
         # Theme Clustering Risk Check
         top_n = df_screened.head(10)
         sector_counts = top_n["sector"].value_counts()
@@ -3131,25 +3129,6 @@ with tab1:
                     f"</div>",
                     unsafe_allow_html=True
                 )
-
-        # Action Bar: Total Count + Batch Add All to Watchlist
-        hdr_c1, hdr_c2 = st.columns([3.2, 1.6], gap="small")
-        with hdr_c1:
-            st.markdown(
-                f"<div style='margin:2px 0 2px 0;'>"
-                f"<span style='font-size:0.92rem; font-weight:700; color:#1E293B;'>{mode_label} 스크리닝 결과</span> "
-                f"<span style='font-size:0.84rem; font-weight:700; color:#0284C7;'>({len(df_screened):,}개 종목 발굴)</span><br>"
-                f"<span style='font-size:0.75rem; color:#64748B;'>표에서 종목(행)을 클릭하면 하단에 상세 <strong>선정 이유(발굴 근거 및 수치 팩트체크)</strong>와 매매 실행 가이드가 즉시 표시됩니다.</span>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-        with hdr_c2:
-            if st.button("발굴 후보 전체 관심종목 일괄 추가", type="primary", use_container_width=True):
-                codes_to_add = df_screened["code"].tolist()
-                added_cnt = batch_add_to_watchlist(codes_to_add)
-                st.cache_data.clear()
-                st.toast(f"총 {added_cnt}개 종목이 관심종목에 등록되었습니다!")
-                st.rerun()
 
         # Filter & View Toolbar
         sc_t1, sc_t2, sc_t3, sc_t4, sc_t5 = st.columns([1.8, 1.6, 1.5, 1.1, 1.6])
