@@ -356,6 +356,15 @@ class TestAnalystTab(unittest.TestCase):
         self.assertIn('height: 2rem !important;', content)
         self.assertIn('min-height: 2rem !important;', content)
 
+    def test_screener_mode_default_setting(self):
+        app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+        with open(app_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Verify that "실시간 당일 단타 (5% 익절)" is set as the top default for sc_mode
+        self.assertIn('"실시간 당일 단타 (5% 익절)"', content)
+        self.assertIn('st.session_state["sc_mode_radio_sel"] = "실시간 당일 단타 (5% 익절)"', content)
+
 
 if __name__ == "__main__":
     unittest.main()

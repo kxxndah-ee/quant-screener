@@ -2213,16 +2213,20 @@ def render_us_market_macro_bar():
 with tab1:
     render_us_market_macro_bar()
 
+    sc_mode_options = [
+        "실시간 당일 단타 (5% 익절)",
+        "장전 시초가 공략 (눌림 반등 + 주도 갭상승)",
+        "스나이퍼 고확신 (눌림목 반등)",
+        "5% 급등 타겟 (1~2일 스윙)",
+        "주도주 종가배팅 (익일 시초 갭)",
+        "일반 퀀트 스코어링"
+    ]
+    if "sc_mode_radio_sel" not in st.session_state or st.session_state["sc_mode_radio_sel"] not in sc_mode_options:
+        st.session_state["sc_mode_radio_sel"] = "실시간 당일 단타 (5% 익절)"
+
     sc_mode = st.radio(
         "스크리닝 전략 모드 선택",
-        [
-            "장전 시초가 공략 (눌림 반등 + 주도 갭상승)",
-            "실시간 당일 단타 (5% 익절)",
-            "스나이퍼 고확신 (눌림목 반등)",
-            "5% 급등 타겟 (1~2일 스윙)",
-            "주도주 종가배팅 (익일 시초 갭)",
-            "일반 퀀트 스코어링"
-        ],
+        sc_mode_options,
         horizontal=False,
         key="sc_mode_radio_sel"
     )
