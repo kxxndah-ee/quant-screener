@@ -245,16 +245,43 @@ st.markdown("""
     .st-key-expander_strat_guide {
         margin-top: 24px !important;
     }
-    /* 동기화 버튼 높이를 시계 및 타이틀 높이(28px)와 일치 */
-    div[data-testid="stButton"].st-key-btn_top_time_sync button,
-    .st-key-btn_top_time_sync button {
+    /* 동기화 버튼: 시간 박스와 완벽히 동일한 높이(28px) 및 컴팩트 사이즈 */
+    div[data-testid="stButton"].st-key-btn_top_time_sync,
+    .st-key-btn_top_time_sync {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
         height: 28px !important;
         min-height: 28px !important;
         max-height: 28px !important;
-        padding: 0px 8px !important;
-        font-size: 0.78rem !important;
+        width: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    div[data-testid="stButton"].st-key-btn_top_time_sync button,
+    .st-key-btn_top_time_sync button,
+    div[data-testid="stButton"].st-key-btn_top_time_sync [data-testid="stBaseButton-secondary"],
+    .st-key-btn_top_time_sync [data-testid="stBaseButton-secondary"] {
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        width: auto !important;
+        min-width: 60px !important;
+        max-width: 76px !important;
+        padding: 0px 10px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
         line-height: 26px !important;
         border-radius: 6px !important;
+        border: 1px solid #CBD5E1 !important;
+        background: #F1F5F9 !important;
+        color: #1E293B !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0 !important;
     }
     /* Prevent unwanted inner vertical/horizontal scrollbars on column containers, expanders, border wrappers, chat messages, and cards */
     .stVerticalBlock,
@@ -685,6 +712,43 @@ st.markdown("""
     div.stButton > button[kind="secondary"]:focus,
     [data-testid="stBaseButton-secondary"] :focus {
         box-shadow: 0 0 0 2px rgba(203, 213, 225, 0.5) !important;
+    }
+    /* Ensure Top Time Sync Button is precisely 28px tall and compact */
+    div[data-testid="stButton"].st-key-btn_top_time_sync button,
+    .st-key-btn_top_time_sync button,
+    div[data-testid="stButton"].st-key-btn_top_time_sync [data-testid="stBaseButton-secondary"],
+    .st-key-btn_top_time_sync [data-testid="stBaseButton-secondary"] {
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        width: auto !important;
+        min-width: 58px !important;
+        max-width: 76px !important;
+        padding: 0px 10px !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        line-height: 26px !important;
+        border-radius: 6px !important;
+        border: 1px solid #CBD5E1 !important;
+        background: #F1F5F9 !important;
+        color: #1E293B !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+        box-sizing: border-box !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin: 0 !important;
+    }
+    div[data-testid="stButton"].st-key-btn_top_time_sync button p,
+    .st-key-btn_top_time_sync button p,
+    div[data-testid="stButton"].st-key-btn_top_time_sync [data-testid="stBaseButton-secondary"] p,
+    .st-key-btn_top_time_sync [data-testid="stBaseButton-secondary"] p {
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        line-height: 26px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: #1E293B !important;
     }
 
     /* Compact Single-Row Question Buttons: Zero scrollbar, clean single row */
@@ -1409,7 +1473,7 @@ with st.container(key="top_nav_bar"):
 </html>"""
         components.html(live_clock_html, height=28, scrolling=False)
     with col_top_btn:
-        if st.button("동기화", help="현재시각, 시장상태, 전 탭 실시간 시세 및 스크리너 필터 권장값 최신화", key="btn_top_time_sync", use_container_width=True):
+        if st.button("동기화", help="현재시각, 시장상태, 전 탭 실시간 시세 및 스크리너 필터 권장값 최신화", key="btn_top_time_sync", use_container_width=False):
             st.cache_data.clear()
             for _k in list(st.session_state.keys()):
                 if _k.startswith("qa_ans_cache_") or _k.startswith("quant_cache_"):
