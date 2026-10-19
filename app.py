@@ -232,7 +232,7 @@ st.markdown("""
     }
     .st-key-top_nav_bar {
         margin-top: 0px !important;
-        margin-bottom: -12px !important;
+        margin-bottom: -24px !important;
         padding-top: 0px !important;
         padding-bottom: 0px !important;
     }
@@ -446,7 +446,7 @@ st.markdown("""
     /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (React Aria & BaseWeb 완벽 대응) */
     div[data-testid="stTabs"],
     .stTabs {
-        margin-top: -13px !important;
+        margin-top: -28px !important;
         margin-bottom: 8px !important;
     }
     div[data-testid="stTabs"] [role="tablist"],
