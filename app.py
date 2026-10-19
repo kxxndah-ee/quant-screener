@@ -211,11 +211,17 @@ st.markdown("""
 <style>
     /* Clean compact layout without wasted viewport padding, ensuring top tabs are clearly visible below Streamlit header */
     .block-container {
-        padding-top: 2.2rem !important;
+        padding-top: 3.8rem !important;
         padding-bottom: 1.0rem !important;
         padding-left: 1.5rem !important;
         padding-right: 1.5rem !important;
         max-width: 100% !important;
+    }
+    div[data-testid="stElementContainer"]:has(style:only-child) {
+        display: none !important;
+        height: 0px !important;
+        margin: 0px !important;
+        padding: 0px !important;
     }
     .stMainBlockContainer > .stVerticalBlock,
     .stVerticalBlock {
@@ -225,11 +231,25 @@ st.markdown("""
         gap: 0.35rem !important;
     }
     .st-key-top_nav_bar {
-        margin-bottom: -10px !important;
+        margin-top: 0px !important;
+        margin-bottom: -16px !important;
+        padding-top: 0px !important;
         padding-bottom: 0px !important;
     }
     .st-key-top_nav_bar iframe {
         margin-bottom: 0px !important;
+        display: block !important;
+    }
+    /* 동기화 버튼 높이를 시계 및 타이틀 높이(28px)와 일치 */
+    div[data-testid="stButton"].st-key-btn_top_time_sync button,
+    .st-key-btn_top_time_sync button {
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        padding: 0px 8px !important;
+        font-size: 0.78rem !important;
+        line-height: 26px !important;
+        border-radius: 6px !important;
     }
     /* Prevent unwanted inner vertical/horizontal scrollbars on column containers, expanders, border wrappers, chat messages, and cards */
     .stVerticalBlock,
@@ -418,34 +438,47 @@ st.markdown("""
         margin-top: 2px !important;
         margin-bottom: 3px !important;
     }
-    /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (명확한 시각적 구분) */
+    /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (React Aria & BaseWeb 완벽 대응) */
     div[data-testid="stTabs"],
     .stTabs {
-        margin-top: -12px !important;
+        margin-top: -18px !important;
         margin-bottom: 8px !important;
     }
+    div[data-testid="stTabs"] [role="tablist"],
+    .stTabs [role="tablist"],
     div[data-baseweb="tab-list"] {
         gap: 8px !important;
         background: #F1F5F9 !important;
-        padding: 6px !important;
+        padding: 5px 6px !important;
         border-radius: 8px !important;
         border: 1px solid #CBD5E1 !important;
         display: flex !important;
         flex-wrap: nowrap !important;
         align-items: stretch !important;
     }
-    /* 기본 언더라인 제거 */
+    /* 기본 언더라인 및 인디케이터 완전 제거 */
+    div[data-testid="stTabs"] [role="tablist"]::after,
+    .stTabs [role="tablist"]::after,
+    div[data-testid="stTabs"] .react-aria-SelectionIndicator,
+    .stTabs .react-aria-SelectionIndicator,
     div[data-baseweb="tab-highlight"],
     div[data-baseweb="tab-border"] {
         display: none !important;
+        content: none !important;
+        height: 0px !important;
+        opacity: 0 !important;
     }
     /* 비활성 탭: 독립된 화이트 카드 버튼과 테두리 */
+    div[data-testid="stTabs"] button[role="tab"],
+    .stTabs button[role="tab"],
     button[data-baseweb="tab"] {
         flex: 1 1 0px !important;
         text-align: center !important;
-        font-size: 0.88rem !important;
+        font-size: 0.86rem !important;
         font-weight: 600 !important;
-        padding: 8px 12px !important;
+        padding: 6px 12px !important;
+        height: 32px !important;
+        min-height: 32px !important;
         background: #FFFFFF !important;
         color: #334155 !important;
         border: 1px solid #CBD5E1 !important;
@@ -454,11 +487,15 @@ st.markdown("""
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
         cursor: pointer !important;
     }
+    div[data-testid="stTabs"] button[role="tab"] *,
+    .stTabs button[role="tab"] *,
     button[data-baseweb="tab"] * {
         color: inherit !important;
         font-weight: inherit !important;
     }
     /* 비활성 탭 호버 효과 */
+    div[data-testid="stTabs"] button[role="tab"]:hover,
+    .stTabs button[role="tab"]:hover,
     button[data-baseweb="tab"]:hover {
         background: #F8FAFC !important;
         border-color: #94A3B8 !important;
@@ -466,6 +503,10 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06) !important;
     }
     /* 활성 탭: 짙은 네이비 배경에 순백색 텍스트로 즉각적인 구별 */
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"],
+    .stTabs button[role="tab"][aria-selected="true"],
+    div[data-testid="stTabs"] button[role="tab"][data-selected],
+    .stTabs button[role="tab"][data-selected],
     button[data-baseweb="tab"][aria-selected="true"] {
         background: #1E293B !important;
         color: #FFFFFF !important;
@@ -473,6 +514,10 @@ st.markdown("""
         border: 1px solid #0F172A !important;
         box-shadow: 0 2px 6px rgba(15, 23, 42, 0.20) !important;
     }
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] *,
+    .stTabs button[role="tab"][aria-selected="true"] *,
+    div[data-testid="stTabs"] button[role="tab"][data-selected] *,
+    .stTabs button[role="tab"][data-selected] *,
     button[data-baseweb="tab"][aria-selected="true"] * {
         color: #FFFFFF !important;
         font-weight: 800 !important;
@@ -1203,7 +1248,7 @@ else:
 time_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
 with st.container(key="top_nav_bar"):
-    col_top_l, col_top_r = st.columns([1.8, 3.2], vertical_alignment="center")
+    col_top_l, col_top_mid, col_top_btn = st.columns([1.7, 2.7, 0.6], vertical_alignment="center")
     with col_top_l:
         task_badge = ""
         if sc_worker.is_running():
@@ -1212,17 +1257,15 @@ with st.container(key="top_nav_bar"):
             task_badge = f'<span style="font-size:0.72rem; color:#1D4ED8; background:#EFF6FF; border:1px solid #93C5FD; padding:1px 6px; border-radius:4px; font-weight:700;">[스크리닝 진행중 ({_pct}%)]</span>'
 
         st.markdown(
-            '<div style="display:flex; align-items:center; gap:8px; padding:0 0 2px 0;">'
+            '<div style="display:flex; align-items:center; gap:8px; padding:0; line-height:28px;">'
             '<span style="font-size:0.95rem; font-weight:700; color:#1E293B; letter-spacing:-0.3px;">AlphaQuant Analytics</span>'
             '<span style="font-size:0.72rem; color:#64748B; background:#F1F5F9; border:1px solid #CBD5E1; padding:1px 6px; border-radius:4px; font-weight:600;">PRO STEALTH</span>'
             f'{task_badge}'
             '</div>',
             unsafe_allow_html=True
         )
-    with col_top_r:
-        top_c1, top_c2 = st.columns([4.4, 0.6], vertical_alignment="center")
-        with top_c1:
-            live_clock_html = f"""<!DOCTYPE html>
+    with col_top_mid:
+        live_clock_html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -1360,18 +1403,18 @@ with st.container(key="top_nav_bar"):
 </script>
 </body>
 </html>"""
-            components.html(live_clock_html, height=30, scrolling=False)
-        with top_c2:
-            if st.button("동기화", help="현재시각, 시장상태, 전 탭 실시간 시세 및 스크리너 필터 권장값 최신화", key="btn_top_time_sync"):
-                st.cache_data.clear()
-                for _k in list(st.session_state.keys()):
-                    if _k.startswith("qa_ans_cache_") or _k.startswith("quant_cache_"):
-                        st.session_state[_k] = {}
-                    if _k.startswith("qa_active_ans_") or _k.startswith("quant_active_ans_"):
-                        st.session_state.pop(_k, None)
-                st.session_state["sc_trigger_time_sync"] = True
-                st.toast("현재 시각 기준 실시간 시세, Q&A 데이터 및 스크리너 필터가 전체 동기화되었습니다.")
-                st.rerun()
+        components.html(live_clock_html, height=28, scrolling=False)
+    with col_top_btn:
+        if st.button("동기화", help="현재시각, 시장상태, 전 탭 실시간 시세 및 스크리너 필터 권장값 최신화", key="btn_top_time_sync", use_container_width=True):
+            st.cache_data.clear()
+            for _k in list(st.session_state.keys()):
+                if _k.startswith("qa_ans_cache_") or _k.startswith("quant_cache_"):
+                    st.session_state[_k] = {}
+                if _k.startswith("qa_active_ans_") or _k.startswith("quant_active_ans_"):
+                    st.session_state.pop(_k, None)
+            st.session_state["sc_trigger_time_sync"] = True
+            st.toast("현재 시각 기준 실시간 시세, Q&A 데이터 및 스크리너 필터가 전체 동기화되었습니다.")
+            st.rerun()
 
 def _safe_float_val(v, default=0.0) -> float:
     try:
