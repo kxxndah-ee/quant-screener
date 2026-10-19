@@ -211,14 +211,25 @@ st.markdown("""
 <style>
     /* Clean compact layout without wasted viewport padding, ensuring top tabs are clearly visible below Streamlit header */
     .block-container {
-        padding-top: 3.8rem !important;
+        padding-top: 2.2rem !important;
         padding-bottom: 1.0rem !important;
         padding-left: 1.5rem !important;
         padding-right: 1.5rem !important;
         max-width: 100% !important;
     }
+    .stMainBlockContainer > .stVerticalBlock,
+    .stVerticalBlock {
+        gap: 0.35rem !important;
+    }
     div[data-testid="stVerticalBlock"] > div {
         gap: 0.35rem !important;
+    }
+    .st-key-top_nav_bar {
+        margin-bottom: -10px !important;
+        padding-bottom: 0px !important;
+    }
+    .st-key-top_nav_bar iframe {
+        margin-bottom: 0px !important;
     }
     /* Prevent unwanted inner vertical/horizontal scrollbars on column containers, expanders, border wrappers, chat messages, and cards */
     .stVerticalBlock,
@@ -408,9 +419,10 @@ st.markdown("""
         margin-bottom: 3px !important;
     }
     /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (명확한 시각적 구분) */
-    div[data-testid="stTabs"] {
-        margin-top: 0px !important;
-        margin-bottom: 12px !important;
+    div[data-testid="stTabs"],
+    .stTabs {
+        margin-top: -12px !important;
+        margin-bottom: 8px !important;
     }
     div[data-baseweb="tab-list"] {
         gap: 8px !important;
@@ -1190,26 +1202,27 @@ else:
 
 time_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
-col_top_l, col_top_r = st.columns([1.8, 3.2])
-with col_top_l:
-    task_badge = ""
-    if sc_worker.is_running():
-        _w_st = sc_worker.get_status()
-        _pct = int(_w_st["progress"] * 100)
-        task_badge = f'<span style="font-size:0.72rem; color:#1D4ED8; background:#EFF6FF; border:1px solid #93C5FD; padding:1px 6px; border-radius:4px; font-weight:700;">[스크리닝 진행중 ({_pct}%)]</span>'
+with st.container(key="top_nav_bar"):
+    col_top_l, col_top_r = st.columns([1.8, 3.2], vertical_alignment="center")
+    with col_top_l:
+        task_badge = ""
+        if sc_worker.is_running():
+            _w_st = sc_worker.get_status()
+            _pct = int(_w_st["progress"] * 100)
+            task_badge = f'<span style="font-size:0.72rem; color:#1D4ED8; background:#EFF6FF; border:1px solid #93C5FD; padding:1px 6px; border-radius:4px; font-weight:700;">[스크리닝 진행중 ({_pct}%)]</span>'
 
-    st.markdown(
-        '<div style="display:flex; align-items:center; gap:8px; padding:2px 0 6px 0;">'
-        '<span style="font-size:0.95rem; font-weight:700; color:#1E293B; letter-spacing:-0.3px;">AlphaQuant Analytics</span>'
-        '<span style="font-size:0.72rem; color:#64748B; background:#F1F5F9; border:1px solid #CBD5E1; padding:1px 6px; border-radius:4px; font-weight:600;">PRO STEALTH</span>'
-        f'{task_badge}'
-        '</div>',
-        unsafe_allow_html=True
-    )
-with col_top_r:
-    top_c1, top_c2 = st.columns([4.4, 0.6])
-    with top_c1:
-        live_clock_html = f"""<!DOCTYPE html>
+        st.markdown(
+            '<div style="display:flex; align-items:center; gap:8px; padding:0 0 2px 0;">'
+            '<span style="font-size:0.95rem; font-weight:700; color:#1E293B; letter-spacing:-0.3px;">AlphaQuant Analytics</span>'
+            '<span style="font-size:0.72rem; color:#64748B; background:#F1F5F9; border:1px solid #CBD5E1; padding:1px 6px; border-radius:4px; font-weight:600;">PRO STEALTH</span>'
+            f'{task_badge}'
+            '</div>',
+            unsafe_allow_html=True
+        )
+    with col_top_r:
+        top_c1, top_c2 = st.columns([4.4, 0.6], vertical_alignment="center")
+        with top_c1:
+            live_clock_html = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -1229,13 +1242,13 @@ with col_top_r:
     justify-content: flex-end;
     align-items: center;
     width: 100%;
-    height: 36px;
+    height: 28px;
   }}
   .clock-bar {{
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    height: 30px;
+    height: 28px;
     padding: 0 10px;
     background: #F1F5F9;
     border: 1px solid #CBD5E1;
@@ -1273,7 +1286,7 @@ with col_top_r:
       justify-content: flex-end;
     }}
     .clock-bar {{
-      height: 28px;
+      height: 26px;
       font-size: 11px;
       padding: 0 6px;
       gap: 5px;
@@ -1347,18 +1360,18 @@ with col_top_r:
 </script>
 </body>
 </html>"""
-        components.html(live_clock_html, height=36, scrolling=False)
-    with top_c2:
-        if st.button("동기화", help="현재시각, 시장상태, 전 탭 실시간 시세 및 스크리너 필터 권장값 최신화", key="btn_top_time_sync"):
-            st.cache_data.clear()
-            for _k in list(st.session_state.keys()):
-                if _k.startswith("qa_ans_cache_") or _k.startswith("quant_cache_"):
-                    st.session_state[_k] = {}
-                if _k.startswith("qa_active_ans_") or _k.startswith("quant_active_ans_"):
-                    st.session_state.pop(_k, None)
-            st.session_state["sc_trigger_time_sync"] = True
-            st.toast("현재 시각 기준 실시간 시세, Q&A 데이터 및 스크리너 필터가 전체 동기화되었습니다.")
-            st.rerun()
+            components.html(live_clock_html, height=30, scrolling=False)
+        with top_c2:
+            if st.button("동기화", help="현재시각, 시장상태, 전 탭 실시간 시세 및 스크리너 필터 권장값 최신화", key="btn_top_time_sync"):
+                st.cache_data.clear()
+                for _k in list(st.session_state.keys()):
+                    if _k.startswith("qa_ans_cache_") or _k.startswith("quant_cache_"):
+                        st.session_state[_k] = {}
+                    if _k.startswith("qa_active_ans_") or _k.startswith("quant_active_ans_"):
+                        st.session_state.pop(_k, None)
+                st.session_state["sc_trigger_time_sync"] = True
+                st.toast("현재 시각 기준 실시간 시세, Q&A 데이터 및 스크리너 필터가 전체 동기화되었습니다.")
+                st.rerun()
 
 def _safe_float_val(v, default=0.0) -> float:
     try:
