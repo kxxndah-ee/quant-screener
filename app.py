@@ -232,7 +232,7 @@ st.markdown("""
     }
     .st-key-top_nav_bar {
         margin-top: 0px !important;
-        margin-bottom: calc(1cm - 0.35rem) !important;
+        margin-bottom: -12px !important;
         padding-top: 0px !important;
         padding-bottom: 0px !important;
     }
@@ -243,7 +243,7 @@ st.markdown("""
     /* 전략 핵심 가이드 박스 상단 간격을 모드 선택과 동일하게 대칭 정렬 */
     div[data-testid="stExpander"].st-key-expander_strat_guide,
     .st-key-expander_strat_guide {
-        margin-top: 0px !important;
+        margin-top: 7px !important;
     }
     /* 동기화 버튼 높이를 시계 및 타이틀 높이(28px)와 일치 */
     div[data-testid="stButton"].st-key-btn_top_time_sync button,
@@ -446,7 +446,7 @@ st.markdown("""
     /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (React Aria & BaseWeb 완벽 대응) */
     div[data-testid="stTabs"],
     .stTabs {
-        margin-top: 0px !important;
+        margin-top: -13px !important;
         margin-bottom: 8px !important;
     }
     div[data-testid="stTabs"] [role="tablist"],
