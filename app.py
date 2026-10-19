@@ -23,10 +23,20 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # Page configuration (Office stealth friendly) - MUST be first Streamlit call
+import base64
 _FAVICON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "favicon.png")
+_fav_b64 = ""
+if os.path.exists(_FAVICON_PATH):
+    try:
+        with open(_FAVICON_PATH, "rb") as _f_fav:
+            _fav_b64 = base64.b64encode(_f_fav.read()).decode("utf-8")
+    except Exception:
+        pass
+_PAGE_ICON = f"data:image/png;base64,{_fav_b64}" if _fav_b64 else (_FAVICON_PATH if os.path.exists(_FAVICON_PATH) else "assets/favicon.png")
+
 st.set_page_config(
     page_title="Quantifi",
-    page_icon=_FAVICON_PATH if os.path.exists(_FAVICON_PATH) else "assets/favicon.png",
+    page_icon=_PAGE_ICON,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -246,7 +256,8 @@ st.markdown("""
     }
     /* PC 데스크톱: 시간 박스와 동기화 버튼을 6px 간격으로 나란히 밀착 배치 */
     @media (min-width: 769px) {
-        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] {
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"],
+        div[data-testid="stHorizontalBlock"]:has(.st-key-btn_top_time_sync) {
             display: flex !important;
             flex-direction: row !important;
             align-items: center !important;
@@ -255,7 +266,8 @@ st.markdown("""
         }
         /* 1번째 컬럼: Quantifi 로고 (좌측 정렬 및 유연한 너비) */
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(1),
-        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1) {
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1),
+        div[data-testid="stHorizontalBlock"]:has(.st-key-btn_top_time_sync) > div:nth-child(1) {
             flex: 1 1 auto !important;
             width: auto !important;
             display: flex !important;
@@ -266,7 +278,8 @@ st.markdown("""
         }
         /* 2번째 컬럼: 실시간 시계 (우측 정렬되어 동기화 버튼 바로 옆에 밀착) */
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2),
-        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2),
+        div[data-testid="stHorizontalBlock"]:has(.st-key-btn_top_time_sync) > div:nth-child(2) {
             flex: 0 0 auto !important;
             width: auto !important;
             min-width: 330px !important;
@@ -279,7 +292,8 @@ st.markdown("""
         }
         /* 3번째 컬럼: 동기화 버튼 (시계 박스 바로 오른쪽에 6px 간격으로 딱 붙음) */
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(3),
-        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3),
+        div[data-testid="stHorizontalBlock"]:has(.st-key-btn_top_time_sync) > div:nth-child(3) {
             flex: 0 0 auto !important;
             width: auto !important;
             min-width: 60px !important;
@@ -1064,7 +1078,8 @@ st.markdown("""
             padding-top: 0px !important;
             padding-bottom: 0px !important;
         }
-        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] {
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"],
+        div[data-testid="stHorizontalBlock"]:has(.st-key-btn_top_time_sync) {
             display: flex !important;
             flex-direction: column !important;
             align-items: stretch !important;
@@ -1080,7 +1095,8 @@ st.markdown("""
 
         /* Row 1: Logo & status */
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(1),
-        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1) {
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1),
+        div[data-testid="stHorizontalBlock"]:has(.st-key-btn_top_time_sync) > div:nth-child(1) {
             flex: 0 0 auto !important;
             width: 100% !important;
             min-width: 100% !important;
@@ -1092,7 +1108,8 @@ st.markdown("""
 
         /* Row 2: Clock (일시 - full width 100%) */
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2),
-        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2),
+        div[data-testid="stHorizontalBlock"]:has(.st-key-btn_top_time_sync) > div:nth-child(2) {
             flex: 0 0 auto !important;
             width: 100% !important;
             min-width: 100% !important;
@@ -1105,12 +1122,13 @@ st.markdown("""
 
         /* Row 3: 동기화 버튼 (일시 밑으로 바로 들어감, full width 100%) */
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(3),
-        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3),
+        div[data-testid="stHorizontalBlock"]:has(.st-key-btn_top_time_sync) > div:nth-child(3) {
             flex: 0 0 auto !important;
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
-            margin: 0 !important;
+            margin: 2px 0 0 0 !important;
             padding: 0 !important;
             display: flex !important;
             align-items: center !important;
@@ -1711,15 +1729,14 @@ with st.container(key="top_nav_bar"):
     if (pDoc && "{_fav_b64}") {{
       var favDataUrl = 'data:image/png;base64,{_fav_b64}';
       var existingFavs = pDoc.querySelectorAll("link[rel*='icon'], link[rel='apple-touch-icon']");
-      if (existingFavs && existingFavs.length > 0) {{
-        existingFavs.forEach(function(el) {{ el.href = favDataUrl; }});
-      }} else {{
+      existingFavs.forEach(function(el) {{ el.parentNode.removeChild(el); }});
+      ['icon', 'shortcut icon', 'apple-touch-icon'].forEach(function(relName) {{
         var l = pDoc.createElement('link');
-        l.rel = 'shortcut icon';
+        l.rel = relName;
         l.type = 'image/png';
         l.href = favDataUrl;
         pDoc.getElementsByTagName('head')[0].appendChild(l);
-      }}
+      }});
     }}
   }} catch(e) {{}}
   function updateClock() {{
