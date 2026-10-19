@@ -108,8 +108,35 @@ def _evaluate_single_stock(
     require_ma_align = params.get("require_ma_align", True)
 
     try:
-        # Synchronize real-time live quote if available
+        # High-Speed Pre-filter using real-time quotes: bypass disk OHLCV loads for non-candidates
         rt_info = realtime_quotes.get(code)
+        if rt_info:
+            rt_val_raw = rt_info.get("trading_val_raw", 0.0)
+            rt_chg_pct = rt_info.get("change_pct", 0.0)
+
+            if "당일 단타" in sc_mode:
+                min_val_threshold = float(min_daytrade_val_b) * 100_000_000.0 * 0.90
+                if rt_val_raw > 0 and rt_val_raw < min_val_threshold:
+                    return None
+                if rt_chg_pct < (intraday_gain_range[0] - 1.5):
+                    return None
+            elif "5% 급등" in sc_mode or "5% 돌파" in sc_mode:
+                min_val_threshold = float(min_surge_val_b) * 100_000_000.0 * 0.90
+                if rt_val_raw > 0 and rt_val_raw < min_val_threshold:
+                    return None
+                if rt_chg_pct < (float(min_day_surge_pct) - 2.0):
+                    return None
+            elif "종가배팅" in sc_mode:
+                min_val_threshold = float(min_today_val_b) * 100_000_000.0 * 0.90
+                if rt_val_raw > 0 and rt_val_raw < min_val_threshold:
+                    return None
+                if rt_chg_pct < (float(min_day_ret_val) - 1.5):
+                    return None
+            elif "스나이퍼" in sc_mode or "장전 시초가" in sc_mode or "08:00~09:00" in sc_mode:
+                if rt_val_raw > 0 and rt_val_raw < 1_000_000_000.0 and rt_chg_pct < -5.0:
+                    return None
+
+        # Synchronize real-time live quote if available
         if rt_info and rt_info.get("close", 0) > 0 and (now_dt.weekday() < 5 and now_dt.hour >= 9):
             df_stock = fetch_ohlcv(code, end=last_trading_day_str)
             close_p = float(rt_info["close"])
@@ -779,7 +806,7 @@ class ScreeningWorker:
             today_str = now_dt.strftime("%Y-%m-%d")
             last_trading_day_str = get_last_completed_trading_day()
 
-            eval_workers = min(8, max(1, total_pool_cnt)) if total_pool_cnt > 0 else 1
+            eval_workers = min(16, max(1, total_pool_cnt)) if total_pool_cnt > 0 else 1
             with ThreadPoolExecutor(max_workers=eval_workers) as executor:
                 def _task_eval(row_item):
                     try:

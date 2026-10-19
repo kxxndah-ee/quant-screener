@@ -60,11 +60,11 @@ def fetch_realtime_quotes(codes: list) -> Dict[str, Dict[str, Any]]:
     unique_codes = list(dict.fromkeys(clean_codes))
     result: Dict[str, Dict[str, Any]] = {}
 
-    chunk_size = 50
+    chunk_size = 100
     chunks = [unique_codes[i:i + chunk_size] for i in range(0, len(unique_codes), chunk_size)]
 
     session = requests.Session()
-    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=10, max_retries=2)
+    adapter = requests.adapters.HTTPAdapter(pool_connections=15, pool_maxsize=15, max_retries=2)
     session.mount("https://", adapter)
 
     def _fetch_chunk(chunk: list) -> list:
@@ -79,7 +79,7 @@ def fetch_realtime_quotes(codes: list) -> Dict[str, Dict[str, Any]]:
         return []
 
     from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=min(8, len(chunks) or 1)) as executor:
+    with ThreadPoolExecutor(max_workers=min(14, len(chunks) or 1)) as executor:
         chunk_results = list(executor.map(_fetch_chunk, chunks))
 
     def _safe_float(val, default=0.0) -> float:
@@ -118,6 +118,7 @@ def fetch_realtime_quotes(codes: list) -> Dict[str, Dict[str, Any]]:
                 high_p = _safe_float(item.get("highPriceRaw"), close_p)
                 low_p = _safe_float(item.get("lowPriceRaw"), close_p)
                 vol_p = _safe_int(item.get("accumulatedTradingVolumeRaw"), 0)
+                val_raw = _safe_float(item.get("accumulatedTradingValueRaw"), 0.0)
 
                 open_pct = ((open_p - prev_p) / prev_p * 100.0) if prev_p > 0 else 0.0
                 high_pct = ((high_p - prev_p) / prev_p * 100.0) if prev_p > 0 else 0.0
@@ -139,6 +140,7 @@ def fetch_realtime_quotes(codes: list) -> Dict[str, Dict[str, Any]]:
                     "high_pct": high_pct,
                     "low_pct": low_pct,
                     "volume": vol_p,
+                    "trading_val_raw": val_raw,
                     "market_status": item.get("marketStatus", ""),
                     "date": date_str
                 }

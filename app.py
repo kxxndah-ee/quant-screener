@@ -239,6 +239,55 @@ st.markdown("""
     .st-key-top_nav_bar iframe {
         margin-bottom: 0px !important;
         display: block !important;
+        width: 100% !important;
+        height: 28px !important;
+    }
+    /* PC 데스크톱: 시간 박스와 동기화 버튼을 6px 간격으로 나란히 밀착 배치 */
+    @media (min-width: 769px) {
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+            gap: 6px !important;
+        }
+        /* 1번째 컬럼: Quantifi 로고 (좌측 정렬 및 유연한 너비) */
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(1),
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1) {
+            flex: 1 1 auto !important;
+            width: auto !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        /* 2번째 컬럼: 실시간 시계 (우측 정렬되어 동기화 버튼 바로 옆에 밀착) */
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2),
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
+            flex: 0 0 auto !important;
+            width: auto !important;
+            min-width: 330px !important;
+            max-width: 440px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        /* 3번째 컬럼: 동기화 버튼 (시계 박스 바로 오른쪽에 6px 간격으로 딱 붙음) */
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(3),
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {
+            flex: 0 0 auto !important;
+            width: auto !important;
+            min-width: 60px !important;
+            max-width: 76px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
     }
     /* 전략 핵심 가이드 박스 상단 간격을 기존 대비 2배로 확장 */
     div[data-testid="stExpander"].st-key-expander_strat_guide,
@@ -3042,17 +3091,18 @@ with tab1:
     now_str = get_now_kst().strftime("%H:%M")
     cur_strat_slot_id = f"{sc_mode}_{rec_time['slot_id']}"
 
-    # Auto-sync session state when strategy mode or time slot changes or sync is triggered
-    if not st.session_state.get("sc_default_full_universe_v1"):
-        st.session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"
-        st.session_state["sc_default_full_universe_v1"] = True
+    fast_scope_default = "실시간 급등·주도주 300선 (상승률+거래대금 상위 / 강력 권장)"
+    if not st.session_state.get("sc_default_fast_scope_v2"):
+        st.session_state["sc_scope_sel"] = fast_scope_default
+        st.session_state["sc_default_fast_scope_v2"] = True
 
     if "sc_last_applied_strat_slot" not in st.session_state or st.session_state.get("sc_trigger_time_sync") or st.session_state.get("sc_last_applied_strat_slot") != cur_strat_slot_id:
         for _k, _v in rec_time["params"].items():
             st.session_state[f"sc_{_k}"] = _v
             if _k == "min_daytrade_val_b":
                 st.session_state["sc_min_daytrade_val"] = _v
-        st.session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"
+        if "sc_scope_sel" not in st.session_state:
+            st.session_state["sc_scope_sel"] = fast_scope_default
         st.session_state["sc_last_applied_strat_slot"] = cur_strat_slot_id
         st.session_state["sc_trigger_time_sync"] = False
 
@@ -3261,8 +3311,8 @@ with tab1:
             else:
                 st.caption("Point-in-Time 스코어링 엔진으로 전체 상장 유니버스를 일괄 스크리닝하고 테마 집중 위험을 감지합니다. (권장: 최소 스코어 65점↑, 거래량 급증 1.5배↑)")
 
-    # 2) 전 전략 모드 공통 스크리너 필터 파라미터 툴바 (전 상장사 전수조사 기본 세팅 & 접기 적용)
-    with st.expander(f"[스크리너 필터 설정] 전 상장사 전수조사 · {now_str} {rec_time['slot_name']} ({rec_time['badge_desc']} 자동 세팅됨)", expanded=False):
+    # 2) 전 전략 모드 공통 스크리너 필터 파라미터 툴바 (초고속 300선 기본 세팅 & 접기 적용)
+    with st.expander(f"[스크리너 필터 설정] {st.session_state.get('sc_scope_sel', fast_scope_default)} · {now_str} {rec_time['slot_name']} ({rec_time['badge_desc']} 자동 세팅됨)", expanded=False):
         f_hdr_c1, f_hdr_c2 = st.columns([4.2, 1.3])
         with f_hdr_c1:
             st.markdown(
@@ -3279,7 +3329,7 @@ with tab1:
                     st.session_state[f"sc_{_k}"] = _v
                     if _k == "min_daytrade_val_b":
                         st.session_state["sc_min_daytrade_val"] = _v
-                st.session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"
+                st.session_state.setdefault("sc_scope_sel", fast_scope_default)
                 st.session_state["sc_trigger_time_sync"] = True
                 st.toast(f"현재 시각({now_str}) {sc_mode} 권장 설정이 자동 적용되었습니다.")
                 st.rerun()
@@ -3295,8 +3345,8 @@ with tab1:
             )
         with sc_c2:
             scope_options = [
-                "전 상장사 전수조사 (약 2,700개)",
                 "실시간 급등·주도주 300선 (상승률+거래대금 상위 / 강력 권장)",
+                "전 상장사 전수조사 (약 2,700개)",
                 "내 관심종목 138선 (초고속)"
             ]
             if st.session_state.get("sc_scope_sel") not in scope_options:
