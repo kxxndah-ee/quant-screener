@@ -983,18 +983,176 @@ st.markdown("""
         }
     }
 
-    /* Mobile Responsive Optimizations */
+    /* Mobile Responsive Optimizations (PC/Desktop layout is strictly preserved) */
     @media (max-width: 768px) {
         .block-container {
-            padding-top: 2.0rem !important;
+            padding-top: 3.4rem !important;
             padding-bottom: 0.8rem !important;
             padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
         }
-        button[data-baseweb="tab"] {
-            font-size: 0.78rem !important;
-            padding: 3px 8px !important;
+
+        /* Top Nav Bar Mobile: Logo in row 1, Clock and Sync button side-by-side in row 2 */
+        .st-key-top_nav_bar {
+            margin-top: 0px !important;
+            margin-bottom: 6px !important;
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
         }
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            row-gap: 6px !important;
+            column-gap: 0px !important;
+        }
+        .st-key-top_nav_bar iframe {
+            margin-bottom: 0px !important;
+            display: block !important;
+            width: 100% !important;
+            height: 28px !important;
+        }
+
+        /* Row 1: Logo & status */
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(1),
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1) {
+            flex: 0 0 100% !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            margin-bottom: 2px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+
+        /* Row 2: Clock (occupies space except 64px sync button) */
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2),
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
+            flex: 1 1 calc(100% - 66px) !important;
+            width: calc(100% - 66px) !important;
+            min-width: 0 !important;
+            max-width: calc(100% - 66px) !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+
+        /* Row 2: Sync button right next to clock */
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(3),
+        .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {
+            flex: 0 0 62px !important;
+            width: 62px !important;
+            min-width: 62px !important;
+            max-width: 62px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+        }
+
+        /* Sync Button mobile size matching clock height 28px */
+        div[data-testid="stButton"].st-key-btn_top_time_sync,
+        .st-key-btn_top_time_sync {
+            height: 28px !important;
+            min-height: 28px !important;
+            max-height: 28px !important;
+            width: 60px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+        div[data-testid="stButton"].st-key-btn_top_time_sync button,
+        .st-key-btn_top_time_sync button,
+        div[data-testid="stButton"].st-key-btn_top_time_sync [data-testid="stBaseButton-secondary"],
+        .st-key-btn_top_time_sync [data-testid="stBaseButton-secondary"],
+        div.stButton.st-key-btn_top_time_sync > button {
+            height: 28px !important;
+            min-height: 28px !important;
+            max-height: 28px !important;
+            width: 60px !important;
+            min-width: 60px !important;
+            max-width: 60px !important;
+            padding: 0px 4px !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            line-height: 26px !important;
+            border-radius: 6px !important;
+            margin: 0 !important;
+        }
+        div[data-testid="stButton"].st-key-btn_top_time_sync button p,
+        .st-key-btn_top_time_sync button p {
+            font-size: 12px !important;
+            line-height: 26px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        /* Mobile Tabs: Positioned cleanly below clock/sync row without overlap */
+        div[data-testid="stTabs"],
+        .stTabs {
+            margin-top: 6px !important;
+            margin-bottom: 6px !important;
+        }
+        div[data-testid="stTabs"] [role="tablist"],
+        .stTabs [role="tablist"],
+        div[data-baseweb="tab-list"] {
+            gap: 4px !important;
+            padding: 3px 4px !important;
+            border-radius: 6px !important;
+        }
+        div[data-testid="stTabs"] button[role="tab"],
+        .stTabs button[role="tab"],
+        button[data-baseweb="tab"] {
+            font-size: 0.72rem !important;
+            padding: 4px 6px !important;
+            height: 28px !important;
+            min-height: 28px !important;
+            border-radius: 5px !important;
+            white-space: nowrap !important;
+        }
+
+        /* Global Regime & Reference Time: Prevent escaping container box */
+        .regime-status-bar {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 4px !important;
+            min-height: auto !important;
+            margin-bottom: 4px !important;
+            width: 100% !important;
+        }
+        .regime-status-bar .regime-badge {
+            font-size: 0.72rem !important;
+            padding: 3px 6px !important;
+            line-height: 1.35 !important;
+            white-space: normal !important;
+            word-break: keep-all !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+        }
+        .regime-status-bar .regime-time {
+            font-size: 0.70rem !important;
+            color: #64748B !important;
+            margin-top: 1px !important;
+            white-space: nowrap !important;
+        }
+        div[data-testid="stButton"].st-key-btn_refresh_us_market {
+            margin-top: 2px !important;
+            margin-bottom: 4px !important;
+        }
+        div[data-testid="stButton"].st-key-btn_refresh_us_market button {
+            height: 28px !important;
+            min-height: 28px !important;
+            font-size: 12px !important;
+            line-height: 26px !important;
+            padding: 0px 8px !important;
+        }
+
         /* Mobile: Strictly 1 mode per line vertically stacked, zero indentation */
         div[data-testid="stRadio"] > div[role="radiogroup"] {
             flex-direction: column !important;
@@ -1023,9 +1181,20 @@ st.markdown("""
         div[data-testid="stMetricValue"] {
             font-size: 0.88rem !important;
         }
-        div.stButton > button {
+        div.stButton:not(.st-key-btn_top_time_sync) > button {
             min-height: 2.3rem !important;
             font-size: 0.82rem !important;
+        }
+        /* Expander Summary: word wrap without horizontal clipping */
+        div[data-testid="stExpander"] details summary {
+            font-size: 0.78rem !important;
+            padding: 6px 8px !important;
+        }
+        div[data-testid="stExpander"] details summary p {
+            font-size: 0.78rem !important;
+            line-height: 1.35 !important;
+            white-space: normal !important;
+            word-break: keep-all !important;
         }
         /* Tab 5 & Global Tables Mobile Optimization (Scrollable container, crisp font, no squishing) */
         div[data-testid="stTable"],
@@ -1071,6 +1240,12 @@ st.markdown("""
         div[data-testid="stTable"] tr:nth-child(even),
         .stTable tr:nth-child(even) {
             background-color: #F8FAFC !important;
+        }
+        .stMarkdown table {
+            display: block !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            max-width: 100% !important;
         }
         div[data-testid="stDataFrame"] {
             width: 100% !important;
@@ -1308,9 +1483,9 @@ cur_hm = now_dt.hour * 100 + now_dt.minute
 if is_weekday and 900 <= cur_hm < 1530:
     market_badge = '<span style="color:#059669; font-weight:700;">● 정규장 운영중</span>'
 elif is_weekday and 830 <= cur_hm < 900:
-    market_badge = '<span style="color:#D97706; font-weight:700;">○ 장전 동시호가 (08:30~09:00)</span>'
+    market_badge = '<span style="color:#D97706; font-weight:700;">○ 장전 동시호가 <span class="badge-sub">(08:30~09:00)</span></span>'
 elif is_weekday and 1530 <= cur_hm < 1800:
-    market_badge = '<span style="color:#0284C7; font-weight:700;">○ 시간외 단일가 (15:30~18:00)</span>'
+    market_badge = '<span style="color:#0284C7; font-weight:700;">○ 시간외 단일가 <span class="badge-sub">(15:30~18:00)</span></span>'
 else:
     market_badge = '<span style="color:#64748B; font-weight:600;">○ 장마감 (휴장)</span>'
 
@@ -1397,7 +1572,7 @@ with st.container(key="top_nav_bar"):
       justify-content: flex-end;
     }}
     .clock-bar {{
-      height: 26px;
+      height: 28px;
       font-size: 11px;
       padding: 0 6px;
       gap: 5px;
@@ -1408,13 +1583,19 @@ with st.container(key="top_nav_bar"):
     .badge {{
       font-size: 10.5px;
     }}
+    .clock-year {{
+      display: none !important;
+    }}
+    .badge-sub {{
+      display: none !important;
+    }}
   }}
 </style>
 </head>
 <body>
 <div class="clock-wrapper">
   <div class="clock-bar">
-    <span class="clock-time" id="kst-time-val">{time_str} KST</span>
+    <span class="clock-time" id="kst-time-val"><span class="clock-year">{now_dt.strftime("%Y-")}</span>{now_dt.strftime("%m-%d %H:%M:%S")} KST</span>
     <span class="sep">|</span>
     <span class="badge" id="kst-market-badge">{market_badge}</span>
   </div>
@@ -1436,7 +1617,7 @@ with st.container(key="top_nav_bar"):
 
       var timeEl = document.getElementById('kst-time-val');
       if (timeEl) {{
-        timeEl.textContent = y + '-' + m + '-' + d + ' ' + hh + ':' + mm + ':' + ss + ' KST';
+        timeEl.innerHTML = '<span class="clock-year">' + y + '-</span>' + m + '-' + d + ' ' + hh + ':' + mm + ':' + ss + ' KST';
       }}
 
       var isWeekday = (day >= 1 && day <= 5);
@@ -1447,9 +1628,9 @@ with st.container(key="top_nav_bar"):
         if (isWeekday && curHm >= 900 && curHm < 1530) {{
           badgeHtml = '<span style="color:#059669; font-weight:700;">● 정규장 운영중</span>';
         }} else if (isWeekday && curHm >= 830 && curHm < 900) {{
-          badgeHtml = '<span style="color:#D97706; font-weight:700;">○ 장전 동시호가 (08:30~09:00)</span>';
+          badgeHtml = '<span style="color:#D97706; font-weight:700;">○ 장전 동시호가 <span class="badge-sub">(08:30~09:00)</span></span>';
         }} else if (isWeekday && curHm >= 1530 && curHm < 1800) {{
-          badgeHtml = '<span style="color:#0284C7; font-weight:700;">○ 시간외 단일가 (15:30~18:00)</span>';
+          badgeHtml = '<span style="color:#0284C7; font-weight:700;">○ 시간외 단일가 <span class="badge-sub">(15:30~18:00)</span></span>';
         }} else {{
           badgeHtml = '<span style="color:#64748B; font-weight:600;">○ 장마감 (휴장)</span>';
         }}
@@ -2498,11 +2679,11 @@ def render_us_market_macro_bar():
         top_c1, top_c2 = st.columns([4.2, 1.2])
         with top_c1:
             st.markdown(
-                f'<div style="display:flex; align-items:center; gap:8px; min-height:2rem; line-height:1.2;">'
-                f'<span style="background:{regime_color}; color:#FFFFFF; font-weight:700; font-size:0.75rem; padding:3px 8px; border-radius:4px; white-space:nowrap;">'
+                f'<div class="regime-status-bar" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; min-height:2rem; line-height:1.4;">'
+                f'<span class="regime-badge" style="background:{regime_color}; color:#FFFFFF; font-weight:700; font-size:0.75rem; padding:3px 8px; border-radius:4px; display:inline-block;">'
                 f'글로벌 체제: {regime} ({regime_desc})'
                 f'</span>'
-                f'<span style="color:#64748B; font-size:0.75rem; white-space:nowrap;">기준시각: {updated_at_str}</span>'
+                f'<span class="regime-time" style="color:#64748B; font-size:0.75rem; display:inline-block;">기준시각: {updated_at_str}</span>'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -3085,10 +3266,10 @@ with tab1:
         f_hdr_c1, f_hdr_c2 = st.columns([4.2, 1.3])
         with f_hdr_c1:
             st.markdown(
-                f'<div style="display:flex; align-items:center; gap:8px; padding-top:4px;">'
-                f'<span class="office-subheading" style="margin:0 !important;">스크리너 필터 설정</span>'
-                f'<span style="background:#F1F5F9; color:#1E293B; font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1;">{now_str} {rec_time["slot_name"]}</span>'
-                f'<span style="color:#64748B; font-size:0.75rem;">({rec_time["badge_desc"]} 자동 세팅됨)</span>'
+                f'<div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px 8px; padding-top:4px; line-height:1.4;">'
+                f'<span class="office-subheading" style="margin:0 !important; display:inline-block;">스크리너 필터 설정</span>'
+                f'<span style="background:#F1F5F9; color:#1E293B; font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:4px; border:1px solid #CBD5E1; display:inline-block;">{now_str} {rec_time["slot_name"]}</span>'
+                f'<span style="color:#64748B; font-size:0.75rem; display:inline-block;">({rec_time["badge_desc"]} 자동 세팅됨)</span>'
                 f'</div>',
                 unsafe_allow_html=True
             )
