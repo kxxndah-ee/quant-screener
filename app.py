@@ -23,8 +23,10 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # Page configuration (Office stealth friendly) - MUST be first Streamlit call
+_FAVICON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "favicon.png")
 st.set_page_config(
     page_title="Quantifi",
+    page_icon=_FAVICON_PATH if os.path.exists(_FAVICON_PATH) else "assets/favicon.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -287,6 +289,20 @@ st.markdown("""
             justify-content: flex-start !important;
             margin: 0 !important;
             padding: 0 !important;
+        }
+        /* PC 데스크톱: 글로벌 체제 뱃지와 기준시각을 가로 한 줄에 나란히 배치 */
+        .regime-status-bar {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+            min-height: 2rem !important;
+        }
+        .regime-status-bar .regime-badge-container,
+        .regime-status-bar .regime-time-container {
+            display: inline-flex !important;
+            align-items: center !important;
         }
     }
     /* 전략 핵심 가이드 박스 상단 간격을 기존 대비 2배로 확장 */
@@ -1041,7 +1057,7 @@ st.markdown("""
             padding-right: 0.5rem !important;
         }
 
-        /* Top Nav Bar Mobile: Logo in row 1, Clock and Sync button side-by-side in row 2 */
+        /* Top Nav Bar Mobile: Row 1 = Logo, Row 2 = 일시 (Clock), Row 3 = 동기화 버튼 (일시 바로 밑으로 배치) */
         .st-key-top_nav_bar {
             margin-top: 0px !important;
             margin-bottom: 6px !important;
@@ -1050,12 +1066,10 @@ st.markdown("""
         }
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] {
             display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: wrap !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            row-gap: 6px !important;
-            column-gap: 0px !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            width: 100% !important;
+            gap: 4px !important;
         }
         .st-key-top_nav_bar iframe {
             margin-bottom: 0px !important;
@@ -1067,7 +1081,7 @@ st.markdown("""
         /* Row 1: Logo & status */
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(1),
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(1) {
-            flex: 0 0 100% !important;
+            flex: 0 0 auto !important;
             width: 100% !important;
             min-width: 100% !important;
             max-width: 100% !important;
@@ -1076,31 +1090,31 @@ st.markdown("""
             align-items: center !important;
         }
 
-        /* Row 2: Clock (occupies space except 64px sync button) */
+        /* Row 2: Clock (일시 - full width 100%) */
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(2),
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
-            flex: 1 1 calc(100% - 66px) !important;
-            width: calc(100% - 66px) !important;
-            min-width: 0 !important;
-            max-width: calc(100% - 66px) !important;
+            flex: 0 0 auto !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             display: flex !important;
             align-items: center !important;
         }
 
-        /* Row 2: Sync button right next to clock */
+        /* Row 3: 동기화 버튼 (일시 밑으로 바로 들어감, full width 100%) */
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:nth-child(3),
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(3) {
-            flex: 0 0 62px !important;
-            width: 62px !important;
-            min-width: 62px !important;
-            max-width: 62px !important;
+            flex: 0 0 auto !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             display: flex !important;
             align-items: center !important;
-            justify-content: flex-end !important;
+            justify-content: center !important;
         }
 
         /* Sync Button mobile size matching clock height 28px */
@@ -1109,7 +1123,7 @@ st.markdown("""
             height: 28px !important;
             min-height: 28px !important;
             max-height: 28px !important;
-            width: 60px !important;
+            width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             display: flex !important;
@@ -1123,14 +1137,21 @@ st.markdown("""
             height: 28px !important;
             min-height: 28px !important;
             max-height: 28px !important;
-            width: 60px !important;
-            min-width: 60px !important;
-            max-width: 60px !important;
-            padding: 0px 4px !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            padding: 0px 10px !important;
             font-size: 12px !important;
             font-weight: 600 !important;
             line-height: 26px !important;
             border-radius: 6px !important;
+            background: #F1F5F9 !important;
+            border: 1px solid #CBD5E1 !important;
+            color: #1E293B !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
             margin: 0 !important;
         }
         div[data-testid="stButton"].st-key-btn_top_time_sync button p,
@@ -1139,6 +1160,7 @@ st.markdown("""
             line-height: 26px !important;
             margin: 0 !important;
             padding: 0 !important;
+            text-align: center !important;
         }
 
         /* Mobile Tabs: Positioned cleanly below clock/sync row without overlap */
@@ -1165,14 +1187,18 @@ st.markdown("""
             white-space: nowrap !important;
         }
 
-        /* Global Regime & Reference Time: Prevent escaping container box */
+        /* Global Regime & Reference Time: 모바일에서 기준시각을 글로벌 체제 박스 바로 아래로 명확히 배치 */
         .regime-status-bar {
             display: flex !important;
             flex-direction: column !important;
             align-items: flex-start !important;
-            gap: 4px !important;
+            gap: 3px !important;
             min-height: auto !important;
             margin-bottom: 4px !important;
+            width: 100% !important;
+        }
+        .regime-status-bar .regime-badge-container {
+            display: block !important;
             width: 100% !important;
         }
         .regime-status-bar .regime-badge {
@@ -1183,12 +1209,29 @@ st.markdown("""
             word-break: keep-all !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
+            display: inline-block !important;
+        }
+        .regime-status-bar .regime-time-container {
+            display: block !important;
+            width: 100% !important;
         }
         .regime-status-bar .regime-time {
             font-size: 0.70rem !important;
             color: #64748B !important;
             margin-top: 1px !important;
+            display: block !important;
             white-space: nowrap !important;
+        }
+        div[data-testid="stExpander"] [data-testid="stHorizontalBlock"]:has(.regime-status-bar) {
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 6px !important;
+        }
+        div[data-testid="stExpander"] [data-testid="stHorizontalBlock"]:has(.regime-status-bar) > div[data-testid="stColumn"],
+        div[data-testid="stExpander"] [data-testid="stHorizontalBlock"]:has(.regime-status-bar) > div[data-testid="column"] {
+            width: 100% !important;
+            flex: 0 0 100% !important;
+            max-width: 100% !important;
         }
         div[data-testid="stButton"].st-key-btn_refresh_us_market {
             margin-top: 2px !important;
@@ -1540,6 +1583,15 @@ else:
 
 time_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
+_fav_b64 = ""
+if os.path.exists(_FAVICON_PATH):
+    try:
+        import base64
+        with open(_FAVICON_PATH, "rb") as _f_fav:
+            _fav_b64 = base64.b64encode(_f_fav.read()).decode()
+    except Exception:
+        pass
+
 with st.container(key="top_nav_bar"):
     col_top_l, col_top_mid, col_top_btn = st.columns([1.7, 2.7, 0.6], vertical_alignment="center")
     with col_top_l:
@@ -1618,22 +1670,25 @@ with st.container(key="top_nav_bar"):
 
   @media (max-width: 768px) {{
     .clock-wrapper {{
-      justify-content: flex-end;
+      justify-content: center;
+      width: 100%;
     }}
     .clock-bar {{
       height: 28px;
-      font-size: 11px;
-      padding: 0 6px;
-      gap: 5px;
+      font-size: 11.5px;
+      padding: 0 8px;
+      gap: 6px;
+      width: 100%;
+      justify-content: center;
     }}
     .clock-time {{
-      font-size: 11px;
+      font-size: 11.5px;
     }}
     .badge {{
-      font-size: 10.5px;
+      font-size: 11px;
     }}
     .clock-year {{
-      display: none !important;
+      display: inline !important;
     }}
     .badge-sub {{
       display: none !important;
@@ -1651,6 +1706,22 @@ with st.container(key="top_nav_bar"):
 </div>
 <script>
 (function() {{
+  try {{
+    var pDoc = window.parent.document;
+    if (pDoc && "{_fav_b64}") {{
+      var favDataUrl = 'data:image/png;base64,{_fav_b64}';
+      var existingFavs = pDoc.querySelectorAll("link[rel*='icon'], link[rel='apple-touch-icon']");
+      if (existingFavs && existingFavs.length > 0) {{
+        existingFavs.forEach(function(el) {{ el.href = favDataUrl; }});
+      }} else {{
+        var l = pDoc.createElement('link');
+        l.rel = 'shortcut icon';
+        l.type = 'image/png';
+        l.href = favDataUrl;
+        pDoc.getElementsByTagName('head')[0].appendChild(l);
+      }}
+    }}
+  }} catch(e) {{}}
   function updateClock() {{
     try {{
       var nowMs = Date.now();
@@ -2728,11 +2799,15 @@ def render_us_market_macro_bar():
         top_c1, top_c2 = st.columns([4.2, 1.2])
         with top_c1:
             st.markdown(
-                f'<div class="regime-status-bar" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; min-height:2rem; line-height:1.4;">'
+                f'<div class="regime-status-bar">'
+                f'<div class="regime-badge-container">'
                 f'<span class="regime-badge" style="background:{regime_color}; color:#FFFFFF; font-weight:700; font-size:0.75rem; padding:3px 8px; border-radius:4px; display:inline-block;">'
                 f'글로벌 체제: {regime} ({regime_desc})'
                 f'</span>'
-                f'<span class="regime-time" style="color:#64748B; font-size:0.75rem; display:inline-block;">기준시각: {updated_at_str}</span>'
+                f'</div>'
+                f'<div class="regime-time-container">'
+                f'<span class="regime-time" style="color:#64748B; font-size:0.72rem; display:inline-block;">기준시각: {updated_at_str}</span>'
+                f'</div>'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -3500,7 +3575,7 @@ with tab1:
         render_screening_live_progress()
 
     else:
-        if st.button("후보 스크리닝 실행", type="primary", use_container_width=True, key="btn_run_screener"):
+        if st.button("Screening", type="primary", use_container_width=True, key="btn_run_screener"):
             st.session_state["screened_is_empty_result"] = False
             params = {
                 "sc_mode": sc_mode,
