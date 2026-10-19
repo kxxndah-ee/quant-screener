@@ -232,7 +232,7 @@ st.markdown("""
     }
     .st-key-top_nav_bar {
         margin-top: 0px !important;
-        margin-bottom: -35px !important;
+        margin-bottom: -40px !important;
         padding-top: 0px !important;
         padding-bottom: 0px !important;
     }
@@ -240,10 +240,10 @@ st.markdown("""
         margin-bottom: 0px !important;
         display: block !important;
     }
-    /* 전략 핵심 가이드 박스 상단 간격을 모드 선택과 동일하게 대칭 정렬 */
+    /* 전략 핵심 가이드 박스 상단 간격을 기존 대비 2배로 확장 */
     div[data-testid="stExpander"].st-key-expander_strat_guide,
     .st-key-expander_strat_guide {
-        margin-top: 4px !important;
+        margin-top: 24px !important;
     }
     /* 동기화 버튼 높이를 시계 및 타이틀 높이(28px)와 일치 */
     div[data-testid="stButton"].st-key-btn_top_time_sync button,
@@ -446,15 +446,15 @@ st.markdown("""
     /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (React Aria & BaseWeb 완벽 대응) */
     div[data-testid="stTabs"],
     .stTabs {
-        margin-top: -41px !important;
-        margin-bottom: 8px !important;
+        margin-top: -48px !important;
+        margin-bottom: 4px !important;
     }
     div[data-testid="stTabs"] [role="tablist"],
     .stTabs [role="tablist"],
     div[data-baseweb="tab-list"] {
         gap: 8px !important;
         background: #F1F5F9 !important;
-        padding: 5px 6px !important;
+        padding: 4px 6px !important;
         border-radius: 8px !important;
         border: 1px solid #CBD5E1 !important;
         display: flex !important;
@@ -1263,8 +1263,7 @@ with st.container(key="top_nav_bar"):
 
         st.markdown(
             '<div style="display:flex; align-items:center; gap:8px; padding:0; line-height:28px;">'
-            '<span style="font-size:0.95rem; font-weight:700; color:#1E293B; letter-spacing:-0.3px;">AlphaQuant Analytics</span>'
-            '<span style="font-size:0.72rem; color:#64748B; background:#F1F5F9; border:1px solid #CBD5E1; padding:1px 6px; border-radius:4px; font-weight:600;">PRO STEALTH</span>'
+            '<span style="font-size:1.32rem; font-weight:800; color:#0F172A; letter-spacing:-0.5px; white-space:nowrap;">AlphaQuant Analytics</span>'
             f'{task_badge}'
             '</div>',
             unsafe_allow_html=True
