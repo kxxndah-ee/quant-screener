@@ -232,13 +232,18 @@ st.markdown("""
     }
     .st-key-top_nav_bar {
         margin-top: 0px !important;
-        margin-bottom: -16px !important;
+        margin-bottom: calc(1cm - 0.35rem) !important;
         padding-top: 0px !important;
         padding-bottom: 0px !important;
     }
     .st-key-top_nav_bar iframe {
         margin-bottom: 0px !important;
         display: block !important;
+    }
+    /* 전략 핵심 가이드 박스 상단 간격을 모드 선택과 동일하게 대칭 정렬 */
+    div[data-testid="stExpander"].st-key-expander_strat_guide,
+    .st-key-expander_strat_guide {
+        margin-top: 0px !important;
     }
     /* 동기화 버튼 높이를 시계 및 타이틀 높이(28px)와 일치 */
     div[data-testid="stButton"].st-key-btn_top_time_sync button,
@@ -441,7 +446,7 @@ st.markdown("""
     /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (React Aria & BaseWeb 완벽 대응) */
     div[data-testid="stTabs"],
     .stTabs {
-        margin-top: -18px !important;
+        margin-top: 0px !important;
         margin-bottom: 8px !important;
     }
     div[data-testid="stTabs"] [role="tablist"],
@@ -2535,7 +2540,7 @@ with tab1:
     else:
         m_tag = '<span style="color:#475569; font-weight:700;">[일반 퀀트]</span> Point-in-Time 복합 팩터 100점 만점 랭킹 시스템'
 
-    st.markdown(f'<div style="font-size:0.78rem; color:#475569; padding:2px 0 6px 2px;">{m_tag}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sc-mode-tag-desc" style="font-size:0.78rem; color:#475569; padding:4px 0 4px 2px; margin:0;">{m_tag}</div>', unsafe_allow_html=True)
 
     # 전 전략 모드 공통: 시간대별 최적 권장 설정 자동화 엔진
     def get_auto_time_recommendation_for_strategy(strategy_mode, dt=None):
@@ -2808,7 +2813,7 @@ with tab1:
         st.session_state["sc_trigger_time_sync"] = False
 
     # 1) 전략 원칙 & 시간대별 설정 가이드 통합 접이식(Expander)
-    with st.expander("[전략 핵심 원칙 & 시간대별 설정 가이드] (필요 시 클릭하여 열기)", expanded=False):
+    with st.expander("[전략 핵심 원칙 & 시간대별 설정 가이드]", expanded=False, key="expander_strat_guide"):
         g_guide_mode = st.radio(
             "가이드 항목 선택",
             ["전략 핵심 원칙 & 시장 체제 점검", "시간대별 권장 설정 가이드"],
