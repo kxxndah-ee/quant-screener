@@ -243,7 +243,7 @@ st.markdown("""
     /* 전략 핵심 가이드 박스 상단 간격을 모드 선택과 동일하게 대칭 정렬 */
     div[data-testid="stExpander"].st-key-expander_strat_guide,
     .st-key-expander_strat_guide {
-        margin-top: 7px !important;
+        margin-top: 4px !important;
     }
     /* 동기화 버튼 높이를 시계 및 타이틀 높이(28px)와 일치 */
     div[data-testid="stButton"].st-key-btn_top_time_sync button,
