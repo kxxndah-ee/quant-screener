@@ -223,7 +223,7 @@ st.markdown("""
 <style>
     /* Clean compact layout without wasted viewport padding, ensuring top tabs are clearly visible below Streamlit header */
     .block-container {
-        padding-top: 3.8rem !important;
+        padding-top: 4.2rem !important;
         padding-bottom: 1.0rem !important;
         padding-left: 1.5rem !important;
         padding-right: 1.5rem !important;
@@ -244,7 +244,7 @@ st.markdown("""
     }
     .st-key-top_nav_bar {
         margin-top: 0px !important;
-        margin-bottom: -40px !important;
+        margin-bottom: 8px !important;
         padding-top: 0px !important;
         padding-bottom: 0px !important;
     }
@@ -253,6 +253,19 @@ st.markdown("""
         display: block !important;
         width: 100% !important;
         height: 28px !important;
+    }
+    .st-key-top_nav_bar [data-testid="stCustomComponentV1"] {
+        margin: 0 !important;
+        padding: 0 !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+    }
+    .st-key-top_nav_bar [data-testid="stMarkdownContainer"],
+    .st-key-top_nav_bar [data-testid="stMarkdownContainer"] p {
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 28px !important;
     }
     /* PC 데스크톱: 시간 박스와 동기화 버튼을 6px 간격으로 나란히 밀착 배치 */
     @media (min-width: 769px) {
@@ -552,8 +565,8 @@ st.markdown("""
     /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (React Aria & BaseWeb 완벽 대응) */
     div[data-testid="stTabs"],
     .stTabs {
-        margin-top: -48px !important;
-        margin-bottom: 4px !important;
+        margin-top: 6px !important;
+        margin-bottom: 8px !important;
     }
     div[data-testid="stTabs"] [role="tablist"],
     .stTabs [role="tablist"],
@@ -1065,7 +1078,7 @@ st.markdown("""
     /* Mobile Responsive Optimizations (PC/Desktop layout is strictly preserved) */
     @media (max-width: 768px) {
         .block-container {
-            padding-top: 3.4rem !important;
+            padding-top: 3.8rem !important;
             padding-bottom: 0.8rem !important;
             padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
@@ -1074,7 +1087,7 @@ st.markdown("""
         /* Top Nav Bar Mobile: Row 1 = Logo, Row 2 = 일시 (Clock), Row 3 = 동기화 버튼 (일시 바로 밑으로 배치) */
         .st-key-top_nav_bar {
             margin-top: 0px !important;
-            margin-bottom: 6px !important;
+            margin-bottom: 8px !important;
             padding-top: 0px !important;
             padding-bottom: 0px !important;
         }
@@ -1184,8 +1197,8 @@ st.markdown("""
         /* Mobile Tabs: Positioned cleanly below clock/sync row without overlap */
         div[data-testid="stTabs"],
         .stTabs {
-            margin-top: 6px !important;
-            margin-bottom: 6px !important;
+            margin-top: 8px !important;
+            margin-bottom: 8px !important;
         }
         div[data-testid="stTabs"] [role="tablist"],
         .stTabs [role="tablist"],
@@ -1193,16 +1206,26 @@ st.markdown("""
             gap: 4px !important;
             padding: 3px 4px !important;
             border-radius: 6px !important;
+            display: flex !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            scrollbar-width: none !important;
+        }
+        div[data-testid="stTabs"] [role="tablist"]::-webkit-scrollbar,
+        .stTabs [role="tablist"]::-webkit-scrollbar {
+            display: none !important;
         }
         div[data-testid="stTabs"] button[role="tab"],
         .stTabs button[role="tab"],
         button[data-baseweb="tab"] {
             font-size: 0.72rem !important;
-            padding: 4px 6px !important;
+            padding: 4px 8px !important;
             height: 28px !important;
             min-height: 28px !important;
             border-radius: 5px !important;
             white-space: nowrap !important;
+            flex: 0 0 auto !important;
         }
 
         /* Global Regime & Reference Time: 모바일에서 기준시각을 글로벌 체제 박스 바로 아래로 명확히 배치 */
