@@ -244,10 +244,10 @@ st.markdown("""
     }
     .st-key-top_nav_bar {
         margin-top: 0px !important;
-        margin-bottom: 36px !important;
+        margin-bottom: 16px !important;
         padding-top: 2px !important;
-        padding-bottom: 18px !important;
-        min-height: 56px !important;
+        padding-bottom: 8px !important;
+        min-height: 44px !important;
         position: relative !important;
         z-index: 20 !important;
         clear: both !important;
@@ -337,10 +337,10 @@ st.markdown("""
             align-items: center !important;
         }
     }
-    /* 전략 핵심 가이드 박스 상단 간격을 기존 대비 2배로 확장 */
+    /* 전략 핵심 가이드 박스 상단 간격을 50% 축소 */
     div[data-testid="stExpander"].st-key-expander_strat_guide,
     .st-key-expander_strat_guide {
-        margin-top: 24px !important;
+        margin-top: 10px !important;
     }
     /* 동기화 버튼: 시간 박스와 완벽히 동일한 높이(28px) 및 컴팩트 사이즈 */
     div[data-testid="stButton"].st-key-btn_top_time_sync,
@@ -570,8 +570,8 @@ st.markdown("""
     /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (React Aria & BaseWeb 완벽 대응) */
     div[data-testid="stTabs"],
     .stTabs {
-        margin-top: 24px !important;
-        margin-bottom: 20px !important;
+        margin-top: 10px !important;
+        margin-bottom: 8px !important;
         position: relative !important;
         z-index: 10 !important;
         clear: both !important;
@@ -590,10 +590,10 @@ st.markdown("""
         min-height: 40px !important;
         box-sizing: border-box !important;
     }
-    /* Expander 독립 배치: 상단 요소(탭/헤더)와 충돌 및 겹침 방지 */
+    /* Expander 독립 배치: 상단 요소(탭/헤더)와 충돌 및 겹침 방지 (간격 50% 최적화) */
     div[data-testid="stExpander"] {
-        margin-top: 24px !important;
-        margin-bottom: 16px !important;
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
         position: relative !important;
         z-index: 5 !important;
         clear: both !important;
@@ -1105,9 +1105,9 @@ st.markdown("""
         /* Top Nav Bar Mobile: Row 1 = Logo, Row 2 = 일시 (Clock), Row 3 = 동기화 버튼 (일시 바로 밑으로 배치) */
         .st-key-top_nav_bar {
             margin-top: 0px !important;
-            margin-bottom: 28px !important;
+            margin-bottom: 14px !important;
             padding-top: 0px !important;
-            padding-bottom: 16px !important;
+            padding-bottom: 8px !important;
             position: relative !important;
             z-index: 20 !important;
             clear: both !important;
@@ -1219,8 +1219,8 @@ st.markdown("""
         /* Mobile Tabs: Positioned cleanly below clock/sync row without overlap */
         div[data-testid="stTabs"],
         .stTabs {
-            margin-top: 22px !important;
-            margin-bottom: 16px !important;
+            margin-top: 10px !important;
+            margin-bottom: 8px !important;
             position: relative !important;
             z-index: 10 !important;
             clear: both !important;
@@ -1668,8 +1668,8 @@ with st.container(key="top_nav_bar"):
             task_badge = f'<span style="font-size:0.72rem; color:#1D4ED8; background:#EFF6FF; border:1px solid #93C5FD; padding:1px 6px; border-radius:4px; font-weight:700;">[스크리닝 진행중 ({_pct}%)]</span>'
 
         st.markdown(
-            '<div style="display:flex; align-items:center; gap:10px; padding:6px 0 16px 0; min-height:48px; line-height:36px; box-sizing:border-box;">'
-            '<span style="font-size:1.42rem; font-weight:800; color:#0F172A; letter-spacing:-0.5px; white-space:nowrap; display:inline-block;">Quantifi</span>'
+            '<div style="display:flex; align-items:center; gap:10px; padding:4px 0 8px 0; min-height:38px; line-height:32px; box-sizing:border-box;">'
+            '<span style="font-size:1.40rem; font-weight:800; color:#0F172A; letter-spacing:-0.5px; white-space:nowrap; display:inline-block;">Quantifi</span>'
             f'{task_badge}'
             '</div>',
             unsafe_allow_html=True
@@ -1852,7 +1852,7 @@ with st.container(key="top_nav_bar"):
             st.toast("현재 시각 기준 실시간 시세, Q&A 데이터 및 스크리너 필터가 전체 동기화되었습니다.")
             st.rerun()
 
-st.markdown("<div style='height: 32px; width: 100%; clear: both; display: block;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 14px; width: 100%; clear: both; display: block;'></div>", unsafe_allow_html=True)
 
 def _safe_float_val(v, default=0.0) -> float:
     try:
@@ -2864,7 +2864,6 @@ def render_us_market_macro_bar():
         f"| 체제: {regime}"
     )
 
-    st.markdown("<div style='height: 14px; clear: both; display: block;'></div>", unsafe_allow_html=True)
     with st.expander(title_summary, expanded=True):
         top_c1, top_c2 = st.columns([4.2, 1.2])
         with top_c1:
