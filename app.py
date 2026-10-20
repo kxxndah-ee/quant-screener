@@ -3595,7 +3595,7 @@ with tab1:
         with col_btn_run:
             st.button("스크리닝 진행 중...", disabled=True, use_container_width=True)
         with col_btn_cancel:
-            if st.button("작업 중단", type="secondary", use_container_width=True, key="btn_cancel_screening"):
+            if st.button("Stop", type="secondary", use_container_width=True, key="btn_cancel_screening"):
                 sc_worker.cancel()
                 st.toast("스크리닝 중단 요청을 전송했습니다.")
                 st.rerun()
