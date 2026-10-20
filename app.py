@@ -244,10 +244,10 @@ st.markdown("""
     }
     .st-key-top_nav_bar {
         margin-top: 0px !important;
-        margin-bottom: 16px !important;
+        margin-bottom: 8px !important;
         padding-top: 2px !important;
-        padding-bottom: 8px !important;
-        min-height: 44px !important;
+        padding-bottom: 4px !important;
+        min-height: 38px !important;
         position: relative !important;
         z-index: 20 !important;
         clear: both !important;
@@ -570,8 +570,8 @@ st.markdown("""
     /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (React Aria & BaseWeb 완벽 대응) */
     div[data-testid="stTabs"],
     .stTabs {
-        margin-top: 10px !important;
-        margin-bottom: 8px !important;
+        margin-top: 4px !important;
+        margin-bottom: 6px !important;
         position: relative !important;
         z-index: 10 !important;
         clear: both !important;
@@ -590,13 +590,19 @@ st.markdown("""
         min-height: 40px !important;
         box-sizing: border-box !important;
     }
-    /* Expander 독립 배치: 상단 요소(탭/헤더)와 충돌 및 겹침 방지 (간격 50% 최적화) */
+    /* Expander 독립 배치: 인접 박스 간격 50% 축소 최적화 */
     div[data-testid="stExpander"] {
-        margin-top: 8px !important;
-        margin-bottom: 8px !important;
+        margin-top: 4px !important;
+        margin-bottom: 4px !important;
         position: relative !important;
         z-index: 5 !important;
         clear: both !important;
+    }
+    div[data-testid="stElementContainer"]:has(div[data-testid="stExpander"]) {
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
     }
     /* 기본 언더라인 및 인디케이터 완전 제거 */
     div[data-testid="stTabs"] [role="tablist"]::after,
@@ -1105,9 +1111,9 @@ st.markdown("""
         /* Top Nav Bar Mobile: Row 1 = Logo, Row 2 = 일시 (Clock), Row 3 = 동기화 버튼 (일시 바로 밑으로 배치) */
         .st-key-top_nav_bar {
             margin-top: 0px !important;
-            margin-bottom: 14px !important;
+            margin-bottom: 8px !important;
             padding-top: 0px !important;
-            padding-bottom: 8px !important;
+            padding-bottom: 4px !important;
             position: relative !important;
             z-index: 20 !important;
             clear: both !important;
@@ -1219,8 +1225,8 @@ st.markdown("""
         /* Mobile Tabs: Positioned cleanly below clock/sync row without overlap */
         div[data-testid="stTabs"],
         .stTabs {
-            margin-top: 10px !important;
-            margin-bottom: 8px !important;
+            margin-top: 4px !important;
+            margin-bottom: 6px !important;
             position: relative !important;
             z-index: 10 !important;
             clear: both !important;
@@ -1668,8 +1674,8 @@ with st.container(key="top_nav_bar"):
             task_badge = f'<span style="font-size:0.72rem; color:#1D4ED8; background:#EFF6FF; border:1px solid #93C5FD; padding:1px 6px; border-radius:4px; font-weight:700;">[스크리닝 진행중 ({_pct}%)]</span>'
 
         st.markdown(
-            '<div style="display:flex; align-items:center; gap:10px; padding:4px 0 8px 0; min-height:38px; line-height:32px; box-sizing:border-box;">'
-            '<span style="font-size:1.40rem; font-weight:800; color:#0F172A; letter-spacing:-0.5px; white-space:nowrap; display:inline-block;">Quantifi</span>'
+            '<div style="display:flex; align-items:center; gap:10px; padding:2px 0 4px 0; min-height:34px; line-height:28px; box-sizing:border-box;">'
+            '<span style="font-size:1.38rem; font-weight:800; color:#0F172A; letter-spacing:-0.5px; white-space:nowrap; display:inline-block;">Quantifi</span>'
             f'{task_badge}'
             '</div>',
             unsafe_allow_html=True
@@ -1851,8 +1857,6 @@ with st.container(key="top_nav_bar"):
             st.session_state["sc_trigger_time_sync"] = True
             st.toast("현재 시각 기준 실시간 시세, Q&A 데이터 및 스크리너 필터가 전체 동기화되었습니다.")
             st.rerun()
-
-st.markdown("<div style='height: 14px; width: 100%; clear: both; display: block;'></div>", unsafe_allow_html=True)
 
 def _safe_float_val(v, default=0.0) -> float:
     try:
