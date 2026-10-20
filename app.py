@@ -1667,16 +1667,9 @@ if os.path.exists(_FAVICON_PATH):
 with st.container(key="top_nav_bar"):
     col_top_l, col_top_mid, col_top_btn = st.columns([1.7, 2.7, 0.6], vertical_alignment="center")
     with col_top_l:
-        task_badge = ""
-        if sc_worker.is_running():
-            _w_st = sc_worker.get_status()
-            _pct = int(_w_st["progress"] * 100)
-            task_badge = f'<span style="font-size:0.72rem; color:#1D4ED8; background:#EFF6FF; border:1px solid #93C5FD; padding:1px 6px; border-radius:4px; font-weight:700;">[스크리닝 진행중 ({_pct}%)]</span>'
-
         st.markdown(
             '<div style="display:flex; align-items:center; gap:10px; padding:2px 0 4px 0; min-height:34px; line-height:28px; box-sizing:border-box;">'
             '<span style="font-size:1.38rem; font-weight:800; color:#0F172A; letter-spacing:-0.5px; white-space:nowrap; display:inline-block;">Quantifi</span>'
-            f'{task_badge}'
             '</div>',
             unsafe_allow_html=True
         )
@@ -2836,8 +2829,14 @@ if "main_active_tab_nav" in st.session_state:
             st.session_state["main_active_tab_nav"] = main_tab_names[1]
         else:
             st.session_state["main_active_tab_nav"] = main_tab_names[0]
+else:
+    st.session_state["main_active_tab_nav"] = main_tab_names[0]
 
-tab1, tab2, tab3, tab4 = st.tabs(main_tab_names, key="main_active_tab_nav")
+_def_tab = st.session_state.get("main_active_tab_nav", main_tab_names[0])
+if _def_tab not in main_tab_names:
+    _def_tab = main_tab_names[0]
+
+tab1, tab2, tab3, tab4 = st.tabs(main_tab_names, default=_def_tab, key="main_active_tab_nav", on_change="rerun")
 
 
 def render_us_market_macro_bar():
@@ -3655,26 +3654,26 @@ with tab1:
 
     # Execution Toolbar / Progress Area
     if is_worker_running:
-        col_btn_run, col_btn_cancel = st.columns([3.8, 1.2])
-        with col_btn_run:
-            st.button("스크리닝 진행 중...", disabled=True, use_container_width=True)
-        with col_btn_cancel:
-            if st.button("Stop", type="secondary", use_container_width=True, key="btn_cancel_screening"):
-                sc_worker.cancel()
-                st.toast("스크리닝 중단 요청을 전송했습니다.")
-                st.rerun()
-
         @st.fragment(run_every="1s")
         def render_screening_live_progress():
             cur_st = sc_worker.get_status()
-            if cur_st["status"] == "RUNNING":
-                curr = cur_st["current_index"]
-                tot = cur_st["total_count"]
-                prog = cur_st["progress"]
-                stock = cur_st["current_name"]
-                st.progress(prog, text=f"전수 탐색 중 ({curr}/{tot}): {stock} (진행률 {prog*100:.1f}%)")
-            elif cur_st["status"] in ("COMPLETED", "CANCELLED", "FAILED"):
+            if cur_st["status"] in ("COMPLETED", "CANCELLED", "FAILED"):
                 st.rerun()
+
+            prog = float(cur_st.get("progress", 0.0) or 0.0)
+            pct = int(round(prog * 100))
+            screening_btn_label = f"Screening ({pct}%)"
+
+            col_btn_run, col_btn_cancel = st.columns([3.8, 1.2])
+            with col_btn_run:
+                st.button(screening_btn_label, disabled=True, use_container_width=True, key="btn_running_screening")
+            with col_btn_cancel:
+                if st.button("Stop", type="secondary", use_container_width=True, key="btn_cancel_screening"):
+                    sc_worker.cancel()
+                    st.toast("스크리닝 중단 요청을 전송했습니다.")
+                    st.rerun()
+
+            st.progress(prog)
 
         render_screening_live_progress()
 
@@ -5002,7 +5001,7 @@ def render_unified_verification_and_tuning_section():
             delta="5거래일 체결 평균"
         )
     with k4:
-        best_strat = weekly_res.get('best_strategy', '-').split('(')[0].strip() if weekly_res else '-'
+        best_strat = str(weekly_res.get('best_strategy') or '-').split('(')[0].strip() if weekly_res else '-'
         st.metric(
             "주간 최고 승률 전략",
             best_strat,
@@ -5081,5 +5080,11 @@ def render_unified_verification_and_tuning_section():
 # TAB 4: 통합 성과 검증 & AI 자가최적화 센터 (All-in-One)
 # =========================================================
 with tab4:
-    render_unified_verification_and_tuning_section()
+    try:
+        render_unified_verification_and_tuning_section()
+    except Exception as _t4_err:
+        import traceback
+        st.error(f"검증 및 최적화 센터 로딩 중 오류가 발생했습니다: {_t4_err}")
+        with st.expander("상세 오류 로그 확인", expanded=False):
+            st.code(traceback.format_exc())
 
