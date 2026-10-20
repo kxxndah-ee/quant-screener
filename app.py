@@ -244,13 +244,14 @@ st.markdown("""
     }
     .st-key-top_nav_bar {
         margin-top: 0px !important;
-        margin-bottom: 12px !important;
-        padding-top: 0px !important;
-        padding-bottom: 0px !important;
-        min-height: 34px !important;
+        margin-bottom: 36px !important;
+        padding-top: 2px !important;
+        padding-bottom: 18px !important;
+        min-height: 56px !important;
         position: relative !important;
         z-index: 20 !important;
         clear: both !important;
+        border-bottom: 1px solid #E2E8F0 !important;
     }
     .st-key-top_nav_bar iframe {
         margin-bottom: 0px !important;
@@ -569,8 +570,8 @@ st.markdown("""
     /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (React Aria & BaseWeb 완벽 대응) */
     div[data-testid="stTabs"],
     .stTabs {
-        margin-top: 10px !important;
-        margin-bottom: 14px !important;
+        margin-top: 24px !important;
+        margin-bottom: 20px !important;
         position: relative !important;
         z-index: 10 !important;
         clear: both !important;
@@ -591,8 +592,8 @@ st.markdown("""
     }
     /* Expander 독립 배치: 상단 요소(탭/헤더)와 충돌 및 겹침 방지 */
     div[data-testid="stExpander"] {
-        margin-top: 8px !important;
-        margin-bottom: 10px !important;
+        margin-top: 24px !important;
+        margin-bottom: 16px !important;
         position: relative !important;
         z-index: 5 !important;
         clear: both !important;
@@ -1104,12 +1105,13 @@ st.markdown("""
         /* Top Nav Bar Mobile: Row 1 = Logo, Row 2 = 일시 (Clock), Row 3 = 동기화 버튼 (일시 바로 밑으로 배치) */
         .st-key-top_nav_bar {
             margin-top: 0px !important;
-            margin-bottom: 12px !important;
+            margin-bottom: 28px !important;
             padding-top: 0px !important;
-            padding-bottom: 0px !important;
+            padding-bottom: 16px !important;
             position: relative !important;
             z-index: 20 !important;
             clear: both !important;
+            border-bottom: 1px solid #E2E8F0 !important;
         }
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"],
         div[data-testid="stHorizontalBlock"]:has(.st-key-btn_top_time_sync) {
@@ -1217,8 +1219,8 @@ st.markdown("""
         /* Mobile Tabs: Positioned cleanly below clock/sync row without overlap */
         div[data-testid="stTabs"],
         .stTabs {
-            margin-top: 10px !important;
-            margin-bottom: 12px !important;
+            margin-top: 22px !important;
+            margin-bottom: 16px !important;
             position: relative !important;
             z-index: 10 !important;
             clear: both !important;
@@ -1666,8 +1668,8 @@ with st.container(key="top_nav_bar"):
             task_badge = f'<span style="font-size:0.72rem; color:#1D4ED8; background:#EFF6FF; border:1px solid #93C5FD; padding:1px 6px; border-radius:4px; font-weight:700;">[스크리닝 진행중 ({_pct}%)]</span>'
 
         st.markdown(
-            '<div style="display:flex; align-items:center; gap:8px; padding:0; min-height:32px; line-height:32px;">'
-            '<span style="font-size:1.32rem; font-weight:800; color:#0F172A; letter-spacing:-0.5px; white-space:nowrap; display:inline-block;">Quantifi</span>'
+            '<div style="display:flex; align-items:center; gap:10px; padding:6px 0 16px 0; min-height:48px; line-height:36px; box-sizing:border-box;">'
+            '<span style="font-size:1.42rem; font-weight:800; color:#0F172A; letter-spacing:-0.5px; white-space:nowrap; display:inline-block;">Quantifi</span>'
             f'{task_badge}'
             '</div>',
             unsafe_allow_html=True
@@ -1844,11 +1846,13 @@ with st.container(key="top_nav_bar"):
                     st.session_state[_k] = {}
                 if _k.startswith("qa_active_ans_") or _k.startswith("quant_active_ans_"):
                     st.session_state.pop(_k, None)
+            st.session_state["sc_scope_sel"] = "전 상장사 전수조사 (약 2,700개)"
+            st.session_state.pop("sc_user_explicitly_chose_300", None)
             st.session_state["sc_trigger_time_sync"] = True
             st.toast("현재 시각 기준 실시간 시세, Q&A 데이터 및 스크리너 필터가 전체 동기화되었습니다.")
             st.rerun()
 
-st.markdown("<div style='height: 14px; width: 100%; clear: both;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height: 32px; width: 100%; clear: both; display: block;'></div>", unsafe_allow_html=True)
 
 def _safe_float_val(v, default=0.0) -> float:
     try:
@@ -2860,6 +2864,7 @@ def render_us_market_macro_bar():
         f"| 체제: {regime}"
     )
 
+    st.markdown("<div style='height: 14px; clear: both; display: block;'></div>", unsafe_allow_html=True)
     with st.expander(title_summary, expanded=True):
         top_c1, top_c2 = st.columns([4.2, 1.2])
         with top_c1:
@@ -3235,12 +3240,14 @@ with tab1:
     if "sc_mode_scopes" not in st.session_state:
         st.session_state["sc_mode_scopes"] = {}
 
-    # Initialize/migrate default scope to full universe investigation for all strategy modes
-    if not st.session_state.get("sc_default_full_scope_v4"):
-        st.session_state["sc_scope_sel"] = full_scope_default
-        for _m in sc_mode_options:
+    # Always enforce default scope to full universe investigation for all strategy modes
+    for _m in sc_mode_options:
+        if _m not in st.session_state["sc_mode_scopes"] or "300선" in str(st.session_state["sc_mode_scopes"].get(_m, "")):
             st.session_state["sc_mode_scopes"][_m] = full_scope_default
-        st.session_state["sc_default_full_scope_v4"] = True
+
+    # Ensure sc_scope_sel always defaults to full_scope_default
+    if "sc_scope_sel" not in st.session_state or ("300선" in str(st.session_state.get("sc_scope_sel", "")) and not st.session_state.get("sc_user_explicitly_chose_300")):
+        st.session_state["sc_scope_sel"] = full_scope_default
 
     # Mode switch detection: ensure newly selected mode defaults to full_scope_default
     if st.session_state.get("sc_active_mode_tracked") != sc_mode:
@@ -3252,7 +3259,7 @@ with tab1:
             st.session_state[f"sc_{_k}"] = _v
             if _k == "min_daytrade_val_b":
                 st.session_state["sc_min_daytrade_val"] = _v
-        if "sc_scope_sel" not in st.session_state:
+        if "sc_scope_sel" not in st.session_state or ("300선" in str(st.session_state.get("sc_scope_sel", "")) and not st.session_state.get("sc_user_explicitly_chose_300")):
             st.session_state["sc_scope_sel"] = full_scope_default
         st.session_state["sc_last_applied_strat_slot"] = cur_strat_slot_id
         st.session_state["sc_trigger_time_sync"] = False
@@ -3502,12 +3509,26 @@ with tab1:
                 "실시간 급등·주도주 300선 (상승률+거래대금 상위)",
                 "내 관심종목 138선 (초고속)"
             ]
-            if st.session_state.get("sc_scope_sel") not in scope_options:
+            if (
+                st.session_state.get("sc_scope_sel") not in scope_options
+                or ("300선" in str(st.session_state.get("sc_scope_sel", "")) and not st.session_state.get("sc_user_explicitly_chose_300"))
+            ):
                 st.session_state["sc_scope_sel"] = scope_options[0]
+
+            def _on_scope_change():
+                _cur = st.session_state.get("sc_scope_sel")
+                if "300선" in str(_cur):
+                    st.session_state["sc_user_explicitly_chose_300"] = True
+                else:
+                    st.session_state.pop("sc_user_explicitly_chose_300", None)
+                if "sc_mode_scopes" in st.session_state:
+                    st.session_state["sc_mode_scopes"][sc_mode] = _cur
+
             sc_scope = st.selectbox(
                 "탐색 대상 범위",
                 scope_options,
-                key="sc_scope_sel"
+                key="sc_scope_sel",
+                on_change=_on_scope_change
             )
             if "sc_mode_scopes" in st.session_state:
                 st.session_state["sc_mode_scopes"][sc_mode] = sc_scope
