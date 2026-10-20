@@ -244,9 +244,13 @@ st.markdown("""
     }
     .st-key-top_nav_bar {
         margin-top: 0px !important;
-        margin-bottom: 8px !important;
+        margin-bottom: 12px !important;
         padding-top: 0px !important;
         padding-bottom: 0px !important;
+        min-height: 34px !important;
+        position: relative !important;
+        z-index: 20 !important;
+        clear: both !important;
     }
     .st-key-top_nav_bar iframe {
         margin-bottom: 0px !important;
@@ -265,7 +269,7 @@ st.markdown("""
     .st-key-top_nav_bar [data-testid="stMarkdownContainer"] p {
         margin: 0 !important;
         padding: 0 !important;
-        line-height: 28px !important;
+        line-height: 32px !important;
     }
     /* PC 데스크톱: 시간 박스와 동기화 버튼을 6px 간격으로 나란히 밀착 배치 */
     @media (min-width: 769px) {
@@ -565,8 +569,11 @@ st.markdown("""
     /* 1~4번 탭 고대비 세그먼트 카드 내비게이션 스타일 (React Aria & BaseWeb 완벽 대응) */
     div[data-testid="stTabs"],
     .stTabs {
-        margin-top: 6px !important;
-        margin-bottom: 8px !important;
+        margin-top: 10px !important;
+        margin-bottom: 14px !important;
+        position: relative !important;
+        z-index: 10 !important;
+        clear: both !important;
     }
     div[data-testid="stTabs"] [role="tablist"],
     .stTabs [role="tablist"],
@@ -579,6 +586,16 @@ st.markdown("""
         display: flex !important;
         flex-wrap: nowrap !important;
         align-items: stretch !important;
+        min-height: 40px !important;
+        box-sizing: border-box !important;
+    }
+    /* Expander 독립 배치: 상단 요소(탭/헤더)와 충돌 및 겹침 방지 */
+    div[data-testid="stExpander"] {
+        margin-top: 8px !important;
+        margin-bottom: 10px !important;
+        position: relative !important;
+        z-index: 5 !important;
+        clear: both !important;
     }
     /* 기본 언더라인 및 인디케이터 완전 제거 */
     div[data-testid="stTabs"] [role="tablist"]::after,
@@ -1087,9 +1104,12 @@ st.markdown("""
         /* Top Nav Bar Mobile: Row 1 = Logo, Row 2 = 일시 (Clock), Row 3 = 동기화 버튼 (일시 바로 밑으로 배치) */
         .st-key-top_nav_bar {
             margin-top: 0px !important;
-            margin-bottom: 8px !important;
+            margin-bottom: 12px !important;
             padding-top: 0px !important;
             padding-bottom: 0px !important;
+            position: relative !important;
+            z-index: 20 !important;
+            clear: both !important;
         }
         .st-key-top_nav_bar [data-testid="stHorizontalBlock"],
         div[data-testid="stHorizontalBlock"]:has(.st-key-btn_top_time_sync) {
@@ -1197,8 +1217,11 @@ st.markdown("""
         /* Mobile Tabs: Positioned cleanly below clock/sync row without overlap */
         div[data-testid="stTabs"],
         .stTabs {
-            margin-top: 8px !important;
-            margin-bottom: 8px !important;
+            margin-top: 10px !important;
+            margin-bottom: 12px !important;
+            position: relative !important;
+            z-index: 10 !important;
+            clear: both !important;
         }
         div[data-testid="stTabs"] [role="tablist"],
         .stTabs [role="tablist"],
@@ -1643,8 +1666,8 @@ with st.container(key="top_nav_bar"):
             task_badge = f'<span style="font-size:0.72rem; color:#1D4ED8; background:#EFF6FF; border:1px solid #93C5FD; padding:1px 6px; border-radius:4px; font-weight:700;">[스크리닝 진행중 ({_pct}%)]</span>'
 
         st.markdown(
-            '<div style="display:flex; align-items:center; gap:8px; padding:0; line-height:28px;">'
-            '<span style="font-size:1.32rem; font-weight:800; color:#0F172A; letter-spacing:-0.5px; white-space:nowrap;">Quantifi</span>'
+            '<div style="display:flex; align-items:center; gap:8px; padding:0; min-height:32px; line-height:32px;">'
+            '<span style="font-size:1.32rem; font-weight:800; color:#0F172A; letter-spacing:-0.5px; white-space:nowrap; display:inline-block;">Quantifi</span>'
             f'{task_badge}'
             '</div>',
             unsafe_allow_html=True
