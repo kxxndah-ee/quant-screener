@@ -1848,6 +1848,8 @@ with st.container(key="top_nav_bar"):
             st.toast("현재 시각 기준 실시간 시세, Q&A 데이터 및 스크리너 필터가 전체 동기화되었습니다.")
             st.rerun()
 
+st.markdown("<div style='height: 14px; width: 100%; clear: both;'></div>", unsafe_allow_html=True)
+
 def _safe_float_val(v, default=0.0) -> float:
     try:
         if v is None:
@@ -3229,10 +3231,21 @@ with tab1:
     now_str = get_now_kst().strftime("%H:%M")
     cur_strat_slot_id = f"{sc_mode}_{rec_time['slot_id']}"
 
-    fast_scope_default = "실시간 급등·주도주 300선 (상승률+거래대금 상위 / 강력 권장)"
-    if not st.session_state.get("sc_default_fast_scope_v2"):
-        st.session_state["sc_scope_sel"] = fast_scope_default
-        st.session_state["sc_default_fast_scope_v2"] = True
+    full_scope_default = "전 상장사 전수조사 (약 2,700개)"
+    if "sc_mode_scopes" not in st.session_state:
+        st.session_state["sc_mode_scopes"] = {}
+
+    # Initialize/migrate default scope to full universe investigation for all strategy modes
+    if not st.session_state.get("sc_default_full_scope_v4"):
+        st.session_state["sc_scope_sel"] = full_scope_default
+        for _m in sc_mode_options:
+            st.session_state["sc_mode_scopes"][_m] = full_scope_default
+        st.session_state["sc_default_full_scope_v4"] = True
+
+    # Mode switch detection: ensure newly selected mode defaults to full_scope_default
+    if st.session_state.get("sc_active_mode_tracked") != sc_mode:
+        st.session_state["sc_active_mode_tracked"] = sc_mode
+        st.session_state["sc_scope_sel"] = st.session_state["sc_mode_scopes"].get(sc_mode, full_scope_default)
 
     if "sc_last_applied_strat_slot" not in st.session_state or st.session_state.get("sc_trigger_time_sync") or st.session_state.get("sc_last_applied_strat_slot") != cur_strat_slot_id:
         for _k, _v in rec_time["params"].items():
@@ -3240,7 +3253,7 @@ with tab1:
             if _k == "min_daytrade_val_b":
                 st.session_state["sc_min_daytrade_val"] = _v
         if "sc_scope_sel" not in st.session_state:
-            st.session_state["sc_scope_sel"] = fast_scope_default
+            st.session_state["sc_scope_sel"] = full_scope_default
         st.session_state["sc_last_applied_strat_slot"] = cur_strat_slot_id
         st.session_state["sc_trigger_time_sync"] = False
 
@@ -3449,8 +3462,8 @@ with tab1:
             else:
                 st.caption("Point-in-Time 스코어링 엔진으로 전체 상장 유니버스를 일괄 스크리닝하고 테마 집중 위험을 감지합니다. (권장: 최소 스코어 65점↑, 거래량 급증 1.5배↑)")
 
-    # 2) 전 전략 모드 공통 스크리너 필터 파라미터 툴바 (초고속 300선 기본 세팅 & 접기 적용)
-    with st.expander(f"[스크리너 필터 설정] {st.session_state.get('sc_scope_sel', fast_scope_default)} · {now_str} {rec_time['slot_name']} ({rec_time['badge_desc']} 자동 세팅됨)", expanded=False):
+    # 2) 전 전략 모드 공통 스크리너 필터 파라미터 툴바 (전수조사 기본 세팅 & 접기 적용)
+    with st.expander(f"[스크리너 필터 설정] {st.session_state.get('sc_scope_sel', full_scope_default)} · {now_str} {rec_time['slot_name']} ({rec_time['badge_desc']} 자동 세팅됨)", expanded=False):
         f_hdr_c1, f_hdr_c2 = st.columns([4.2, 1.3])
         with f_hdr_c1:
             st.markdown(
@@ -3467,7 +3480,9 @@ with tab1:
                     st.session_state[f"sc_{_k}"] = _v
                     if _k == "min_daytrade_val_b":
                         st.session_state["sc_min_daytrade_val"] = _v
-                st.session_state.setdefault("sc_scope_sel", fast_scope_default)
+                st.session_state["sc_scope_sel"] = full_scope_default
+                if "sc_mode_scopes" in st.session_state:
+                    st.session_state["sc_mode_scopes"][sc_mode] = full_scope_default
                 st.session_state["sc_trigger_time_sync"] = True
                 st.toast(f"현재 시각({now_str}) {sc_mode} 권장 설정이 자동 적용되었습니다.")
                 st.rerun()
@@ -3483,8 +3498,8 @@ with tab1:
             )
         with sc_c2:
             scope_options = [
-                "실시간 급등·주도주 300선 (상승률+거래대금 상위 / 강력 권장)",
                 "전 상장사 전수조사 (약 2,700개)",
+                "실시간 급등·주도주 300선 (상승률+거래대금 상위)",
                 "내 관심종목 138선 (초고속)"
             ]
             if st.session_state.get("sc_scope_sel") not in scope_options:
@@ -3494,6 +3509,8 @@ with tab1:
                 scope_options,
                 key="sc_scope_sel"
             )
+            if "sc_mode_scopes" in st.session_state:
+                st.session_state["sc_mode_scopes"][sc_mode] = sc_scope
 
         if "당일 단타" in sc_mode:
             with sc_c3:
@@ -3679,7 +3696,7 @@ with tab1:
             st.markdown(
                 f"<div style='font-size:0.80rem; line-height:1.5; color:#334155; background-color:#f8fafc; padding:8px 12px; border-radius:4px; border-left:3px solid #64748b;'>"
                 f"<strong>해결 방법 가이드</strong>:<br>"
-                f"• <strong>탐색 대상 범위 변경</strong>: '내 관심종목 138선'에 오늘 급등주가 없다면, 탐색 대상을 <strong>'주도주/우량주 300선 (권장)'</strong> 또는 <strong>'전 상장사 전수조사'</strong>로 변경 후 재실행해보세요.<br>"
+                f"• <strong>탐색 대상 범위 확인</strong>: '내 관심종목 138선'에 오늘 급등주가 없다면, 탐색 대상을 기본 권장값인 <strong>'전 상장사 전수조사 (약 2,700개)'</strong>로 설정하거나 <strong>'주도주 300선'</strong>으로 변경 후 재실행해보세요.<br>"
                 f"• <strong>스크리닝 시장</strong>: 코스닥 테마 급등주를 함께 탐색하려면 <strong>'스크리닝 시장: 전체'</strong>로 설정하세요.<br>"
                 f"• <strong>필터 기준 완화</strong>: 당일 최소 거래대금을 <strong>200억~300억 원</strong>, 최소 상승률을 <strong>10%</strong> 수준으로 1단계 완화해보세요."
                 f"</div>",
