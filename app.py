@@ -868,6 +868,9 @@ st.markdown("""
     }
 
     /* Compact Single-Row Question Buttons: Zero scrollbar, clean single row */
+    div[class*="st-key-qa_btns"] {
+        margin-top: 8px !important;
+    }
     div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="stHorizontalBlock"],
     .stVerticalBlock:has(.compact-qa-buttons) .stHorizontalBlock,
     div[class*="st-key-qa_btns"] div[data-testid="stHorizontalBlock"],
@@ -886,7 +889,7 @@ st.markdown("""
     div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div[data-testid="stHorizontalBlock"]::-webkit-scrollbar,
     .stVerticalBlock:has(.compact-qa-buttons) .stHorizontalBlock::-webkit-scrollbar,
     div[class*="st-key-qa_btns"] *::-webkit-scrollbar,
-    div[class*="st-key-qa_panel"] *::-webkit-scrollbar {
+    div[class*="st-key-qa_panel"] div[class*="st-key-qa_btns"] *::-webkit-scrollbar {
         display: none !important;
         width: 0 !important;
         height: 0 !important;
@@ -896,8 +899,7 @@ st.markdown("""
     .stVerticalBlock:has(.compact-qa-buttons) .stColumn,
     div[class*="st-key-qa_btns"] div[data-testid="stColumn"],
     div[class*="st-key-qa_btns"] .stColumn,
-    div[class*="st-key-qa_panel"] .stHorizontalBlock div[data-testid="stColumn"],
-    div[class*="st-key-qa_panel"] .stHorizontalBlock .stColumn {
+    div[class*="st-key-qa_panel"] div[class*="st-key-qa_btns"] div[data-testid="stColumn"] {
         min-width: 0 !important;
         flex: 1 1 0% !important;
         padding: 0 !important;
@@ -905,7 +907,7 @@ st.markdown("""
     div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div.stButton > button,
     .stVerticalBlock:has(.compact-qa-buttons) div.stButton > button,
     div[class*="st-key-qa_btns"] .stButton > button,
-    div[class*="st-key-qa_panel"] .stHorizontalBlock .stButton > button {
+    div[class*="st-key-qa_panel"] div[class*="st-key-qa_btns"] .stButton > button {
         padding: 0.20rem 0.25rem !important;
         min-height: 1.85rem !important;
         height: 1.85rem !important;
@@ -915,7 +917,7 @@ st.markdown("""
     div[data-testid="stVerticalBlock"]:has(.compact-qa-buttons) div.stButton > button p,
     .stVerticalBlock:has(.compact-qa-buttons) div.stButton > button p,
     div[class*="st-key-qa_btns"] .stButton > button p,
-    div[class*="st-key-qa_panel"] .stHorizontalBlock .stButton > button p {
+    div[class*="st-key-qa_panel"] div[class*="st-key-qa_btns"] .stButton > button p {
         font-size: 0.74rem !important;
         font-weight: 600 !important;
         white-space: nowrap !important;
@@ -2181,9 +2183,9 @@ def render_quant_analyst_qa_box(stock_row, key_suffix=""):
             strat_v = stock_dict.get('strategy_tag', '')
             price_str = f" {close_v:,.0f}원 ({chg_v:+.2f}%)" if close_v > 0 else ""
             st.markdown(
-                f"<div style='padding:6px 0 2px 2px;'>"
-                f"<div style='font-size:0.92rem; font-weight:700; color:#1E293B; line-height:1.3;'>{name} ({code})<span style='font-weight:600; color:#0284C7; margin-left:6px;'>{price_str}</span></div>"
-                f"<div style='font-size:0.75rem; color:#64748B; margin-top:3px;'>전략: {strat_v} | 스코어: {score_v:.1f}점 | 전일비 거래량: {vol_v:.1f}배 | RSI: {rsi_v:.1f}</div>"
+                f"<div style='padding:4px 0 10px 2px;'>"
+                f"<div style='font-size:0.92rem; font-weight:700; color:#1E293B; line-height:1.4;'>{name} ({code})<span style='font-weight:600; color:#0284C7; margin-left:6px;'>{price_str}</span></div>"
+                f"<div style='font-size:0.76rem; color:#64748B; margin-top:4px; line-height:1.4; display:block;'>전략: {strat_v} | 스코어: {score_v:.1f}점 | 전일비 거래량: {vol_v:.1f}배 | RSI: {rsi_v:.1f}</div>"
                 f"</div>",
                 unsafe_allow_html=True
             )
