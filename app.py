@@ -3537,6 +3537,21 @@ with tab1:
             if "sc_mode_scopes" in st.session_state:
                 st.session_state["sc_mode_scopes"][sc_mode] = sc_scope
 
+        # Default parameter pre-initialization
+        min_daytrade_val_b = 100
+        intraday_gain_range = (2.5, 12.0)
+        min_daytrade_vol_ratio = 0.5
+        min_val_krw_b = 100
+        max_disparity_val = 103.5
+        ignore_market_filter = False
+        min_today_val_b = 200
+        min_day_ret_val = 3.0
+        min_surge_val_b = 200
+        min_day_surge_pct = 8.0
+        min_screener_score = 65.0
+        min_vol_surge = 1.5
+        require_ma_align = True
+
         if "당일 단타" in sc_mode:
             with sc_c3:
                 val_options = [50, 100, 150, 200, 300]
@@ -3636,49 +3651,76 @@ with tab1:
         df_worker_res = worker_st.get("results_df")
         if df_worker_res is not None:
             st.session_state["screened_results_df"] = df_worker_res
-            st.session_state["screened_mode_label"] = worker_st["mode_label"]
-            st.session_state.setdefault("screened_cache_by_mode", {})[worker_st["mode_label"]] = df_worker_res
+            st.session_state["screened_mode_label"] = worker_st.get("mode_label", "선택 전략")
+            st.session_state.setdefault("screened_cache_by_mode", {})[worker_st.get("mode_label", "선택 전략")] = df_worker_res
             st.session_state["screened_is_empty_result"] = df_worker_res.empty
-            sc_worker.reset_status()
             if not df_worker_res.empty:
                 st.toast(f"스크리닝 완료! 총 {len(df_worker_res):,}개 종목 발굴")
-            st.rerun()
+        sc_worker.reset_status()
+        is_worker_running = False
 
     # If worker was cancelled, notify and reset
-    if worker_st["status"] == "CANCELLED":
+    elif worker_st["status"] == "CANCELLED":
         st.warning("사용자 요청에 의해 스크리닝이 중단되었습니다.")
         sc_worker.reset_status()
+        is_worker_running = False
 
     # If worker failed, notify and reset
-    if worker_st["status"] == "FAILED":
+    elif worker_st["status"] == "FAILED":
         st.error(f"스크리닝 중 오류가 발생했습니다: {worker_st.get('error_message', '알 수 없는 오류')}")
         sc_worker.reset_status()
+        is_worker_running = False
+
+    # Statically define live progress fragment
+    @st.fragment(run_every="1s")
+    def render_screening_live_progress():
+        cur_st = sc_worker.get_status()
+        st_status = cur_st.get("status")
+
+        if st_status == "COMPLETED":
+            df_res = cur_st.get("results_df")
+            if df_res is not None:
+                st.session_state["screened_results_df"] = df_res
+                st.session_state["screened_mode_label"] = cur_st.get("mode_label", "선택 전략")
+                st.session_state.setdefault("screened_cache_by_mode", {})[cur_st.get("mode_label", "선택 전략")] = df_res
+                st.session_state["screened_is_empty_result"] = df_res.empty
+                if not df_res.empty:
+                    st.toast(f"스크리닝 완료! 총 {len(df_res):,}개 종목 발굴")
+            sc_worker.reset_status()
+            st.rerun(scope="app")
+            return
+
+        if st_status == "CANCELLED":
+            st.warning("사용자 요청에 의해 스크리닝이 중단되었습니다.")
+            sc_worker.reset_status()
+            st.rerun(scope="app")
+            return
+
+        if st_status == "FAILED":
+            st.error(f"스크리닝 중 오류가 발생했습니다: {cur_st.get('error_message', '알 수 없는 오류')}")
+            sc_worker.reset_status()
+            st.rerun(scope="app")
+            return
+
+        prog = float(cur_st.get("progress", 0.0) or 0.0)
+        pct = int(round(prog * 100))
+        screening_btn_label = f"Screening ({pct}%)"
+
+        col_btn_run, col_btn_cancel = st.columns([3.8, 1.2])
+        with col_btn_run:
+            st.button(screening_btn_label, disabled=True, use_container_width=True, key="btn_running_screening")
+        with col_btn_cancel:
+            if st.button("Stop", type="secondary", use_container_width=True, key="btn_cancel_screening"):
+                sc_worker.cancel()
+                st.toast("스크리닝 중단 요청을 전송했습니다.")
+                sc_worker.reset_status()
+                st.rerun(scope="app")
+
+        st.progress(prog)
 
     # Execution Toolbar / Progress Area
     if is_worker_running:
-        @st.fragment(run_every="1s")
-        def render_screening_live_progress():
-            cur_st = sc_worker.get_status()
-            if cur_st["status"] in ("COMPLETED", "CANCELLED", "FAILED"):
-                st.rerun()
-
-            prog = float(cur_st.get("progress", 0.0) or 0.0)
-            pct = int(round(prog * 100))
-            screening_btn_label = f"Screening ({pct}%)"
-
-            col_btn_run, col_btn_cancel = st.columns([3.8, 1.2])
-            with col_btn_run:
-                st.button(screening_btn_label, disabled=True, use_container_width=True, key="btn_running_screening")
-            with col_btn_cancel:
-                if st.button("Stop", type="secondary", use_container_width=True, key="btn_cancel_screening"):
-                    sc_worker.cancel()
-                    st.toast("스크리닝 중단 요청을 전송했습니다.")
-                    st.rerun()
-
-            st.progress(prog)
-
         render_screening_live_progress()
-
     else:
         if st.button("Screening", type="primary", use_container_width=True, key="btn_run_screener"):
             st.session_state["screened_is_empty_result"] = False
